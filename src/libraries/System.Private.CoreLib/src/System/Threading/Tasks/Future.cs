@@ -532,6 +532,17 @@ namespace System.Threading.Tasks
             return new ConfiguredTaskAwaitable<TResult>(this, continueOnCapturedContext);
         }
 
+        /// <summary>Configures an awaiter used to await this <see cref="System.Threading.Tasks.Task"/>.</summary>
+        /// <param name="awaitBehavior">
+        /// true to attempt to marshal the continuation back to the original context captured; otherwise, false.
+        /// </param>
+        /// <returns>An object used to await this task.</returns>
+        public new ConfiguredCancelableTaskAwaitable<TResult> ConfigureAwait(AwaitBehavior awaitBehavior)
+        {
+            return new ConfiguredCancelableTaskAwaitable<TResult>(this, awaitBehavior);
+        }
+
+
         #endregion
 
         #region Continuation methods

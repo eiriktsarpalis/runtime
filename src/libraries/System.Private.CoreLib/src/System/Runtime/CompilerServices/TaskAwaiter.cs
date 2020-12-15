@@ -117,7 +117,7 @@ namespace System.Runtime.CompilerServices
             {
                 // If either the end await bit is set or we're not completed successfully,
                 // fall back to the slower path.
-                HandleNonSuccessAndDebuggerNotification(task);
+                HandleNonSuccessAndDebuggerNotification(task, AwaitBehavior.Flags.Default);
             }
         }
 
@@ -126,8 +126,9 @@ namespace System.Runtime.CompilerServices
         /// the await on the task, and throws an exception if the task did not complete successfully.
         /// </summary>
         /// <param name="task">The awaited task.</param>
+        /// <param name="awaitBehavior"></param>
         [StackTraceHidden]
-        private static void HandleNonSuccessAndDebuggerNotification(Task task)
+        private static void HandleNonSuccessAndDebuggerNotification(Task task, AwaitBehavior.Flags awaitBehavior)
         {
             // NOTE: The JIT refuses to inline ValidateEnd when it contains the contents
             // of HandleNonSuccessAndDebuggerNotification, hence the separation.
@@ -146,15 +147,39 @@ namespace System.Runtime.CompilerServices
             task.NotifyDebuggerOfWaitCompletionIfNecessary();
 
             // And throw an exception if the task is faulted or canceled.
-            if (!task.IsCompletedSuccessfully) ThrowForNonSuccess(task);
+            if (!task.IsCompletedSuccessfully) ThrowForNonSuccess(task, awaitBehavior);
         }
+
+        /// <summary>
+        /// Fast checks for the end of an await operation to determine whether more needs to be done
+        /// prior to completing the await.
+        /// </summary>
+        /// <param name="task">The awaited task.</param>
+        /// <param name="awaitBehavior"></param>
+        [StackTraceHidden]
+        internal static void ValidateEnd(Task task, AwaitBehavior.Flags awaitBehavior)
+        {
+            // Fast checks that can be inlined.
+            if (task.IsWaitNotificationEnabledOrNotRanToCompletion)
+            {
+                // If either the end await bit is set or we're not completed successfully,
+                // fall back to the slower path.
+                HandleNonSuccessAndDebuggerNotification(task, awaitBehavior);
+            }
+        }
+
 
         /// <summary>Throws an exception to handle a task that completed in a state other than RanToCompletion.</summary>
         [StackTraceHidden]
-        private static void ThrowForNonSuccess(Task task)
+        private static void ThrowForNonSuccess(Task task, AwaitBehavior.Flags awaitBehavior)
         {
             Debug.Assert(task.IsCompleted, "Task must have been completed by now.");
             Debug.Assert(task.Status != TaskStatus.RanToCompletion, "Task should not be completed successfully.");
+
+            if ((awaitBehavior & AwaitBehavior.Flags.SuppressExceptions) == AwaitBehavior.Flags.SuppressExceptions)
+            {
+                return;
+            }
 
             // Handle whether the task has been canceled or faulted
             switch (task.Status)
@@ -306,6 +331,18 @@ namespace System.Runtime.CompilerServices
                         EventSource.SetCurrentThreadActivityId(prevActivityId);
                 }
             }, task);
+        }
+
+        internal static uint GetTimeoutMilliseconds(TimeSpan timeout)
+        {
+            long totalMilliseconds = (long)timeout.TotalMilliseconds;
+            if (totalMilliseconds < -1 || totalMilliseconds > Timer.MaxSupportedTimeout)
+            {
+                // TODO: change exception message
+                ThrowHelper.ThrowArgumentOutOfRangeException(ExceptionArgument.timeout, ExceptionResource.Task_Delay_InvalidDelay);
+            }
+
+            return (uint)totalMilliseconds;
         }
     }
 
@@ -549,6 +586,200 @@ namespace System.Runtime.CompilerServices
             {
                 TaskAwaiter.ValidateEnd(m_task);
                 return m_task.ResultOnSuccess;
+            }
+        }
+    }
+
+    /// <summary>Provides an awaitable object that allows for configured awaits on <see cref="System.Threading.Tasks.Task"/>.</summary>
+    /// <remarks>This type is intended for compiler use only.</remarks>
+    public readonly struct ConfiguredCancelableTaskAwaitable
+    {
+        /// <summary>The task being awaited.</summary>
+        private readonly Task m_task;
+        private readonly AwaitBehavior m_awaitBehavior;
+
+        /// <summary>Initializes the <see cref="ConfiguredTaskAwaitable"/>.</summary>
+        /// <param name="task">The awaitable <see cref="System.Threading.Tasks.Task"/>.</param>
+        /// <param name="awaitBehavior">
+        /// true to attempt to marshal the continuation back to the original context captured; otherwise, false.
+        /// </param>
+        internal ConfiguredCancelableTaskAwaitable(Task task, AwaitBehavior awaitBehavior)
+        {
+            Debug.Assert(task != null, "Constructing an awaitable requires a task to await.");
+            m_task = task;
+            m_awaitBehavior = awaitBehavior;
+        }
+
+        /// <summary>Gets an awaiter for this awaitable.</summary>
+        /// <returns>The awaiter.</returns>
+        public ConfiguredCancelableTaskAwaitable.ConfiguredCancelableTaskAwaiter GetAwaiter()
+        {
+            var awaiterTask = Task.WithCancellation(m_task, m_awaitBehavior.CancellationToken, m_awaitBehavior.MillisecondTimeout);
+            return new ConfiguredCancelableTaskAwaiter(awaiterTask, m_awaitBehavior.AwaitFlags);
+        }
+
+        /// <summary>Provides an awaiter for a <see cref="ConfiguredTaskAwaitable"/>.</summary>
+        /// <remarks>This type is intended for compiler use only.</remarks>
+        public readonly struct ConfiguredCancelableTaskAwaiter : ICriticalNotifyCompletion, IConfiguredCancelableTaskAwaiter
+        {
+            // WARNING: Unsafe.As is used to access the generic ConfiguredCancelableTaskAwaiter as this.
+            // Its layout must remain the same.
+
+            /// <summary>The task being awaited.</summary>
+            internal readonly Task m_task;
+            /// <summary>Whether to attempt marshaling back to the original context.</summary>
+            internal readonly AwaitBehavior.Flags m_awaitFlags;
+
+            /// <summary>Initializes the <see cref="ConfiguredCancelableTaskAwaiter"/>.</summary>
+            /// <param name="task">The <see cref="System.Threading.Tasks.Task"/> to await.</param>
+            /// <param name="awaitFlags">
+            /// true to attempt to marshal the continuation back to the original context captured
+            /// when BeginAwait is called; otherwise, false.
+            /// </param>
+            internal ConfiguredCancelableTaskAwaiter(Task task, AwaitBehavior.Flags awaitFlags)
+            {
+                Debug.Assert(task != null, "Constructing an awaiter requires a task to await.");
+                m_task = task;
+                m_awaitFlags = awaitFlags;
+            }
+
+            /// <summary>Gets whether the task being awaited is completed.</summary>
+            /// <remarks>This property is intended for compiler user rather than use directly in code.</remarks>
+            /// <exception cref="System.NullReferenceException">The awaiter was not properly initialized.</exception>
+            public bool IsCompleted => m_task.IsCompleted && (m_awaitFlags & AwaitBehavior.Flags.ForceAsync) != AwaitBehavior.Flags.ForceAsync;
+
+            /// <summary>Schedules the continuation onto the <see cref="System.Threading.Tasks.Task"/> associated with this <see cref="TaskAwaiter"/>.</summary>
+            /// <param name="continuation">The action to invoke when the await operation completes.</param>
+            /// <exception cref="System.ArgumentNullException">The <paramref name="continuation"/> argument is null (Nothing in Visual Basic).</exception>
+            /// <exception cref="System.NullReferenceException">The awaiter was not properly initialized.</exception>
+            /// <remarks>This method is intended for compiler user rather than use directly in code.</remarks>
+            public void OnCompleted(Action continuation)
+            {
+                bool continueOnCapturedContext = (m_awaitFlags & AwaitBehavior.Flags.NoCapturedContext) != AwaitBehavior.Flags.NoCapturedContext;
+                TaskAwaiter.OnCompletedInternal(m_task, continuation, continueOnCapturedContext, flowExecutionContext: true);
+            }
+
+            /// <summary>Schedules the continuation onto the <see cref="System.Threading.Tasks.Task"/> associated with this <see cref="TaskAwaiter"/>.</summary>
+            /// <param name="continuation">The action to invoke when the await operation completes.</param>
+            /// <exception cref="System.ArgumentNullException">The <paramref name="continuation"/> argument is null (Nothing in Visual Basic).</exception>
+            /// <exception cref="System.NullReferenceException">The awaiter was not properly initialized.</exception>
+            /// <remarks>This method is intended for compiler user rather than use directly in code.</remarks>
+            public void UnsafeOnCompleted(Action continuation)
+            {
+                bool continueOnCapturedContext = (m_awaitFlags & AwaitBehavior.Flags.NoCapturedContext) != AwaitBehavior.Flags.NoCapturedContext;
+                TaskAwaiter.OnCompletedInternal(m_task, continuation, continueOnCapturedContext, flowExecutionContext: false);
+            }
+
+            /// <summary>Ends the await on the completed <see cref="System.Threading.Tasks.Task"/>.</summary>
+            /// <exception cref="System.NullReferenceException">The awaiter was not properly initialized.</exception>
+            /// <exception cref="System.Threading.Tasks.TaskCanceledException">The task was canceled.</exception>
+            /// <exception cref="System.Exception">The task completed in a Faulted state.</exception>
+            [StackTraceHidden]
+            public void GetResult()
+            {
+                TaskAwaiter.ValidateEnd(m_task, m_awaitFlags);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Marker interface used to know whether a particular awaiter is either a
+    /// CCTA.ConfiguredCancelableTaskAwaiter or a CTA`1.ConfiguredCancelableTaskAwaiter.  It must not
+    /// be implemented by any other awaiters.
+    /// </summary>
+    internal interface IConfiguredCancelableTaskAwaiter { }
+
+    /// <summary>Provides an awaitable object that allows for configured awaits on <see cref="System.Threading.Tasks.Task{TResult}"/>.</summary>
+    /// <remarks>This type is intended for compiler use only.</remarks>
+    public readonly struct ConfiguredCancelableTaskAwaitable<TResult>
+    {
+        /// <summary>The task being awaited.</summary>
+        private readonly Task<TResult> m_task;
+        private readonly AwaitBehavior m_awaitBehavior;
+
+        /// <summary>Initializes the <see cref="ConfiguredTaskAwaitable{TResult}"/>.</summary>
+        /// <param name="task">The awaitable <see cref="System.Threading.Tasks.Task{TResult}"/>.</param>
+        /// <param name="awaitBehavior">
+        /// true to attempt to marshal the continuation back to the original context captured; otherwise, false.
+        /// </param>
+        internal ConfiguredCancelableTaskAwaitable(Task<TResult> task, AwaitBehavior awaitBehavior)
+        {
+            m_task = task;
+            m_awaitBehavior = awaitBehavior;
+        }
+
+        /// <summary>Gets an awaiter for this awaitable.</summary>
+        /// <returns>The awaiter.</returns>
+        public ConfiguredCancelableTaskAwaitable<TResult>.ConfiguredCancelableTaskAwaiter GetAwaiter()
+        {
+            Task<TResult> awaiterTask = Task.WithCancellation(m_task, m_awaitBehavior.CancellationToken, m_awaitBehavior.MillisecondTimeout);
+            return new ConfiguredCancelableTaskAwaiter(awaiterTask, m_awaitBehavior.AwaitFlags);
+        }
+
+        /// <summary>Provides an awaiter for a <see cref="ConfiguredTaskAwaitable{TResult}"/>.</summary>
+        /// <remarks>This type is intended for compiler use only.</remarks>
+        public readonly struct ConfiguredCancelableTaskAwaiter : ICriticalNotifyCompletion, IConfiguredCancelableTaskAwaiter
+        {
+            // WARNING: Unsafe.As is used to access this as the non-generic ConfiguredCancelableTaskAwaiter.
+            // Its layout must remain the same.
+
+            /// <summary>The task being awaited.</summary>
+            private readonly Task<TResult> m_task;
+            /// <summary>Whether to attempt marshaling back to the original context.</summary>
+            private readonly AwaitBehavior.Flags m_awaitFlags;
+
+            /// <summary>Initializes the <see cref="ConfiguredCancelableTaskAwaiter"/>.</summary>
+            /// <param name="task">The awaitable <see cref="System.Threading.Tasks.Task{TResult}"/>.</param>
+            /// <param name="awaitFlags">
+            /// true to attempt to marshal the continuation back to the original context captured; otherwise, false.
+            /// </param>
+            internal ConfiguredCancelableTaskAwaiter(Task<TResult> task, AwaitBehavior.Flags awaitFlags)
+            {
+                Debug.Assert(task != null, "Constructing an awaiter requires a task to await.");
+                m_task = task;
+                m_awaitFlags = awaitFlags;
+            }
+
+            /// <summary>Gets whether the task being awaited is completed.</summary>
+            /// <remarks>This property is intended for compiler user rather than use directly in code.</remarks>
+            /// <exception cref="System.NullReferenceException">The awaiter was not properly initialized.</exception>
+            public bool IsCompleted => m_task.IsCompleted && (m_awaitFlags & AwaitBehavior.Flags.ForceAsync) != AwaitBehavior.Flags.ForceAsync;
+
+            /// <summary>Schedules the continuation onto the <see cref="System.Threading.Tasks.Task"/> associated with this <see cref="TaskAwaiter"/>.</summary>
+            /// <param name="continuation">The action to invoke when the await operation completes.</param>
+            /// <exception cref="System.ArgumentNullException">The <paramref name="continuation"/> argument is null (Nothing in Visual Basic).</exception>
+            /// <exception cref="System.NullReferenceException">The awaiter was not properly initialized.</exception>
+            /// <remarks>This method is intended for compiler user rather than use directly in code.</remarks>
+            public void OnCompleted(Action continuation)
+            {
+                bool continueOnCapturedContext = (m_awaitFlags & AwaitBehavior.Flags.NoCapturedContext) != AwaitBehavior.Flags.NoCapturedContext;
+                TaskAwaiter.OnCompletedInternal(m_task, continuation, continueOnCapturedContext, flowExecutionContext: true);
+            }
+
+            /// <summary>Schedules the continuation onto the <see cref="System.Threading.Tasks.Task"/> associated with this <see cref="TaskAwaiter"/>.</summary>
+            /// <param name="continuation">The action to invoke when the await operation completes.</param>
+            /// <exception cref="System.ArgumentNullException">The <paramref name="continuation"/> argument is null (Nothing in Visual Basic).</exception>
+            /// <exception cref="System.NullReferenceException">The awaiter was not properly initialized.</exception>
+            /// <remarks>This method is intended for compiler user rather than use directly in code.</remarks>
+            public void UnsafeOnCompleted(Action continuation)
+            {
+                bool continueOnCapturedContext = (m_awaitFlags & AwaitBehavior.Flags.NoCapturedContext) != AwaitBehavior.Flags.NoCapturedContext;
+                TaskAwaiter.OnCompletedInternal(m_task, continuation, continueOnCapturedContext, flowExecutionContext: false);
+            }
+
+            /// <summary>Ends the await on the completed <see cref="System.Threading.Tasks.Task{TResult}"/>.</summary>
+            /// <returns>The result of the completed <see cref="System.Threading.Tasks.Task{TResult}"/>.</returns>
+            /// <exception cref="System.NullReferenceException">The awaiter was not properly initialized.</exception>
+            /// <exception cref="System.Threading.Tasks.TaskCanceledException">The task was canceled.</exception>
+            /// <exception cref="System.Exception">The task completed in a Faulted state.</exception>
+            [StackTraceHidden]
+            public TResult GetResult()
+            {
+                TaskAwaiter.ValidateEnd(m_task, m_awaitFlags);
+                Debug.Assert(m_task.IsWaitNotificationEnabledOrNotRanToCompletion ||
+                            !m_task.IsCompletedSuccessfully && (m_awaitFlags & AwaitBehavior.Flags.SuppressExceptions) == AwaitBehavior.Flags.SuppressExceptions,
+                            "Should only be used when the task completed successfully and there's no wait notification enabled");
+                return m_task.m_result!;
             }
         }
     }

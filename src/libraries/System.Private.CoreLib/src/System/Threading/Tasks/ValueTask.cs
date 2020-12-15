@@ -408,6 +408,14 @@ namespace System.Threading.Tasks
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ConfiguredValueTaskAwaitable ConfigureAwait(bool continueOnCapturedContext) =>
             new ConfiguredValueTaskAwaitable(new ValueTask(_obj, _token, continueOnCapturedContext));
+
+        /// <summary>Configures an awaiter for this <see cref="ValueTask"/>.</summary>
+        /// <param name="awaitBehavior">
+        /// true to attempt to marshal the continuation back to the captured context; otherwise, false.
+        /// </param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ConfiguredCancelableValueTaskAwaitable ConfigureAwait(AwaitBehavior awaitBehavior) =>
+            new ConfiguredCancelableValueTaskAwaitable(this, awaitBehavior);
     }
 
     /// <summary>Provides a value type that can represent a synchronously available value or a task object.</summary>
@@ -805,6 +813,14 @@ namespace System.Threading.Tasks
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ConfiguredValueTaskAwaitable<TResult> ConfigureAwait(bool continueOnCapturedContext) =>
             new ConfiguredValueTaskAwaitable<TResult>(new ValueTask<TResult>(_obj, _result, _token, continueOnCapturedContext));
+
+        /// <summary>Configures an awaiter for this <see cref="ValueTask{TResult}"/>.</summary>
+        /// <param name="awaitBehavior">
+        /// true to attempt to marshal the continuation back to the captured context; otherwise, false.
+        /// </param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ConfiguredCancelableValueTaskAwaitable<TResult> ConfigureAwait(AwaitBehavior awaitBehavior) =>
+            new ConfiguredCancelableValueTaskAwaitable<TResult>(this, awaitBehavior);
 
         /// <summary>Gets a string-representation of this <see cref="ValueTask{TResult}"/>.</summary>
         public override string? ToString()

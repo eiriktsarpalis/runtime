@@ -66,6 +66,90 @@ namespace System.Threading.Tasks
         Faulted
     }
 
+    public readonly struct AwaitBehavior
+    {
+        private readonly uint? _millisecondTimeout;
+        private readonly Flags _flags;
+
+        public CancellationToken CancellationToken { get; init; }
+
+        public TimeSpan Timeout
+        {
+            get => TimeSpan.FromMilliseconds((int)(_millisecondTimeout ?? System.Threading.Timeout.UnsignedInfinite));
+            init
+            {
+                long totalMilliseconds = (long)value.TotalMilliseconds;
+                if (totalMilliseconds < -1 || totalMilliseconds > Timer.MaxSupportedTimeout)
+                {
+                    // TODO: change exception message
+                    ThrowHelper.ThrowArgumentOutOfRangeException(ExceptionArgument.timeout, ExceptionResource.Task_Delay_InvalidDelay);
+                }
+
+                _millisecondTimeout = (uint)totalMilliseconds;
+            }
+        }
+
+        public bool ContinueOnCapturedContext
+        {
+            get => (_flags & Flags.NoCapturedContext) != Flags.NoCapturedContext;
+            init
+            {
+                if (value)
+                {
+                    _flags &= ~Flags.NoCapturedContext;
+                }
+                else
+                {
+                    _flags |= Flags.NoCapturedContext;
+                }
+            }
+        }
+
+        public bool SuppressExceptions
+        {
+            get => (_flags & Flags.SuppressExceptions) == Flags.SuppressExceptions;
+            init
+            {
+                if (value)
+                {
+                    _flags |= Flags.SuppressExceptions;
+                }
+                else
+                {
+                    _flags &= ~Flags.SuppressExceptions;
+                }
+            }
+        }
+
+        public bool ForceAsync
+        {
+            get => (_flags & Flags.ForceAsync) == Flags.ForceAsync;
+            init
+            {
+                if (value)
+                {
+                    _flags |= Flags.ForceAsync;
+                }
+                else
+                {
+                    _flags &= ~Flags.ForceAsync;
+                }
+            }
+        }
+
+        internal Flags AwaitFlags => _flags;
+        internal uint MillisecondTimeout => _millisecondTimeout ?? System.Threading.Timeout.UnsignedInfinite;
+
+        [Flags]
+        internal enum Flags
+        {
+            Default = 0x0,
+            NoCapturedContext = 0x1,
+            SuppressExceptions = 0x2,
+            ForceAsync = 0x4,
+        }
+    }
+
     /// <summary>
     /// Represents an asynchronous operation.
     /// </summary>
@@ -2438,6 +2522,14 @@ namespace System.Threading.Tasks
             return new ConfiguredTaskAwaitable(this, continueOnCapturedContext);
         }
 
+        /// <summary>Configures an awaiter used to await this <see cref="System.Threading.Tasks.Task"/>.</summary>
+        /// <param name="awaitBehavior"></param>
+        /// <returns>An object used to await this task.</returns>
+        public ConfiguredCancelableTaskAwaitable ConfigureAwait(AwaitBehavior awaitBehavior)
+        {
+            return new ConfiguredCancelableTaskAwaitable(this, awaitBehavior);
+        }
+
         /// <summary>
         /// Sets a continuation onto the <see cref="System.Threading.Tasks.Task"/>.
         /// The continuation is scheduled to run in the current synchronization context is one exists,
@@ -3331,7 +3423,7 @@ namespace System.Threading.Tasks
                 }
                 continuations[i] = null; // to enable free'ing up memory earlier
                 if (etwIsEnabled)
-                   log.RunningContinuationList(Id, i, currentContinuation);
+                    log.RunningContinuationList(Id, i, currentContinuation);
 
                 switch (currentContinuation)
                 {
@@ -5510,6 +5602,204 @@ namespace System.Threading.Tasks
                 base.Cleanup();
             }
         }
+        #endregion
+
+        #region WithCancellation
+        internal static Task WithCancellation(Task task, CancellationToken cancellationToken, uint millisecondsTimeout)
+        {
+            if (task.IsCompleted || !cancellationToken.CanBeCanceled && millisecondsTimeout == Timeout.UnsignedInfinite)
+            {
+                return task;
+            }
+
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return Task.FromCanceled(cancellationToken);
+            }
+
+            return new TaskCompletedCancellationPromise(task, cancellationToken, millisecondsTimeout);
+        }
+
+        internal static Task<TResult> WithCancellation<TResult>(Task<TResult> task, CancellationToken cancellationToken, uint millisecondsTimeout)
+        {
+            if (task.IsCompleted || !cancellationToken.CanBeCanceled && millisecondsTimeout == Timeout.UnsignedInfinite)
+            {
+                return task;
+            }
+
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return Task.FromCanceled<TResult>(cancellationToken);
+            }
+
+            return new TaskCompletedCancellationPromise<TResult>(task, cancellationToken, millisecondsTimeout);
+        }
+
+        internal class CancellationPromise : Task
+        {
+            private readonly CancellationTokenRegistration? _registration;
+            private readonly TimerQueueTimer? _timer;
+
+            public CancellationPromise(CancellationToken cancellationToken, uint millisecondsTimeout)
+            {
+                if (cancellationToken.CanBeCanceled)
+                {
+                    _registration = cancellationToken.UnsafeRegister(CancellationTokenCallback, this);
+
+                    static void CancellationTokenCallback(object? state, CancellationToken cancellationToken)
+                    {
+                        CancellationPromise thisRef = (CancellationPromise)state!;
+                        if (thisRef.TrySetCanceled(cancellationToken))
+                        {
+                            thisRef.Cleanup();
+                        }
+                    }
+                }
+
+                if (millisecondsTimeout != Timeout.UnsignedInfinite)
+                {
+                    _timer = new TimerQueueTimer(TimerCallback, this, millisecondsTimeout, Timeout.UnsignedInfinite, flowExecutionContext: false);
+
+                    if (IsCompleted)
+                    {
+                        // Handle rare race condition where the timer fires prior to our having stored it into the field, in which case
+                        // the timer won't have been cleaned up appropriately.  This call to close might race with the Cleanup call to Close,
+                        // but Close is thread-safe and will be a nop if it's already been closed.
+                        _timer.Close();
+                    }
+
+                    static void TimerCallback(object? state)
+                    {
+                        CancellationPromise thisRef = (CancellationPromise)state!;
+                        if (thisRef.TrySetException(new TimeoutException()))
+                        {
+                            thisRef.Cleanup();
+                        }
+                    }
+                }
+            }
+
+            protected virtual void Cleanup()
+            {
+                _registration?.Dispose();
+                _timer?.Close();
+            }
+        }
+
+        internal class CancellationPromise<TResult> : Task<TResult>
+        {
+            private readonly CancellationTokenRegistration? _registration;
+            private readonly TimerQueueTimer? _timer;
+
+            internal CancellationPromise(CancellationToken cancellationToken, uint millisecondsTimeout)
+            {
+                if (cancellationToken.CanBeCanceled)
+                {
+                    _registration = cancellationToken.UnsafeRegister(CancellationTokenCallback, this);
+
+                    static void CancellationTokenCallback(object? state, CancellationToken cancellationToken)
+                    {
+                        CancellationPromise<TResult> thisRef = (CancellationPromise<TResult>)state!;
+                        if (thisRef.TrySetCanceled(cancellationToken))
+                        {
+                            thisRef.Cleanup();
+                        }
+                    }
+                }
+
+                if (millisecondsTimeout != Timeout.UnsignedInfinite)
+                {
+                    _timer = new TimerQueueTimer(TimerCallback, this, millisecondsTimeout, Timeout.UnsignedInfinite, flowExecutionContext: false);
+
+                    if (IsCompleted)
+                    {
+                        // Handle rare race condition where the timer fires prior to our having stored it into the field, in which case
+                        // the timer won't have been cleaned up appropriately.  This call to close might race with the Cleanup call to Close,
+                        // but Close is thread-safe and will be a nop if it's already been closed.
+                        _timer.Close();
+                    }
+
+                    static void TimerCallback(object? state)
+                    {
+                        CancellationPromise<TResult> thisRef = (CancellationPromise<TResult>)state!;
+                        if (thisRef.TrySetException(new TimeoutException()))
+                        {
+                            thisRef.Cleanup();
+                        }
+                    }
+                }
+            }
+
+            protected void Cleanup()
+            {
+                _registration?.Dispose();
+                _timer?.Close();
+            }
+        }
+
+        private class TaskCompletedCancellationPromise : CancellationPromise, ITaskCompletionAction
+        {
+            internal TaskCompletedCancellationPromise(Task task, CancellationToken cancellationToken, uint millisecondsTimeout)
+                : base(cancellationToken, millisecondsTimeout)
+            {
+                Debug.Assert(task is not null);
+                Debug.Assert(cancellationToken.CanBeCanceled || millisecondsTimeout != Timeout.UnsignedInfinite);
+
+                task.AddCompletionAction(this, false);
+            }
+
+            bool ITaskCompletionAction.InvokeMayRunArbitraryCode => false;
+            void ITaskCompletionAction.Invoke(Task completingTask)
+            {
+                // Need a better way to fill `this` with completing task results
+                bool success = completingTask.Status switch
+                {
+                    TaskStatus.RanToCompletion => TrySetResult(),
+                    TaskStatus.Faulted => TrySetException(completingTask.Exception!), // TODO account for AggregateException
+                    TaskStatus.Canceled => TrySetCanceled(completingTask.CancellationToken),
+                    _ => false
+                };
+
+                if (success)
+                {
+                    Cleanup();
+                }
+            }
+        }
+
+        private class TaskCompletedCancellationPromise<TResult> : CancellationPromise<TResult>, ITaskCompletionAction
+        {
+            bool ITaskCompletionAction.InvokeMayRunArbitraryCode => false;
+            void ITaskCompletionAction.Invoke(Task completingTask)
+            {
+                Debug.Assert(completingTask is Task<TResult>);
+                Task<TResult> completingTaskT = (Task<TResult>)completingTask;
+
+                // Need a better way to fill `this` with completing task results
+                bool success = completingTaskT.Status switch
+                {
+                    TaskStatus.RanToCompletion => TrySetResult(completingTaskT.Result),
+                    TaskStatus.Faulted => TrySetException(completingTask.Exception!), // TODO account for AggregateException
+                    TaskStatus.Canceled => TrySetCanceled(completingTask.CancellationToken),
+                    _ => false
+                };
+
+                if (success)
+                {
+                    Cleanup();
+                }
+            }
+
+            internal TaskCompletedCancellationPromise(Task<TResult> task, CancellationToken cancellationToken, uint millisecondsTimeout)
+                : base(cancellationToken, millisecondsTimeout)
+            {
+                Debug.Assert(task is not null);
+                Debug.Assert(cancellationToken.CanBeCanceled || millisecondsTimeout != Timeout.UnsignedInfinite);
+
+                task.AddCompletionAction(this, false);
+            }
+        }
+
         #endregion
 
         #region WhenAll

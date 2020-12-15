@@ -9304,6 +9304,36 @@ namespace System.Runtime.CompilerServices
             public void UnsafeOnCompleted(System.Action continuation) { }
         }
     }
+    public readonly partial struct ConfiguredCancelableTaskAwaitable
+    {
+        private readonly object _dummy;
+        private readonly int _dummyPrimitive;
+        public System.Runtime.CompilerServices.ConfiguredCancelableTaskAwaitable.ConfiguredCancelableTaskAwaiter GetAwaiter() { throw null; }
+        public readonly partial struct ConfiguredCancelableTaskAwaiter : System.Runtime.CompilerServices.ICriticalNotifyCompletion, System.Runtime.CompilerServices.INotifyCompletion
+        {
+            private readonly object _dummy;
+            private readonly int _dummyPrimitive;
+            public bool IsCompleted { get { throw null; } }
+            public void GetResult() { }
+            public void OnCompleted(System.Action continuation) { }
+            public void UnsafeOnCompleted(System.Action continuation) { }
+        }
+    }
+    public readonly partial struct ConfiguredCancelableTaskAwaitable<TResult>
+    {
+        private readonly object _dummy;
+        private readonly int _dummyPrimitive;
+        public System.Runtime.CompilerServices.ConfiguredCancelableTaskAwaitable<TResult>.ConfiguredCancelableTaskAwaiter GetAwaiter() { throw null; }
+        public readonly partial struct ConfiguredCancelableTaskAwaiter : System.Runtime.CompilerServices.ICriticalNotifyCompletion, System.Runtime.CompilerServices.INotifyCompletion
+        {
+            private readonly object _dummy;
+            private readonly int _dummyPrimitive;
+            public bool IsCompleted { get { throw null; } }
+            public TResult GetResult() { throw null; }
+            public void OnCompleted(System.Action continuation) { }
+            public void UnsafeOnCompleted(System.Action continuation) { }
+        }
+    }
     public readonly partial struct ConfiguredValueTaskAwaitable
     {
         private readonly object _dummy;
@@ -9325,6 +9355,36 @@ namespace System.Runtime.CompilerServices
         private readonly int _dummyPrimitive;
         public System.Runtime.CompilerServices.ConfiguredValueTaskAwaitable<TResult>.ConfiguredValueTaskAwaiter GetAwaiter() { throw null; }
         public readonly partial struct ConfiguredValueTaskAwaiter : System.Runtime.CompilerServices.ICriticalNotifyCompletion, System.Runtime.CompilerServices.INotifyCompletion
+        {
+            private readonly object _dummy;
+            private readonly int _dummyPrimitive;
+            public bool IsCompleted { get { throw null; } }
+            public TResult GetResult() { throw null; }
+            public void OnCompleted(System.Action continuation) { }
+            public void UnsafeOnCompleted(System.Action continuation) { }
+        }
+    }
+    public readonly partial struct ConfiguredCancelableValueTaskAwaitable
+    {
+        private readonly object _dummy;
+        private readonly int _dummyPrimitive;
+        public System.Runtime.CompilerServices.ConfiguredCancelableValueTaskAwaitable.ConfiguredCancelableValueTaskAwaiter GetAwaiter() { throw null; }
+        public readonly partial struct ConfiguredCancelableValueTaskAwaiter : System.Runtime.CompilerServices.ICriticalNotifyCompletion, System.Runtime.CompilerServices.INotifyCompletion
+        {
+            private readonly object _dummy;
+            private readonly int _dummyPrimitive;
+            public bool IsCompleted { get { throw null; } }
+            public void GetResult() { }
+            public void OnCompleted(System.Action continuation) { }
+            public void UnsafeOnCompleted(System.Action continuation) { }
+        }
+    }
+    public readonly partial struct ConfiguredCancelableValueTaskAwaitable<TResult>
+    {
+        private readonly object _dummy;
+        private readonly int _dummyPrimitive;
+        public System.Runtime.CompilerServices.ConfiguredCancelableValueTaskAwaitable<TResult>.ConfiguredCancelableValueTaskAwaiter GetAwaiter() { throw null; }
+        public readonly partial struct ConfiguredCancelableValueTaskAwaiter : System.Runtime.CompilerServices.ICriticalNotifyCompletion, System.Runtime.CompilerServices.INotifyCompletion
         {
             private readonly object _dummy;
             private readonly int _dummyPrimitive;
@@ -11070,6 +11130,16 @@ namespace System.Threading
 }
 namespace System.Threading.Tasks
 {
+    public readonly partial struct AwaitBehavior
+    {
+        private readonly object _dummy;
+        private readonly int _dummyPrimitive;
+        public System.Threading.CancellationToken CancellationToken { readonly get { throw null; } init { } }
+        public bool ContinueOnCapturedContext { get { throw null; } init { } }
+        public bool ForceAsync { get { throw null; } init { } }
+        public bool SuppressExceptions { get { throw null; } init { } }
+        public System.TimeSpan Timeout { get { throw null; } init { } }
+    }
     public partial class ConcurrentExclusiveSchedulerPair
     {
         public ConcurrentExclusiveSchedulerPair() { }
@@ -11106,6 +11176,7 @@ namespace System.Threading.Tasks
         System.Threading.WaitHandle System.IAsyncResult.AsyncWaitHandle { get { throw null; } }
         bool System.IAsyncResult.CompletedSynchronously { get { throw null; } }
         public System.Runtime.CompilerServices.ConfiguredTaskAwaitable ConfigureAwait(bool continueOnCapturedContext) { throw null; }
+        public System.Runtime.CompilerServices.ConfiguredCancelableTaskAwaitable ConfigureAwait(AwaitBehavior awaitBehavior) { throw null; }
         public System.Threading.Tasks.Task ContinueWith(System.Action<System.Threading.Tasks.Task, object?> continuationAction, object? state) { throw null; }
         public System.Threading.Tasks.Task ContinueWith(System.Action<System.Threading.Tasks.Task, object?> continuationAction, object? state, System.Threading.CancellationToken cancellationToken) { throw null; }
         public System.Threading.Tasks.Task ContinueWith(System.Action<System.Threading.Tasks.Task, object?> continuationAction, object? state, System.Threading.CancellationToken cancellationToken, System.Threading.Tasks.TaskContinuationOptions continuationOptions, System.Threading.Tasks.TaskScheduler scheduler) { throw null; }
@@ -11432,6 +11503,7 @@ namespace System.Threading.Tasks
         Canceled = 6,
         Faulted = 7,
     }
+
     public partial class Task<TResult> : System.Threading.Tasks.Task
     {
         public Task(System.Func<object?, TResult> function, object? state) : base (default(System.Action)) { }
@@ -11445,6 +11517,7 @@ namespace System.Threading.Tasks
         public static new System.Threading.Tasks.TaskFactory<TResult> Factory { get { throw null; } }
         public TResult Result { get { throw null; } }
         public new System.Runtime.CompilerServices.ConfiguredTaskAwaitable<TResult> ConfigureAwait(bool continueOnCapturedContext) { throw null; }
+        public new System.Runtime.CompilerServices.ConfiguredCancelableTaskAwaitable<TResult> ConfigureAwait(AwaitBehavior awaitBehavior) { throw null; }
         public System.Threading.Tasks.Task ContinueWith(System.Action<System.Threading.Tasks.Task<TResult>, object?> continuationAction, object? state) { throw null; }
         public System.Threading.Tasks.Task ContinueWith(System.Action<System.Threading.Tasks.Task<TResult>, object?> continuationAction, object? state, System.Threading.CancellationToken cancellationToken) { throw null; }
         public System.Threading.Tasks.Task ContinueWith(System.Action<System.Threading.Tasks.Task<TResult>, object?> continuationAction, object? state, System.Threading.CancellationToken cancellationToken, System.Threading.Tasks.TaskContinuationOptions continuationOptions, System.Threading.Tasks.TaskScheduler scheduler) { throw null; }
@@ -11488,6 +11561,7 @@ namespace System.Threading.Tasks
         public bool IsFaulted { get { throw null; } }
         public System.Threading.Tasks.Task AsTask() { throw null; }
         public System.Runtime.CompilerServices.ConfiguredValueTaskAwaitable ConfigureAwait(bool continueOnCapturedContext) { throw null; }
+        public System.Runtime.CompilerServices.ConfiguredCancelableValueTaskAwaitable ConfigureAwait(AwaitBehavior awaitBehavior) { throw null; }
         public override bool Equals([System.Diagnostics.CodeAnalysis.NotNullWhenAttribute(true)] object? obj) { throw null; }
         public bool Equals(System.Threading.Tasks.ValueTask other) { throw null; }
         public static System.Threading.Tasks.ValueTask FromCanceled(System.Threading.CancellationToken cancellationToken) { throw null; }
@@ -11517,6 +11591,7 @@ namespace System.Threading.Tasks
         public TResult Result { get { throw null; } }
         public System.Threading.Tasks.Task<TResult> AsTask() { throw null; }
         public System.Runtime.CompilerServices.ConfiguredValueTaskAwaitable<TResult> ConfigureAwait(bool continueOnCapturedContext) { throw null; }
+        public System.Runtime.CompilerServices.ConfiguredCancelableValueTaskAwaitable<TResult> ConfigureAwait(AwaitBehavior awaitBehavior) { throw null; }
         public override bool Equals([System.Diagnostics.CodeAnalysis.NotNullWhenAttribute(true)] object? obj) { throw null; }
         public bool Equals(System.Threading.Tasks.ValueTask<TResult> other) { throw null; }
         public System.Runtime.CompilerServices.ValueTaskAwaiter<TResult> GetAwaiter() { throw null; }

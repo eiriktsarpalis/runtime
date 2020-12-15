@@ -112,6 +112,10 @@ namespace System.Runtime.CompilerServices
                 ref ConfiguredTaskAwaitable.ConfiguredTaskAwaiter ta = ref Unsafe.As<TAwaiter, ConfiguredTaskAwaitable.ConfiguredTaskAwaiter>(ref awaiter);
                 TaskAwaiter.UnsafeOnCompletedInternal(ta.m_task, box, ta.m_continueOnCapturedContext);
             }
+            //else if ((null != (object?)default(TAwaiter)) && (awaiter is IConfiguredCancelableTaskAwaiter))
+            //{
+            //    ref ConfiguredCancelableTaskAwaitable.ConfiguredCancelableTaskAwaiter ta = ref Unsafe.As<TAwaiter, ConfiguredCancelableTaskAwaitable.ConfiguredCancelableTaskAwaiter>(ref awaiter);
+            //}
             else if ((null != (object?)default(TAwaiter)) && (awaiter is IStateMachineBoxAwareAwaiter))
             {
                 try

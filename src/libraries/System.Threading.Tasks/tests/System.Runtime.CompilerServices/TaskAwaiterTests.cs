@@ -170,6 +170,155 @@ namespace System.Threading.Tasks.Tests
             });
         }
 
+        [Fact]
+        public static void AwaitBehavior_DefaultSettings()
+        {
+            var awaitBehavior = new AwaitBehavior();
+            Assert.True(awaitBehavior.ContinueOnCapturedContext);
+            Assert.False(awaitBehavior.SuppressExceptions);
+            Assert.False(awaitBehavior.ForceAsync);
+            Assert.Equal(Timeout.InfiniteTimeSpan, awaitBehavior.Timeout);
+            Assert.Equal(default(CancellationToken), awaitBehavior.CancellationToken);
+        }
+
+        [ConditionalFact(typeof(PlatformDetection), nameof(PlatformDetection.IsThreadingSupported))]
+        public static void Awaiter_NoThrow_ShouldNotSurfaceException()
+        {
+            Task<int> task = Task.FromException<int>(new Exception());
+            int result = task.ConfigureAwait(new AwaitBehavior { SuppressExceptions = true }).GetAwaiter().GetResult();
+            Assert.Equal(default(int), result);
+        }
+
+        [ConditionalFact(typeof(PlatformDetection), nameof(PlatformDetection.IsThreadingSupported))]
+        public static void Awaiter_Asynchronous_ShouldReturnCompletedFalse()
+        {
+            Task<int> task = Task.FromResult(42);
+            ConfiguredCancelableTaskAwaitable<int>.ConfiguredCancelableTaskAwaiter awaiter = task.ConfigureAwait(new AwaitBehavior { ForceAsync = true }).GetAwaiter();
+            Assert.True(task.IsCompleted);
+            Assert.Equal(task.Result, awaiter.GetResult());
+            Assert.False(awaiter.IsCompleted);
+        }
+
+        [ConditionalFact(typeof(PlatformDetection), nameof(PlatformDetection.IsThreadingSupported))]
+        public static void CancelableAwaiter_GetResult_NoCancellation_ShouldSucceed()
+        {
+            CancellationToken token = new CancellationToken(false);
+            Task<int> task = Task.FromResult(42);
+
+            int result = task.ConfigureAwait(new AwaitBehavior { CancellationToken = token }).GetAwaiter().GetResult();
+            Assert.Equal(42, result);
+        }
+
+        [ConditionalFact(typeof(PlatformDetection), nameof(PlatformDetection.IsThreadingSupported))]
+        public static void CancelableAwaiter_GetResult_Cancellation_ShouldThrow()
+        {
+            CancellationToken token = new CancellationToken(true);
+            Task divergentTask = new TaskCompletionSource<int>().Task;
+            Assert.Throws<TaskCanceledException>(() => divergentTask.ConfigureAwait(new AwaitBehavior { CancellationToken = token }).GetAwaiter().GetResult());
+        }
+
+        [ConditionalFact(typeof(PlatformDetection), nameof(PlatformDetection.IsThreadingSupported))]
+        public static async Task Async_CancelableAwaiter_NoCancellation_ShouldSucceed()
+        {
+            CancellationToken token = new CancellationToken(false);
+            Task<int> task = Task.FromResult(42);
+            int result = await task.ConfigureAwait(new AwaitBehavior { CancellationToken = token });
+            Assert.Equal(42, result);
+        }
+
+        [ConditionalFact(typeof(PlatformDetection), nameof(PlatformDetection.IsThreadingSupported))]
+        public static async Task Async_CancelableAwaiter_Exception_ShouldThrow()
+        {
+            CancellationToken token = new CancellationToken(false);
+            Task<int> task = Task.FromException<int>(new DivideByZeroException());
+            await Assert.ThrowsAsync<DivideByZeroException>(async () => await task.ConfigureAwait(new AwaitBehavior { CancellationToken = token }));
+        }
+
+        [ConditionalFact(typeof(PlatformDetection), nameof(PlatformDetection.IsThreadingSupported))]
+        public static async Task Async_CancelableAwaiter_Cancellation_ShouldThrow()
+        {
+            CancellationToken token = new CancellationToken(true);
+            Task<int> divergentTask = new TaskCompletionSource<int>().Task;
+            await Assert.ThrowsAsync<TaskCanceledException>(async () => await divergentTask.ConfigureAwait(new AwaitBehavior { CancellationToken = token }));
+        }
+
+        [ConditionalFact(typeof(PlatformDetection), nameof(PlatformDetection.IsThreadingSupported))]
+        public static void Async_CancelableAwaiter_Cancellation_NoThrow_ShouldNotThrow()
+        {
+            Task<int> task = Task.FromException<int>(new Exception());
+            int result = task.ConfigureAwait(new AwaitBehavior { SuppressExceptions = true, CancellationToken = new CancellationToken(canceled: true) }).GetAwaiter().GetResult();
+            Assert.Equal(default(int), result);
+        }
+
+        [ConditionalFact(typeof(PlatformDetection), nameof(PlatformDetection.IsThreadingSupported))]
+        public static void ValueTask_Awaiter_NoThrow_ShouldNotSurfaceException()
+        {
+            ValueTask<int> task = ValueTask.FromException<int>(new Exception());
+            int result = task.ConfigureAwait(new AwaitBehavior { SuppressExceptions = true }).GetAwaiter().GetResult();
+            Assert.Equal(default(int), result);
+        }
+
+        [ConditionalFact(typeof(PlatformDetection), nameof(PlatformDetection.IsThreadingSupported))]
+        public static void ValueTask_Awaiter_Asynchronous_ShouldReturnCompletedFalse()
+        {
+            ValueTask<int> task = ValueTask.FromResult(42);
+            var awaiter = task.ConfigureAwait(new AwaitBehavior { ForceAsync = true }).GetAwaiter();
+            Assert.True(task.IsCompleted);
+            Assert.Equal(task.Result, awaiter.GetResult());
+            Assert.False(awaiter.IsCompleted);
+        }
+
+        [ConditionalFact(typeof(PlatformDetection), nameof(PlatformDetection.IsThreadingSupported))]
+        public static void ValueTask_CancelableAwaiter_GetResult_NoCancellation_ShouldSucceed()
+        {
+            CancellationToken token = new CancellationToken(false);
+            ValueTask<int> task = ValueTask.FromResult(42);
+
+            int result = task.ConfigureAwait(new AwaitBehavior { CancellationToken = token }).GetAwaiter().GetResult();
+            Assert.Equal(42, result);
+        }
+
+        [ConditionalFact(typeof(PlatformDetection), nameof(PlatformDetection.IsThreadingSupported))]
+        public static void ValueTask_CancelableAwaiter_GetResult_Cancellation_ShouldThrow()
+        {
+            CancellationToken token = new CancellationToken(true);
+            ValueTask divergentTask = new ValueTask(new TaskCompletionSource<int>().Task);
+            Assert.Throws<TaskCanceledException>(() => divergentTask.ConfigureAwait(new AwaitBehavior { CancellationToken = token }).GetAwaiter().GetResult());
+        }
+
+        [ConditionalFact(typeof(PlatformDetection), nameof(PlatformDetection.IsThreadingSupported))]
+        public static async Task ValueTask_Async_CancelableAwaiter_NoCancellation_ShouldSucceed()
+        {
+            CancellationToken token = new CancellationToken(false);
+            ValueTask<int> task = ValueTask.FromResult(42);
+            int result = await task.ConfigureAwait(new AwaitBehavior { CancellationToken = token });
+            Assert.Equal(42, result);
+        }
+
+        [ConditionalFact(typeof(PlatformDetection), nameof(PlatformDetection.IsThreadingSupported))]
+        public static async Task ValueTask_Async_CancelableAwaiter_Exception_ShouldThrow()
+        {
+            CancellationToken token = new CancellationToken(false);
+            ValueTask<int> task = ValueTask.FromException<int>(new DivideByZeroException());
+            await Assert.ThrowsAsync<DivideByZeroException>(async () => await task.ConfigureAwait(new AwaitBehavior { CancellationToken = token }));
+        }
+
+        [ConditionalFact(typeof(PlatformDetection), nameof(PlatformDetection.IsThreadingSupported))]
+        public static async Task ValueTask_Async_CancelableAwaiter_Cancellation_ShouldThrow()
+        {
+            CancellationToken token = new CancellationToken(true);
+            ValueTask divergentTask = new ValueTask(new TaskCompletionSource<int>().Task);
+            await Assert.ThrowsAsync<TaskCanceledException>(async () => await divergentTask.ConfigureAwait(new AwaitBehavior { ContinueOnCapturedContext = false, CancellationToken = token })); ;
+        }
+
+        [ConditionalFact(typeof(PlatformDetection), nameof(PlatformDetection.IsThreadingSupported))]
+        public static void ValueTask_Async_CancelableAwaiter_Cancellation_NoThrow_ShouldNotThrow()
+        {
+            ValueTask<int> task = ValueTask.FromException<int>(new Exception());
+            int result = task.ConfigureAwait(new AwaitBehavior { SuppressExceptions = true, CancellationToken = new CancellationToken(canceled: true) }).GetAwaiter().GetResult();
+            Assert.Equal(default(int), result);
+        }
+
         public static IEnumerable<object[]> Await_MultipleAwaits_FirstCompletesAccordingToOptions_RestCompleteAsynchronously_MemberData()
         {
             foreach (int numContinuations in new[] { 1, 2, 5 })
