@@ -408,6 +408,38 @@ namespace System.Threading.Tasks
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ConfiguredValueTaskAwaitable ConfigureAwait(bool continueOnCapturedContext) =>
             new ConfiguredValueTaskAwaitable(new ValueTask(_obj, _token, continueOnCapturedContext));
+
+        /// <summary>Configures an awaiter for this <see cref="ValueTask"/>.</summary>
+        /// <param name="continueOnCapturedContext">
+        /// true to attempt to marshal the continuation back to the captured context; otherwise, false.
+        /// </param>
+        /// <param name="cancellationToken"></param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ConfiguredCancelableValueTaskAwaitable ConfigureAwait(bool continueOnCapturedContext, CancellationToken cancellationToken) =>
+            new ConfiguredCancelableValueTaskAwaitable(this, continueOnCapturedContext ? AwaitBehavior.Default : AwaitBehavior.NoCapturedContext, cancellationToken);
+
+        /// <summary>Configures an awaiter for this <see cref="ValueTask"/>.</summary>
+        /// <param name="cancellationToken"></param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ConfiguredCancelableValueTaskAwaitable ConfigureAwait(CancellationToken cancellationToken) =>
+            new ConfiguredCancelableValueTaskAwaitable(this, AwaitBehavior.Default, cancellationToken);
+
+        /// <summary>Configures an awaiter for this <see cref="ValueTask"/>.</summary>
+        /// <param name="awaitBehavior">
+        /// true to attempt to marshal the continuation back to the captured context; otherwise, false.
+        /// </param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ConfiguredCancelableValueTaskAwaitable ConfigureAwait(AwaitBehavior awaitBehavior) =>
+            new ConfiguredCancelableValueTaskAwaitable(this, awaitBehavior, default);
+
+        /// <summary>Configures an awaiter for this <see cref="ValueTask"/>.</summary>
+        /// <param name="awaitBehavior">
+        /// true to attempt to marshal the continuation back to the captured context; otherwise, false.
+        /// </param>
+        /// <param name="cancellationToken"></param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ConfiguredCancelableValueTaskAwaitable ConfigureAwait(AwaitBehavior awaitBehavior, CancellationToken cancellationToken) =>
+            new ConfiguredCancelableValueTaskAwaitable(this, awaitBehavior, cancellationToken);
     }
 
     /// <summary>Provides a value type that can represent a synchronously available value or a task object.</summary>
@@ -805,6 +837,38 @@ namespace System.Threading.Tasks
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ConfiguredValueTaskAwaitable<TResult> ConfigureAwait(bool continueOnCapturedContext) =>
             new ConfiguredValueTaskAwaitable<TResult>(new ValueTask<TResult>(_obj, _result, _token, continueOnCapturedContext));
+
+        /// <summary>Configures an awaiter for this <see cref="ValueTask{TResult}"/>.</summary>
+        /// <param name="continueOnCapturedContext">
+        /// true to attempt to marshal the continuation back to the captured context; otherwise, false.
+        /// </param>
+        /// <param name="cancellationToken"></param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ConfiguredCancelableValueTaskAwaitable<TResult> ConfigureAwait(bool continueOnCapturedContext, CancellationToken cancellationToken) =>
+            new ConfiguredCancelableValueTaskAwaitable<TResult>(this, continueOnCapturedContext ? AwaitBehavior.Default : AwaitBehavior.NoCapturedContext, cancellationToken);
+
+        /// <summary>Configures an awaiter for this <see cref="ValueTask{TResult}"/>.</summary>
+        /// <param name="cancellationToken"></param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ConfiguredCancelableValueTaskAwaitable<TResult> ConfigureAwait(CancellationToken cancellationToken) =>
+            new ConfiguredCancelableValueTaskAwaitable<TResult>(this, AwaitBehavior.Default, cancellationToken);
+
+        /// <summary>Configures an awaiter for this <see cref="ValueTask{TResult}"/>.</summary>
+        /// <param name="awaitBehavior">
+        /// true to attempt to marshal the continuation back to the captured context; otherwise, false.
+        /// </param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ConfiguredCancelableValueTaskAwaitable<TResult> ConfigureAwait(AwaitBehavior awaitBehavior) =>
+            new ConfiguredCancelableValueTaskAwaitable<TResult>(this, awaitBehavior, default);
+
+        /// <summary>Configures an awaiter for this <see cref="ValueTask{TResult}"/>.</summary>
+        /// <param name="awaitBehavior">
+        /// true to attempt to marshal the continuation back to the captured context; otherwise, false.
+        /// </param>
+        /// <param name="cancellationToken"></param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ConfiguredCancelableValueTaskAwaitable<TResult> ConfigureAwait(AwaitBehavior awaitBehavior, CancellationToken cancellationToken) =>
+            new ConfiguredCancelableValueTaskAwaitable<TResult>(this, awaitBehavior, cancellationToken);
 
         /// <summary>Gets a string-representation of this <see cref="ValueTask{TResult}"/>.</summary>
         public override string? ToString()

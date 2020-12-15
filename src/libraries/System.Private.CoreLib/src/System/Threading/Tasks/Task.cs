@@ -66,6 +66,15 @@ namespace System.Threading.Tasks
         Faulted
     }
 
+    [Flags]
+    public enum AwaitBehavior
+    {
+        Default = 0x0,
+        NoCapturedContext = 0x1,
+        NoThrow = 0x2,
+        ForceAsync = 0x4,
+    }
+
     /// <summary>
     /// Represents an asynchronous operation.
     /// </summary>
@@ -2436,6 +2445,46 @@ namespace System.Threading.Tasks
         public ConfiguredTaskAwaitable ConfigureAwait(bool continueOnCapturedContext)
         {
             return new ConfiguredTaskAwaitable(this, continueOnCapturedContext);
+        }
+
+        /// <summary>Configures an awaiter used to await this <see cref="System.Threading.Tasks.Task"/>.</summary>
+        /// <param name="cancellationToken"></param>
+        /// <returns>An object used to await this task.</returns>
+        public ConfiguredCancelableTaskAwaitable ConfigureAwait(CancellationToken cancellationToken)
+        {
+            return new ConfiguredCancelableTaskAwaitable(this, AwaitBehavior.Default, cancellationToken);
+        }
+
+        /// <summary>Configures an awaiter used to await this <see cref="System.Threading.Tasks.Task"/>.</summary>
+        /// <param name="continueOnCapturedContext">
+        /// true to attempt to marshal the continuation back to the original context captured; otherwise, false.
+        /// </param>
+        /// <param name="cancellationToken"></param>
+        /// <returns>An object used to await this task.</returns>
+        public ConfiguredCancelableTaskAwaitable ConfigureAwait(bool continueOnCapturedContext, CancellationToken cancellationToken)
+        {
+            return new ConfiguredCancelableTaskAwaitable(this, continueOnCapturedContext ? AwaitBehavior.Default : AwaitBehavior.NoCapturedContext, cancellationToken);
+        }
+
+        /// <summary>Configures an awaiter used to await this <see cref="System.Threading.Tasks.Task"/>.</summary>
+        /// <param name="awaitBehavior">
+        /// true to attempt to marshal the continuation back to the original context captured; otherwise, false.
+        /// </param>
+        /// <returns>An object used to await this task.</returns>
+        public ConfiguredCancelableTaskAwaitable ConfigureAwait(AwaitBehavior awaitBehavior)
+        {
+            return new ConfiguredCancelableTaskAwaitable(this, awaitBehavior, default);
+        }
+
+        /// <summary>Configures an awaiter used to await this <see cref="System.Threading.Tasks.Task"/>.</summary>
+        /// <param name="awaitBehavior">
+        /// true to attempt to marshal the continuation back to the original context captured; otherwise, false.
+        /// </param>
+        /// <param name="cancellationToken"></param>
+        /// <returns>An object used to await this task.</returns>
+        public ConfiguredCancelableTaskAwaitable ConfigureAwait(AwaitBehavior awaitBehavior, CancellationToken cancellationToken)
+        {
+            return new ConfiguredCancelableTaskAwaitable(this, awaitBehavior, cancellationToken);
         }
 
         /// <summary>
@@ -5509,6 +5558,65 @@ namespace System.Threading.Tasks
                 _registration.Dispose();
                 base.Cleanup();
             }
+        }
+        #endregion
+
+        #region WithCancellation
+        internal static Task WithCancellation(Task task, CancellationToken cancellationToken)
+        {
+            if (task.IsCompleted || !cancellationToken.CanBeCanceled)
+            {
+                return task;
+            }
+
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return Task.FromCanceled(cancellationToken);
+            }
+
+            return new CancelableTaskWrapper(task, cancellationToken);
+        }
+
+        private class CancelableTaskWrapper : Task, ITaskCompletionAction
+        {
+            private readonly CancellationTokenRegistration _registration;
+
+            bool ITaskCompletionAction.InvokeMayRunArbitraryCode => false;
+            void ITaskCompletionAction.Invoke(Task completingTask)
+            {
+                // Need a better way to fill `this` with completing task results
+                bool success = completingTask.Status switch
+                {
+                    TaskStatus.RanToCompletion => TrySetResult(),
+                    TaskStatus.Faulted => TrySetException(completingTask.Exception!), // TODO account for AggregateException
+                    TaskStatus.Canceled => TrySetCanceled(completingTask.CancellationToken),
+                    _ => false
+                };
+
+                if (!success)
+                {
+                    Cleanup();
+                }
+            }
+
+            internal CancelableTaskWrapper(Task task, CancellationToken token)
+            {
+                Debug.Assert(task is not null);
+                Debug.Assert(token.CanBeCanceled);
+
+                task.AddCompletionAction(this, false);
+
+                _registration = token.UnsafeRegister(static (state, cancellationToken) =>
+                {
+                    var thisRef = (CancelableTaskWrapper)state!;
+                    if (thisRef.TrySetCanceled(cancellationToken))
+                    {
+                        thisRef.Cleanup();
+                    }
+                }, this);
+            }
+
+            private void Cleanup() => _registration.Dispose();
         }
         #endregion
 

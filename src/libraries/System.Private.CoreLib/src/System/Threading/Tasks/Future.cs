@@ -532,6 +532,46 @@ namespace System.Threading.Tasks
             return new ConfiguredTaskAwaitable<TResult>(this, continueOnCapturedContext);
         }
 
+        /// <summary>Configures an awaiter used to await this <see cref="System.Threading.Tasks.Task{TResult}"/>.</summary>
+        /// <param name="cancellationToken"></param>
+        /// <returns>An object used to await this task.</returns>
+        public new ConfiguredCancelableTaskAwaitable<TResult> ConfigureAwait(CancellationToken cancellationToken)
+        {
+            return new ConfiguredCancelableTaskAwaitable<TResult>(this, AwaitBehavior.Default, cancellationToken);
+        }
+
+        /// <summary>Configures an awaiter used to await this <see cref="System.Threading.Tasks.Task{TResult}"/>.</summary>
+        /// <param name="continueOnCapturedContext">
+        /// true to attempt to marshal the continuation back to the original context captured; otherwise, false.
+        /// </param>
+        /// <param name="cancellationToken"></param>
+        /// <returns>An object used to await this task.</returns>
+        public new ConfiguredCancelableTaskAwaitable<TResult> ConfigureAwait(bool continueOnCapturedContext, CancellationToken cancellationToken)
+        {
+            return new ConfiguredCancelableTaskAwaitable<TResult>(this, continueOnCapturedContext ? AwaitBehavior.Default : AwaitBehavior.NoCapturedContext, cancellationToken);
+        }
+
+        /// <summary>Configures an awaiter used to await this <see cref="System.Threading.Tasks.Task"/>.</summary>
+        /// <param name="awaitBehavior">
+        /// true to attempt to marshal the continuation back to the original context captured; otherwise, false.
+        /// </param>
+        /// <returns>An object used to await this task.</returns>
+        public new ConfiguredCancelableTaskAwaitable<TResult> ConfigureAwait(AwaitBehavior awaitBehavior)
+        {
+            return new ConfiguredCancelableTaskAwaitable<TResult>(this, awaitBehavior, default);
+        }
+
+        /// <summary>Configures an awaiter used to await this <see cref="System.Threading.Tasks.Task"/>.</summary>
+        /// <param name="awaitBehavior">
+        /// true to attempt to marshal the continuation back to the original context captured; otherwise, false.
+        /// </param>
+        /// <param name="cancellationToken"></param>
+        /// <returns>An object used to await this task.</returns>
+        public new ConfiguredCancelableTaskAwaitable<TResult> ConfigureAwait(AwaitBehavior awaitBehavior, CancellationToken cancellationToken)
+        {
+            return new ConfiguredCancelableTaskAwaitable<TResult>(this, awaitBehavior, cancellationToken);
+        }
+
         #endregion
 
         #region Continuation methods
