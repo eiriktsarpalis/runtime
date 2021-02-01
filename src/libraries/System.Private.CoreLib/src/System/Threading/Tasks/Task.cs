@@ -2452,7 +2452,15 @@ namespace System.Threading.Tasks
         /// <returns>An object used to await this task.</returns>
         public ConfiguredCancelableTaskAwaitable ConfigureAwait(CancellationToken cancellationToken)
         {
-            return new ConfiguredCancelableTaskAwaitable(this, AwaitBehavior.Default, cancellationToken);
+            return new ConfiguredCancelableTaskAwaitable(this, AwaitBehavior.Default, cancellationToken, Timeout.InfiniteTimeSpan);
+        }
+
+        /// <summary>Configures an awaiter used to await this <see cref="System.Threading.Tasks.Task"/>.</summary>
+        /// <param name="timeout"></param>
+        /// <returns>An object used to await this task.</returns>
+        public ConfiguredCancelableTaskAwaitable ConfigureAwait(TimeSpan timeout)
+        {
+            return new ConfiguredCancelableTaskAwaitable(this, AwaitBehavior.Default, default, timeout);
         }
 
         /// <summary>Configures an awaiter used to await this <see cref="System.Threading.Tasks.Task"/>.</summary>
@@ -2463,7 +2471,7 @@ namespace System.Threading.Tasks
         /// <returns>An object used to await this task.</returns>
         public ConfiguredCancelableTaskAwaitable ConfigureAwait(bool continueOnCapturedContext, CancellationToken cancellationToken)
         {
-            return new ConfiguredCancelableTaskAwaitable(this, continueOnCapturedContext ? AwaitBehavior.Default : AwaitBehavior.NoCapturedContext, cancellationToken);
+            return new ConfiguredCancelableTaskAwaitable(this, continueOnCapturedContext ? AwaitBehavior.Default : AwaitBehavior.NoCapturedContext, cancellationToken, Timeout.InfiniteTimeSpan);
         }
 
         /// <summary>Configures an awaiter used to await this <see cref="System.Threading.Tasks.Task"/>.</summary>
@@ -2473,7 +2481,7 @@ namespace System.Threading.Tasks
         /// <returns>An object used to await this task.</returns>
         public ConfiguredCancelableTaskAwaitable ConfigureAwait(AwaitBehavior awaitBehavior)
         {
-            return new ConfiguredCancelableTaskAwaitable(this, awaitBehavior, default);
+            return new ConfiguredCancelableTaskAwaitable(this, awaitBehavior, default, Timeout.InfiniteTimeSpan);
         }
 
         /// <summary>Configures an awaiter used to await this <see cref="System.Threading.Tasks.Task"/>.</summary>
@@ -2484,7 +2492,7 @@ namespace System.Threading.Tasks
         /// <returns>An object used to await this task.</returns>
         public ConfiguredCancelableTaskAwaitable ConfigureAwait(AwaitBehavior awaitBehavior, CancellationToken cancellationToken)
         {
-            return new ConfiguredCancelableTaskAwaitable(this, awaitBehavior, cancellationToken);
+            return new ConfiguredCancelableTaskAwaitable(this, awaitBehavior, cancellationToken, Timeout.InfiniteTimeSpan);
         }
 
         /// <summary>
@@ -5574,12 +5582,24 @@ namespace System.Threading.Tasks
                 return Task.FromCanceled(cancellationToken);
             }
 
-            return new CancelableTaskWrapper(task, cancellationToken);
+            return new CancelableTaskWrapper(task, cancellationToken, cts: null);
+        }
+
+        internal static Task WithTimeout(Task task, TimeSpan timeout)
+        {
+            if (timeout.Ticks < 0)
+            {
+                return task;
+            }
+
+            var cts = new CancellationTokenSource(timeout);
+            return new CancelableTaskWrapper(task, cts.Token, cts);
         }
 
         private class CancelableTaskWrapper : Task, ITaskCompletionAction
         {
             private readonly CancellationTokenRegistration _registration;
+            private readonly CancellationTokenSource? _cts;
 
             bool ITaskCompletionAction.InvokeMayRunArbitraryCode => false;
             void ITaskCompletionAction.Invoke(Task completingTask)
@@ -5599,13 +5619,14 @@ namespace System.Threading.Tasks
                 }
             }
 
-            internal CancelableTaskWrapper(Task task, CancellationToken token)
+            internal CancelableTaskWrapper(Task task, CancellationToken token, CancellationTokenSource? cts)
             {
                 Debug.Assert(task is not null);
                 Debug.Assert(token.CanBeCanceled);
 
                 task.AddCompletionAction(this, false);
 
+                _cts = cts;
                 _registration = token.UnsafeRegister(static (state, cancellationToken) =>
                 {
                     var thisRef = (CancelableTaskWrapper)state!;
@@ -5616,8 +5637,19 @@ namespace System.Threading.Tasks
                 }, this);
             }
 
-            private void Cleanup() => _registration.Dispose();
+            private void Cleanup()
+            {
+                if (_cts is not null)
+                {
+                    _cts.Dispose();
+                }
+                else
+                {
+                    _registration.Dispose();
+                }
+            }
         }
+
         #endregion
 
         #region WhenAll
@@ -6901,5 +6933,42 @@ namespace System.Threading.Tasks
         }
 
         public bool InvokeMayRunArbitraryCode => true;
+    }
+
+    public static class TaskExtensions
+    {
+        public static async ValueTask WithTimeout(this Task task, TimeSpan timeout)
+        {
+            if (task.IsCompleted)
+            {
+                task.GetAwaiter().GetResult();
+                return;
+            }
+
+            if (timeout.Ticks >= 0)
+            {
+                await task.ConfigureAwait(false);
+                return;
+            }
+
+            using var cts = new CancellationTokenSource(timeout);
+            await task.ConfigureAwait(false, cts.Token);
+        }
+
+        public static async ValueTask<TResult> WithTimeout<TResult>(this Task<TResult> task, TimeSpan timeout)
+        {
+            if (task.IsCompleted)
+            {
+                return task.GetAwaiter().GetResult();
+            }
+
+            if (timeout == Timeout.InfiniteTimeSpan)
+            {
+                return await task.ConfigureAwait(false);
+            }
+
+            using var cts = new CancellationTokenSource(timeout);
+            return await task.ConfigureAwait(false, cts.Token);
+        }
     }
 }

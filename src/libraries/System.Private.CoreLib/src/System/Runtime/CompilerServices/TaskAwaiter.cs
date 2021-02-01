@@ -168,6 +168,18 @@ namespace System.Runtime.CompilerServices
             }
         }
 
+        [StackTraceHidden]
+        internal static void ValidateTimeout(TimeSpan timeout)
+        {
+            long timeoutMilliseconds = (long)timeout.TotalMilliseconds;
+            if (timeoutMilliseconds < -1 || timeoutMilliseconds > Timer.MaxSupportedTimeout)
+            {
+                ThrowArgumentOutOfRangeException();
+            }
+
+            static void ThrowArgumentOutOfRangeException() => throw new ArgumentOutOfRangeException(nameof(timeout));
+        }
+
         /// <summary>
         /// Ensures the task is completed, triggers any necessary debugger breakpoints for completing
         /// the await on the task, and throws an exception if the task did not complete successfully.
@@ -625,10 +637,11 @@ namespace System.Runtime.CompilerServices
         /// true to attempt to marshal the continuation back to the original context captured; otherwise, false.
         /// </param>
         /// <param name="cancellationToken"></param>
-        internal ConfiguredCancelableTaskAwaitable(Task task, AwaitBehavior awaitBehavior, CancellationToken cancellationToken)
+        /// <param name="timeout"></param>
+        internal ConfiguredCancelableTaskAwaitable(Task task, AwaitBehavior awaitBehavior, CancellationToken cancellationToken, TimeSpan timeout)
         {
             Debug.Assert(task != null, "Constructing an awaitable requires a task to await.");
-            m_configuredTaskAwaiter = new ConfiguredCancelableTaskAwaitable.ConfiguredCancelableTaskAwaiter(task, awaitBehavior, cancellationToken);
+            m_configuredTaskAwaiter = new ConfiguredCancelableTaskAwaitable.ConfiguredCancelableTaskAwaiter(task, awaitBehavior, cancellationToken, timeout);
         }
 
         /// <summary>Gets an awaiter for this awaitable.</summary>
@@ -651,6 +664,8 @@ namespace System.Runtime.CompilerServices
             internal readonly AwaitBehavior m_awaitBehavior;
             /// <summary>The cancellation token.</summary>
             internal readonly CancellationToken m_cancellationToken;
+            /// <summary>User-supplied timeout.</summary>
+            internal readonly TimeSpan m_timeout;
 
             /// <summary>Initializes the <see cref="ConfiguredCancelableTaskAwaiter"/>.</summary>
             /// <param name="task">The <see cref="System.Threading.Tasks.Task"/> to await.</param>
@@ -659,18 +674,23 @@ namespace System.Runtime.CompilerServices
             /// when BeginAwait is called; otherwise, false.
             /// </param>
             /// <param name="cancellationToken">The <see cref="System.Threading.Tasks.Task"/> to await.</param>
-            internal ConfiguredCancelableTaskAwaiter(Task task, AwaitBehavior awaitBehavior, CancellationToken cancellationToken)
+            /// <param name="timeout"></param>
+            internal ConfiguredCancelableTaskAwaiter(Task task, AwaitBehavior awaitBehavior, CancellationToken cancellationToken, TimeSpan timeout)
             {
                 Debug.Assert(task != null, "Constructing an awaiter requires a task to await.");
+                Debug.Assert(!(timeout.TotalMilliseconds >= 0) || cancellationToken == default, "Awaiters with timeout set should carry the default cancellation token.");
+                TaskAwaiter.ValidateTimeout(timeout);
                 m_task = task;
                 m_cancellationToken = cancellationToken;
                 m_awaitBehavior = awaitBehavior;
+                m_timeout = timeout;
             }
 
             /// <summary>Gets whether the task being awaited is completed.</summary>
             /// <remarks>This property is intended for compiler user rather than use directly in code.</remarks>
             /// <exception cref="System.NullReferenceException">The awaiter was not properly initialized.</exception>
             public bool IsCompleted =>
+                // NB this logic will *not* check for timeout since the awaiter does not start any timers of its own.
                 (m_task.IsCompleted || m_cancellationToken.IsCancellationRequested) &&
                 (m_awaitBehavior & AwaitBehavior.ForceAsync) != AwaitBehavior.ForceAsync;
 
@@ -681,7 +701,7 @@ namespace System.Runtime.CompilerServices
             /// <remarks>This method is intended for compiler user rather than use directly in code.</remarks>
             public void OnCompleted(Action continuation)
             {
-                Task cancelableTask = Task.WithCancellation(m_task, m_cancellationToken);
+                Task cancelableTask = (m_timeout.Ticks >= 0) ? Task.WithTimeout(m_task, m_timeout) : Task.WithCancellation(m_task, m_cancellationToken);
                 bool continueOnCapturedContext = (m_awaitBehavior & AwaitBehavior.NoCapturedContext) != AwaitBehavior.NoCapturedContext;
                 TaskAwaiter.OnCompletedInternal(cancelableTask, continuation, continueOnCapturedContext, flowExecutionContext: true);
             }
@@ -693,7 +713,7 @@ namespace System.Runtime.CompilerServices
             /// <remarks>This method is intended for compiler user rather than use directly in code.</remarks>
             public void UnsafeOnCompleted(Action continuation)
             {
-                Task cancelableTask = Task.WithCancellation(m_task, m_cancellationToken);
+                Task cancelableTask = (m_timeout.Ticks >= 0) ? Task.WithTimeout(m_task, m_timeout) : Task.WithCancellation(m_task, m_cancellationToken);
                 bool continueOnCapturedContext = (m_awaitBehavior & AwaitBehavior.NoCapturedContext) != AwaitBehavior.NoCapturedContext;
                 TaskAwaiter.OnCompletedInternal(m_task, continuation, continueOnCapturedContext, flowExecutionContext: false);
             }
@@ -705,6 +725,7 @@ namespace System.Runtime.CompilerServices
             [StackTraceHidden]
             public void GetResult()
             {
+                // NB this logic will *not* check for timeout since the awaiter does not start any timers on its own.
                 // task exceptions take precedence over token cancellation
                 TaskAwaiter.ValidateEnd(m_task, m_awaitBehavior, m_cancellationToken);
             }
