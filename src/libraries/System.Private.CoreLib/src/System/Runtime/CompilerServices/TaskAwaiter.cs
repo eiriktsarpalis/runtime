@@ -156,15 +156,27 @@ namespace System.Runtime.CompilerServices
         /// <param name="task">The awaited task.</param>
         /// <param name="awaitBehavior"></param>
         /// <param name="cancellationToken"></param>
+        /// <param name="disposeCts"></param>
         [StackTraceHidden]
-        internal static void ValidateEnd(Task task, AwaitBehavior awaitBehavior, CancellationToken cancellationToken)
+        internal static void ValidateEnd(Task task, AwaitBehavior awaitBehavior, CancellationToken cancellationToken, bool disposeCts)
         {
-            // Fast checks that can be inlined.
-            if (task.IsWaitNotificationEnabledOrNotRanToCompletion)
+            try
             {
-                // If either the end await bit is set or we're not completed successfully,
-                // fall back to the slower path.
-                HandleNonSuccessAndDebuggerNotification(task, awaitBehavior, cancellationToken);
+                if (task.IsWaitNotificationEnabledOrNotRanToCompletion)
+                {
+                    // If either the end await bit is set or we're not completed successfully,
+                    // fall back to the slower path.
+                    HandleNonSuccessAndDebuggerNotification(task, awaitBehavior, cancellationToken);
+                }
+            }
+            finally
+            {
+                // can probably avoid try/finally, using in the PoC for brevity
+                if (disposeCts)
+                {
+                    Debug.Assert(cancellationToken._source != null);
+                    cancellationToken._source.Dispose();
+                }
             }
         }
 
@@ -625,10 +637,11 @@ namespace System.Runtime.CompilerServices
         /// true to attempt to marshal the continuation back to the original context captured; otherwise, false.
         /// </param>
         /// <param name="cancellationToken"></param>
-        internal ConfiguredCancelableTaskAwaitable(Task task, AwaitBehavior awaitBehavior, CancellationToken cancellationToken)
+        /// <param name="disposeCancellationTokenSource"></param>
+        internal ConfiguredCancelableTaskAwaitable(Task task, AwaitBehavior awaitBehavior, CancellationToken cancellationToken, bool disposeCancellationTokenSource)
         {
             Debug.Assert(task != null, "Constructing an awaitable requires a task to await.");
-            m_configuredTaskAwaiter = new ConfiguredCancelableTaskAwaitable.ConfiguredCancelableTaskAwaiter(task, awaitBehavior, cancellationToken);
+            m_configuredTaskAwaiter = new ConfiguredCancelableTaskAwaitable.ConfiguredCancelableTaskAwaiter(task, awaitBehavior, cancellationToken, disposeCancellationTokenSource);
         }
 
         /// <summary>Gets an awaiter for this awaitable.</summary>
@@ -651,6 +664,8 @@ namespace System.Runtime.CompilerServices
             internal readonly AwaitBehavior m_awaitBehavior;
             /// <summary>The cancellation token.</summary>
             internal readonly CancellationToken m_cancellationToken;
+            /// <summary>The cancellation token source is owned by the awaiter.</summary>
+            internal readonly bool m_disposeCancellationTokenSource;
 
             /// <summary>Initializes the <see cref="ConfiguredCancelableTaskAwaiter"/>.</summary>
             /// <param name="task">The <see cref="System.Threading.Tasks.Task"/> to await.</param>
@@ -659,12 +674,14 @@ namespace System.Runtime.CompilerServices
             /// when BeginAwait is called; otherwise, false.
             /// </param>
             /// <param name="cancellationToken">The <see cref="System.Threading.Tasks.Task"/> to await.</param>
-            internal ConfiguredCancelableTaskAwaiter(Task task, AwaitBehavior awaitBehavior, CancellationToken cancellationToken)
+            /// <param name="disposeCancellationTokenSource"></param>
+            internal ConfiguredCancelableTaskAwaiter(Task task, AwaitBehavior awaitBehavior, CancellationToken cancellationToken, bool disposeCancellationTokenSource)
             {
                 Debug.Assert(task != null, "Constructing an awaiter requires a task to await.");
                 m_task = task;
                 m_cancellationToken = cancellationToken;
                 m_awaitBehavior = awaitBehavior;
+                m_disposeCancellationTokenSource = disposeCancellationTokenSource;
             }
 
             /// <summary>Gets whether the task being awaited is completed.</summary>
@@ -705,8 +722,7 @@ namespace System.Runtime.CompilerServices
             [StackTraceHidden]
             public void GetResult()
             {
-                // task exceptions take precedence over token cancellation
-                TaskAwaiter.ValidateEnd(m_task, m_awaitBehavior, m_cancellationToken);
+                TaskAwaiter.ValidateEnd(m_task, m_awaitBehavior, m_cancellationToken, m_disposeCancellationTokenSource);
             }
         }
     }
@@ -810,7 +826,7 @@ namespace System.Runtime.CompilerServices
             [StackTraceHidden]
             public TResult GetResult()
             {
-                TaskAwaiter.ValidateEnd(m_task, m_awaitBehavior, m_cancellationToken);
+                TaskAwaiter.ValidateEnd(m_task, m_awaitBehavior, m_cancellationToken, disposeCts: false);
                 Debug.Assert(m_task.IsWaitNotificationEnabledOrNotRanToCompletion ||
                             !m_task.IsCompletedSuccessfully && (m_awaitBehavior & AwaitBehavior.NoThrow) == AwaitBehavior.NoThrow,
                             "Should only be used when the task completed successfully and there's no wait notification enabled OR " +

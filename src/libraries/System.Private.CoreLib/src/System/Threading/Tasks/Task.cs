@@ -2452,7 +2452,16 @@ namespace System.Threading.Tasks
         /// <returns>An object used to await this task.</returns>
         public ConfiguredCancelableTaskAwaitable ConfigureAwait(CancellationToken cancellationToken)
         {
-            return new ConfiguredCancelableTaskAwaitable(this, AwaitBehavior.Default, cancellationToken);
+            return new ConfiguredCancelableTaskAwaitable(this, AwaitBehavior.Default, cancellationToken, disposeCancellationTokenSource: false);
+        }
+
+        /// <summary>Configures an awaiter used to await this <see cref="System.Threading.Tasks.Task"/>.</summary>
+        /// <param name="timeout"></param>
+        /// <returns>An object used to await this task.</returns>
+        public ConfiguredCancelableTaskAwaitable ConfigureAwait(TimeSpan timeout)
+        {
+            var cts = new CancellationTokenSource(timeout);
+            return new ConfiguredCancelableTaskAwaitable(this, AwaitBehavior.Default, cts.Token, disposeCancellationTokenSource: true);
         }
 
         /// <summary>Configures an awaiter used to await this <see cref="System.Threading.Tasks.Task"/>.</summary>
@@ -2463,7 +2472,7 @@ namespace System.Threading.Tasks
         /// <returns>An object used to await this task.</returns>
         public ConfiguredCancelableTaskAwaitable ConfigureAwait(bool continueOnCapturedContext, CancellationToken cancellationToken)
         {
-            return new ConfiguredCancelableTaskAwaitable(this, continueOnCapturedContext ? AwaitBehavior.Default : AwaitBehavior.NoCapturedContext, cancellationToken);
+            return new ConfiguredCancelableTaskAwaitable(this, continueOnCapturedContext ? AwaitBehavior.Default : AwaitBehavior.NoCapturedContext, cancellationToken, disposeCancellationTokenSource: false);
         }
 
         /// <summary>Configures an awaiter used to await this <see cref="System.Threading.Tasks.Task"/>.</summary>
@@ -2473,7 +2482,7 @@ namespace System.Threading.Tasks
         /// <returns>An object used to await this task.</returns>
         public ConfiguredCancelableTaskAwaitable ConfigureAwait(AwaitBehavior awaitBehavior)
         {
-            return new ConfiguredCancelableTaskAwaitable(this, awaitBehavior, default);
+            return new ConfiguredCancelableTaskAwaitable(this, awaitBehavior, default, disposeCancellationTokenSource: false);
         }
 
         /// <summary>Configures an awaiter used to await this <see cref="System.Threading.Tasks.Task"/>.</summary>
@@ -2484,7 +2493,7 @@ namespace System.Threading.Tasks
         /// <returns>An object used to await this task.</returns>
         public ConfiguredCancelableTaskAwaitable ConfigureAwait(AwaitBehavior awaitBehavior, CancellationToken cancellationToken)
         {
-            return new ConfiguredCancelableTaskAwaitable(this, awaitBehavior, cancellationToken);
+            return new ConfiguredCancelableTaskAwaitable(this, awaitBehavior, cancellationToken, disposeCancellationTokenSource: false);
         }
 
         /// <summary>
@@ -5616,8 +5625,12 @@ namespace System.Threading.Tasks
                 }, this);
             }
 
-            private void Cleanup() => _registration.Dispose();
+            private void Cleanup()
+            {
+                _registration.Dispose();
+            }
         }
+
         #endregion
 
         #region WhenAll
