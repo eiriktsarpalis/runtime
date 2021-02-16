@@ -17,7 +17,7 @@ namespace System.Linq
                 ThrowHelper.ThrowArgumentNullException(ExceptionArgument.source);
             }
 
-            if (!TryGetElementAt(source, index, isIndexFromEnd: false, out TSource? element))
+            if (!TryGetElementAt(source, index, out TSource? element))
             {
                 ThrowHelper.ThrowArgumentOutOfRangeException(ExceptionArgument.index);
             }
@@ -42,12 +42,24 @@ namespace System.Linq
                 ThrowHelper.ThrowArgumentNullException(ExceptionArgument.source);
             }
 
-            if (!TryGetElementAt(source, index.Value, index.IsFromEnd, out TSource? element))
+            bool success = false;
+            TSource? element;
+
+            if (index.IsFromEnd)
+            {
+                success = TryGetElementAtFromEnd(source, index.Value, out element);
+            }
+            else
+            {
+                success = TryGetElementAt(source, index.Value, out element);
+            }
+
+            if (!success)
             {
                 ThrowHelper.ThrowArgumentOutOfRangeException(ExceptionArgument.index);
             }
 
-            return element;
+            return element!;
         }
 
         public static TSource? ElementAtOrDefault<TSource>(this IEnumerable<TSource> source, int index)
@@ -57,7 +69,7 @@ namespace System.Linq
                 ThrowHelper.ThrowArgumentNullException(ExceptionArgument.source);
             }
 
-            TryGetElementAt(source, index, isIndexFromEnd: false, out TSource? element);
+            TryGetElementAt(source, index, out TSource? element);
             return element;
         }
 
@@ -78,110 +90,72 @@ namespace System.Linq
                 ThrowHelper.ThrowArgumentNullException(ExceptionArgument.source);
             }
 
-            TryGetElementAt(source, index.Value, index.IsFromEnd, out TSource? element);
+            TSource? element;
+            if (index.IsFromEnd)
+            {
+                TryGetElementAtFromEnd(source, index.Value, out element);
+            }
+            else
+            {
+                TryGetElementAt(source, index.Value, out element);
+            }
+
             return element;
         }
 
-        private static bool TryGetElementAt<TSource>(IEnumerable<TSource> source, int index, bool isIndexFromEnd, [MaybeNullWhen(false)] out TSource element)
+        private static bool TryGetElementAt<TSource>(IEnumerable<TSource> source, int index, [MaybeNullWhen(false)] out TSource element)
         {
             Debug.Assert(source != null);
 
-            element = default;
-            if (index < 0 || (isIndexFromEnd && index == 0))
-            {
-                return false;
-            }
-
             if (source is IList<TSource> list)
             {
-                int listCount = list.Count;
-                if (listCount > 0)
+                if (0 <= index && index < list.Count)
                 {
-                    if (isIndexFromEnd)
-                    {
-                        index = listCount - index;
-                        if (index < 0)
-                        {
-                            return false;
-                        }
-                    }
+                    element = list[index];
+                    return true;
+                }
 
-                    if (index < listCount)
+                element = default;
+                return false;
+            }
+
+            if (source is IPartition<TSource> partition)
+            {
+                element = partition.TryGetElementAt(index, out bool found);
+                return found;
+            }
+
+            if (index >= 0)
+            {
+                using IEnumerator<TSource> e = source.GetEnumerator();
+                while (e.MoveNext())
+                {
+                    if (index == 0)
                     {
-                        element = list[index];
+                        element = e.Current;
                         return true;
                     }
-                }
 
-                return false;
-            }
-
-            int count = -1;
-            if (source is IIListProvider<TSource> listProvider)
-            {
-                if (source is IPartition<TSource> partition)
-                {
-                    if (isIndexFromEnd)
-                    {
-                        count = partition.GetCount(onlyIfCheap: true);
-                        if (count > 0)
-                        {
-                            element = partition.TryGetElementAt(count - index, out bool found);
-                            return found;
-                        }
-                    }
-                    else
-                    {
-                        element = partition.TryGetElementAt(index, out bool found);
-                        return found;
-                    }
-                }
-                else
-                {
-                    count = listProvider.GetCount(onlyIfCheap: true);
+                    index--;
                 }
             }
-            else if (source is ICollection<TSource> collectionoft)
-            {
-                count = collectionoft.Count;
-            }
-            else if (source is ICollection collection)
-            {
-                count = collection.Count;
-            }
 
-            if (count == 0)
+            element = default;
+            return false;
+        }
+
+        private static bool TryGetElementAtFromEnd<TSource>(IEnumerable<TSource> source, int index, [MaybeNullWhen(false)] out TSource element)
+        {
+            Debug.Assert(source != null);
+
+            if (source.TryGetNonEnumeratedCount(out int count))
             {
-                return false;
-            }
-
-            if (count > 0)
-            {
-                if (isIndexFromEnd)
-                {
-                    index = count - index;
-                    if (index < 0)
-                    {
-                        return false;
-                    }
-
-                    isIndexFromEnd = false;
-                }
-
-                if (index >= count)
-                {
-                    return false;
-                }
+                return TryGetElementAt(source, count - index, out element);
             }
 
             using IEnumerator<TSource> e = source.GetEnumerator();
-            if (isIndexFromEnd)
+            if (e.MoveNext())
             {
-                if (!e.MoveNext())
-                {
-                    return false;
-                }
-
                 Queue<TSource> queue = new();
                 queue.Enqueue(e.Current);
                 while (e.MoveNext())
@@ -200,20 +174,8 @@ namespace System.Linq
                     return true;
                 }
             }
-            else
-            {
-                while (e.MoveNext())
-                {
-                    if (index == 0)
-                    {
-                        element = e.Current;
-                        return true;
-                    }
 
-                    index--;
-                }
-            }
-
+            element = default;
             return false;
         }
     }
