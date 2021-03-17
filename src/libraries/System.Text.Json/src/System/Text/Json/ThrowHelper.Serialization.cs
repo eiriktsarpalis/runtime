@@ -28,6 +28,20 @@ namespace System.Text.Json
 
         [DoesNotReturn]
         [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void ThrowNotSupportedException_DeserializationNotSupported(Type propertyType)
+        {
+            throw new NotSupportedException(SR.Format(SR.DeserializationNotSupportedType, propertyType));
+        }
+
+        [DoesNotReturn]
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void ThrowNotSupportedException_TypeRequiresAsyncSerialization(Type propertyType)
+        {
+            throw new NotSupportedException(SR.Format(SR.TypeRequiresAsyncSerialization, propertyType));
+        }
+
+        [DoesNotReturn]
+        [MethodImpl(MethodImplOptions.NoInlining)]
         public static void ThrowNotSupportedException_ConstructorMaxOf64Parameters(ConstructorInfo constructorInfo, Type type)
         {
             throw new NotSupportedException(SR.Format(SR.ConstructorMaxOf64Parameters, constructorInfo, type));

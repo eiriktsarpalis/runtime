@@ -113,7 +113,7 @@ namespace System.Text.Json
                     inputType = value!.GetType();
                 }
 
-                WriteStack state = default;
+                WriteStack state = new WriteStack { CancellationToken = cancellationToken };
                 JsonConverter converterBase = state.Initialize(inputType, options, supportContinuation: true);
 
                 bool isFinalBlock;
@@ -122,11 +122,26 @@ namespace System.Text.Json
                 {
                     state.FlushThreshold = (int)(bufferWriter.Capacity * FlushThreshold);
 
-                    isFinalBlock = WriteCore(converterBase, writer, value, options, ref state);
+                    try
+                    {
+                        isFinalBlock = WriteCore(converterBase, writer, value, options, ref state);
+                    }
+                    finally
+                    {
+                        if (state.PendingAsyncDisposables?.Count > 0)
+                        {
+                            await state.DisposePendingAsyncDisposables().ConfigureAwait(false);
+                        }
+                    }
 
                     await bufferWriter.WriteToStreamAsync(utf8Json, cancellationToken).ConfigureAwait(false);
-
                     bufferWriter.Clear();
+
+                    if (state.PendingTask is not null)
+                    {
+                        await state.AwaitPendingTask().ConfigureAwait(false);
+                    }
+
                 } while (!isFinalBlock);
             }
         }

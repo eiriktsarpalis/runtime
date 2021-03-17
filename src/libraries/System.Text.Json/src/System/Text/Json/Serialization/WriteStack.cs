@@ -4,6 +4,8 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text.Json.Serialization;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace System.Text.Json
 {
@@ -19,6 +21,22 @@ namespace System.Text.Json
         /// The number of stack frames including Current. _previous will contain _count-1 higher frames.
         /// </summary>
         private int _count;
+
+        /// <summary>
+        /// Cancellation token used by converters performing async serialization (e.g. IAsyncEnumerable)
+        /// </summary>
+        public CancellationToken CancellationToken;
+
+        /// <summary>
+        /// Stores a pending task that a resumable converter depends on to continue work.
+        /// It must be awaited by the root context before serialization is resumed.
+        /// </summary>
+        public Task? PendingTask;
+
+        /// <summary>
+        /// List of IAsyncDisposables that have been scheduled for disposal by converters.
+        /// </summary>
+        public List<IAsyncDisposable>? PendingAsyncDisposables;
 
         private List<WriteStackFrame> _previous;
 
@@ -172,12 +190,62 @@ namespace System.Text.Json
             else
             {
                 Debug.Assert(_continuationCount == 0);
+
+                if (Current.AsyncEnumerator is not null)
+                {
+                    // we have completed serialization of an AsyncEnumerator,
+                    // pop from the stack and schedule for async disposal.
+                    PendingAsyncDisposables ??= new();
+                    PendingAsyncDisposables.Add(Current.AsyncEnumerator);
+                }
             }
 
             if (_count > 1)
             {
                 Current = _previous[--_count - 1];
             }
+        }
+
+        // asynchronously await any pending stacks that resumable converters depend on.
+        public async ValueTask AwaitPendingTask()
+        {
+            Debug.Assert(PendingTask != null);
+
+            if (!PendingTask.IsCompleted)
+            {
+                // wrap with Task.WhenAny to avoid surfacing any exceptions here
+                await Task.WhenAny(PendingTask).ConfigureAwait(false);
+            }
+
+            // Do not clear the `PendingTask` field here since the result
+            // will need to be consumed by a resumable converter.
+        }
+
+        // Asynchronously dispose of any AsyncDisposables that have been scheduled for disposal
+        public async ValueTask DisposePendingAsyncDisposables()
+        {
+            Debug.Assert(PendingAsyncDisposables?.Count > 0);
+            List<Exception>? exceptions = null;
+
+            foreach (IAsyncDisposable asyncDisposable in PendingAsyncDisposables)
+            {
+                try
+                {
+                    await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+                }
+                catch (Exception exn)
+                {
+                    exceptions ??= new();
+                    exceptions.Add(exn);
+                }
+            }
+
+            if (exceptions is not null)
+            {
+                throw new AggregateException(exceptions);
+            }
+
+            PendingAsyncDisposables.Clear();
         }
 
         // Return a property path as a simple JSONPath using dot-notation when possible. When special characters are present, bracket-notation is used:
