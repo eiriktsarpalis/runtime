@@ -4,6 +4,7 @@
 using System.Collections;
 using System.Diagnostics;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Converters;
 
 namespace System.Text.Json
 {
@@ -14,6 +15,11 @@ namespace System.Text.Json
         /// The enumerator for resumable collections.
         /// </summary>
         public IEnumerator? CollectionEnumerator;
+
+        /// <summary>
+        /// The enumerator of async enumerables.
+        /// </summary>
+        public AsyncEnumeratorSerializationState? AsyncEnumeratorSerializationState;
 
         /// <summary>
         /// The original JsonPropertyInfo that is not changed. It contains all properties.

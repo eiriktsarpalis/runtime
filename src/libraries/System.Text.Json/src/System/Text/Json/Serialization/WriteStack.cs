@@ -4,6 +4,9 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Converters;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace System.Text.Json
 {
@@ -19,6 +22,10 @@ namespace System.Text.Json
         /// The number of stack frames including Current. _previous will contain _count-1 higher frames.
         /// </summary>
         private int _count;
+
+        public bool StackContainsPendingTasks;
+        public CancellationToken CancellationToken;
+        public List<IAsyncDisposable>? PendingAsyncDisposables;
 
         private List<WriteStackFrame> _previous;
 
@@ -172,12 +179,75 @@ namespace System.Text.Json
             else
             {
                 Debug.Assert(_continuationCount == 0);
+
+                if (Current.AsyncEnumeratorSerializationState is AsyncEnumeratorSerializationState enumeratorState)
+                {
+                    // we have completed serialization of an AsyncEnumerator,
+                    // pop from the stack and schedule for async disposal.
+                    PendingAsyncDisposables ??= new();
+                    PendingAsyncDisposables.Add(enumeratorState.Enumerator);
+                }
             }
 
             if (_count > 1)
             {
                 Current = _previous[--_count - 1];
             }
+        }
+
+        // Walk the stack, asynchronously awaiting any pending stacks that resumable converters depend on.
+        public async ValueTask AwaitPendingStackTasks()
+        {
+            Debug.Assert(StackContainsPendingTasks);
+
+            // TODO this is clearly wrong, we should only be enumerating continuation frames (really just the innermost continuation frame)
+            foreach (WriteStackFrame frame in _previous)
+            {
+                if (frame.AsyncEnumeratorSerializationState is { MoveNextTask: var moveNextTask })
+                {
+                    // asynchronously await the task and cache the result for consumption by the converter
+                    try
+                    {
+                        bool result = await moveNextTask.ConfigureAwait(false);
+                        moveNextTask = ValueTask.FromResult(result);
+                    }
+                    catch (Exception e)
+                    {
+                        // TODO: use ExceptionDispatchInfo
+                        moveNextTask = new ValueTask<bool>(Task.FromException<bool>(e));
+                    }
+
+                    // NB AsyncEnumeratorSerializationState is a class
+                    frame.AsyncEnumeratorSerializationState.MoveNextTask = moveNextTask;
+                }
+            }
+        }
+
+        // Asynchronously dispose of any AsyncDisposables that have been scheduled for disposal
+        public async ValueTask DisposePendingAsyncDisposables()
+        {
+            Debug.Assert(PendingAsyncDisposables?.Count > 0);
+            List<Exception>? exceptions = null;
+
+            foreach (IAsyncDisposable asyncDisposable in PendingAsyncDisposables)
+            {
+                try
+                {
+                    await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+                }
+                catch (Exception exn)
+                {
+                    exceptions ??= new();
+                    exceptions.Add(exn);
+                }
+            }
+
+            if (exceptions is not null)
+            {
+                throw new AggregateException(exceptions);
+            }
+
+            PendingAsyncDisposables.Clear();
         }
 
         // Return a property path as a simple JSONPath using dot-notation when possible. When special characters are present, bracket-notation is used:

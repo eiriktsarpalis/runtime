@@ -174,6 +174,7 @@ namespace System.Text.Json
             }
 
             WriteStack state = default;
+            state.CancellationToken = cancellationToken;
             JsonConverter converterBase = state.Initialize(inputType, options, supportContinuation: true);
 
             using (var bufferWriter = new PooledByteBufferWriter(options.DefaultBufferSize))
@@ -184,9 +185,27 @@ namespace System.Text.Json
                 do
                 {
                     state.FlushThreshold = (int)(bufferWriter.Capacity * FlushThreshold);
-                    isFinalBlock = WriteCore(converterBase, writer, value, options, ref state);
+
+                    try
+                    {
+                        isFinalBlock = WriteCore(converterBase, writer, value, options, ref state);
+                    }
+                    finally
+                    {
+                        if (state.PendingAsyncDisposables?.Count > 0)
+                        {
+                            await state.DisposePendingAsyncDisposables().ConfigureAwait(false);
+                        }
+                    }
+
                     await bufferWriter.WriteToStreamAsync(utf8Json, cancellationToken).ConfigureAwait(false);
                     bufferWriter.Clear();
+
+                    if (state.StackContainsPendingTasks)
+                    {
+                        await state.AwaitPendingStackTasks().ConfigureAwait(false);
+                    }
+
                 } while (!isFinalBlock);
             }
         }
