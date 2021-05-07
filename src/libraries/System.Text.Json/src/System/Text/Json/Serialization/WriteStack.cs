@@ -36,6 +36,14 @@ namespace System.Text.Json
         private int _continuationCount;
 
         /// <summary>
+        /// Offset used to derive the index of the current frame in the stack buffer from the current value of <see cref="_count"/>,
+        /// following the formula currentIndex := _count - _indexOffset.
+        /// Value can vary between 0 or 1 depending on whether we need to allocate a new frame on the first Push() operation,
+        /// which can happen if the root converter is polymorphic.
+        /// </summary>
+        private int _indexOffset;
+
+        /// <summary>
         /// Cancellation token used by converters performing async serialization (e.g. IAsyncEnumerable)
         /// </summary>
         public CancellationToken CancellationToken;
@@ -61,6 +69,11 @@ namespace System.Text.Json
         /// Indicates that the state still contains suspended frames waiting re-entry.
         /// </summary>
         public bool IsContinuation => _continuationCount != 0;
+
+        /// <summary>
+        /// Indicates that the next converter is polymorphic and must serialize a type discriminator.
+        /// </summary>
+        public string? PolymorphicTypeDiscriminator;
 
         // The bag of preservable references.
         public ReferenceResolver ReferenceResolver;
@@ -110,22 +123,40 @@ namespace System.Text.Json
             return jsonTypeInfo.PropertyInfoForTypeInfo.ConverterBase;
         }
 
+        /// <summary>
+        /// Used to obtain the JsonTypeInfo for the current converter _before_ the call to WriteStack.Push() has been made.
+        /// </summary>
+        public JsonTypeInfo PeekNextJsonTypeInfo()
+        {
+            if (_count == 0 && Current.PolymorphicSerializationState != PolymorphicSerializationState.PolymorphicReEntryStarted)
+            {
+                return Current.JsonTypeInfo;
+            }
+
+            return Current.GetPolymorphicJsonPropertyInfo().RuntimeTypeInfo;
+        }
+
         public void Push()
         {
             if (_continuationCount == 0)
             {
-                if (_count == 0)
+                Debug.Assert(Current.PolymorphicSerializationState != PolymorphicSerializationState.PolymorphicReEntrySuspended);
+
+                if (_count == 0 && Current.PolymorphicSerializationState == PolymorphicSerializationState.None)
                 {
-                    // The first stack frame is held in Current.
+                    // Perf enhancement: do not create a new stackframe on the first push operation
+                    // unless the converter has primed the current frame for polymorphic dispatch.
                     _count = 1;
+                    _indexOffset = 1; // currentIndex := _count - 1;
                 }
                 else
                 {
-                    JsonTypeInfo jsonTypeInfo = Current.GetPolymorphicJsonPropertyInfo().RuntimeTypeInfo;
+                    JsonPropertyInfo jsonPropertyInfo = Current.GetPolymorphicJsonPropertyInfo();
+                    JsonTypeInfo jsonTypeInfo = jsonPropertyInfo.RuntimeTypeInfo;
                     JsonNumberHandling? numberHandling = Current.NumberHandling;
 
                     EnsurePushCapacity();
-                    _stack[_count - 1] = Current;
+                    _stack[_count - _indexOffset] = Current;
                     Current = default;
                     _count++;
 
@@ -138,9 +169,9 @@ namespace System.Text.Json
             else
             {
                 // We are re-entering a continuation, adjust indices accordingly
-                if (_count++ > 0)
+                if (_count++ > 0 || _indexOffset == 0)
                 {
-                    Current = _stack[_count - 1];
+                    Current = _stack[_count - _indexOffset];
                 }
 
                 // check if we are done
@@ -165,7 +196,7 @@ namespace System.Text.Json
                 // Check if we need to initialize the continuation.
                 if (_continuationCount == 0)
                 {
-                    if (_count == 1)
+                    if (_count == 1 && _indexOffset > 0)
                     {
                         // No need to copy any frames here.
                         _continuationCount = 1;
@@ -178,14 +209,15 @@ namespace System.Text.Json
                     EnsurePushCapacity();
                     _continuationCount = _count--;
                 }
-                else if (--_count == 0)
+                else if (--_count == 0 && _indexOffset > 0)
                 {
                     // reached the root, no need to copy frames.
                     return;
                 }
 
-                _stack[_count] = Current;
-                Current = _stack[_count - 1];
+                int currentIndex = _count - _indexOffset;
+                _stack[currentIndex + 1] = Current;
+                Current = _stack[currentIndex];
             }
             else
             {
@@ -199,9 +231,9 @@ namespace System.Text.Json
                     PendingAsyncDisposables.Add(Current.AsyncEnumerator);
                 }
 
-                if (--_count > 0)
+                if (--_count > 0 || _indexOffset == 0)
                 {
-                    Current = _stack[_count - 1];
+                    Current = _stack[_count - _indexOffset];
                 }
             }
         }
@@ -326,9 +358,9 @@ namespace System.Text.Json
             // If a continuation, always report back full stack.
             int count = Math.Max(_count, _continuationCount);
 
-            for (int i = 0; i < count - 1; i++)
+            for (int i = 1; i < count; i++)
             {
-                AppendStackFrame(sb, ref _stack[i]);
+                AppendStackFrame(sb, ref _stack[i - _indexOffset]);
             }
 
             if (_continuationCount == 0)
