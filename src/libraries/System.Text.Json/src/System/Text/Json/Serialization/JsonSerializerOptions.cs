@@ -39,6 +39,7 @@ namespace System.Text.Json
         private JsonNamingPolicy? _jsonPropertyNamingPolicy;
         private JsonCommentHandling _readCommentHandling;
         private ReferenceHandler? _referenceHandler;
+        private PolymorphicSerializationResolver _polymorphicSerializationResolver;
         private JavaScriptEncoder? _encoder;
         private JsonIgnoreCondition _defaultIgnoreCondition;
         private JsonNumberHandling _numberHandling;
@@ -60,7 +61,12 @@ namespace System.Text.Json
         /// </summary>
         public JsonSerializerOptions()
         {
-            Converters = new ConverterList(this);
+            Converters = new ConfigurationList<JsonConverter>(this);
+            TaggedPolymorphicTypes = new ConfigurationList<TaggedPolymorphicTypeConfiguration>(this)
+            {
+                OnElementAdded = static (config) => { config.IsAssignedToOptionsInstance = true; }
+            };
+            _polymorphicSerializationResolver = PolymorphicSerializationResolver.ObjectOnly;
             TrackOptionsInstance(this);
         }
 
@@ -83,6 +89,7 @@ namespace System.Text.Json
             _jsonPropertyNamingPolicy = options._jsonPropertyNamingPolicy;
             _readCommentHandling = options._readCommentHandling;
             _referenceHandler = options._referenceHandler;
+            _polymorphicSerializationResolver = options._polymorphicSerializationResolver;
             _encoder = options._encoder;
             _defaultIgnoreCondition = options._defaultIgnoreCondition;
             _numberHandling = options._numberHandling;
@@ -98,7 +105,8 @@ namespace System.Text.Json
             _propertyNameCaseInsensitive = options._propertyNameCaseInsensitive;
             _writeIndented = options._writeIndented;
 
-            Converters = new ConverterList(this, (ConverterList)options.Converters);
+            Converters = new ConfigurationList<JsonConverter>(this, options.Converters);
+            TaggedPolymorphicTypes = new ConfigurationList<TaggedPolymorphicTypeConfiguration>(this, options.TaggedPolymorphicTypes);
             EffectiveMaxDepth = options.EffectiveMaxDepth;
             ReferenceHandlingStrategy = options.ReferenceHandlingStrategy;
 
@@ -533,6 +541,19 @@ namespace System.Text.Json
             {
                 VerifyMutable();
                 _writeIndented = value;
+            }
+        }
+
+        /// <summary>
+        /// Configures what types should be serialized polymorphically.
+        /// </summary>
+        public PolymorphicSerializationResolver PolymorphicSerializationResolver
+        {
+            get => _polymorphicSerializationResolver;
+            set
+            {
+                VerifyMutable();
+                _polymorphicSerializationResolver = value;
             }
         }
 

@@ -240,9 +240,10 @@ namespace System.Text.Json.Serialization.Converters
             if (!state.SupportContinuation)
             {
                 writer.WriteStartObject();
-                if (options.ReferenceHandlingStrategy == ReferenceHandlingStrategy.Preserve)
+
+                if (options.ReferenceHandlingStrategy == ReferenceHandlingStrategy.Preserve || state.PolymorphicTypeDiscriminator is not null)
                 {
-                    if (JsonSerializer.WriteReferenceForObject(this, objectValue, ref state, writer) == MetadataPropertyName.Ref)
+                    if (JsonSerializer.WriteMetadataForObject(this, objectValue, ref state, writer, options.ReferenceHandlingStrategy) == MetadataPropertyName.Ref)
                     {
                         return true;
                     }
@@ -295,9 +296,9 @@ namespace System.Text.Json.Serialization.Converters
                 if (!state.Current.ProcessedStartToken)
                 {
                     writer.WriteStartObject();
-                    if (options.ReferenceHandlingStrategy == ReferenceHandlingStrategy.Preserve)
+                    if (options.ReferenceHandlingStrategy == ReferenceHandlingStrategy.Preserve || state.PolymorphicTypeDiscriminator is not null)
                     {
-                        if (JsonSerializer.WriteReferenceForObject(this, objectValue, ref state, writer) == MetadataPropertyName.Ref)
+                        if (JsonSerializer.WriteMetadataForObject(this, objectValue, ref state, writer, options.ReferenceHandlingStrategy) == MetadataPropertyName.Ref)
                         {
                             return true;
                         }

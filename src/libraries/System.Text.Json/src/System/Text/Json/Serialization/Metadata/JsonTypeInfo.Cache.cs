@@ -69,12 +69,11 @@ namespace System.Text.Json.Serialization.Metadata
                 memberType,
                 parentClassType,
                 memberInfo,
-                out Type runtimeType,
                 options);
 
             return CreateProperty(
                 declaredPropertyType: memberType,
-                runtimePropertyType: runtimeType,
+                runtimePropertyType: memberType,
                 memberInfo,
                 parentClassType,
                 converter,

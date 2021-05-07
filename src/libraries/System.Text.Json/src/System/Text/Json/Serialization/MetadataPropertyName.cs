@@ -3,11 +3,13 @@
 
 namespace System.Text.Json
 {
+    [Flags]
     internal enum MetadataPropertyName
     {
         NoMetadata,
         Values,
         Id,
         Ref,
+        Type
     }
 }
