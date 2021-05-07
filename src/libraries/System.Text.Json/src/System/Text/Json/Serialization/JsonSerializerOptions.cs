@@ -41,8 +41,10 @@ namespace System.Text.Json
         private JsonNamingPolicy? _jsonPropertyNamingPolicy;
         private JsonCommentHandling _readCommentHandling;
         private ReferenceHandler? _referenceHandler;
+        private Func<Type, bool>? _supportedPolymorphicTypes;
         private JavaScriptEncoder? _encoder;
-        private ConverterList _converters;
+        private ConfigurationList<JsonConverter> _converters;
+        private ConfigurationList<TypeDiscriminatorConfiguration> _typeDiscriminatorConfigurations;
         private JsonIgnoreCondition _defaultIgnoreCondition;
         private JsonNumberHandling _numberHandling;
         private JsonUnknownTypeHandling _unknownTypeHandling;
@@ -62,7 +64,13 @@ namespace System.Text.Json
         /// </summary>
         public JsonSerializerOptions()
         {
-            _converters = new ConverterList(this);
+            _converters = new ConfigurationList<JsonConverter>(this);
+
+            _typeDiscriminatorConfigurations = new ConfigurationList<TypeDiscriminatorConfiguration>(this)
+            {
+                OnElementAdded = static config => { config.IsAssignedToOptionsInstance = true; }
+            };
+
             TrackOptionsInstance(this);
         }
 
@@ -80,6 +88,9 @@ namespace System.Text.Json
             _jsonPropertyNamingPolicy = options._jsonPropertyNamingPolicy;
             _readCommentHandling = options._readCommentHandling;
             _referenceHandler = options._referenceHandler;
+            _converters = new ConfigurationList<JsonConverter>(this, options._converters);
+            _typeDiscriminatorConfigurations = new ConfigurationList<TypeDiscriminatorConfiguration>(this, options._typeDiscriminatorConfigurations);
+            _supportedPolymorphicTypes = options._supportedPolymorphicTypes;
             _encoder = options._encoder;
             _defaultIgnoreCondition = options._defaultIgnoreCondition;
             _numberHandling = options._numberHandling;
@@ -95,14 +106,11 @@ namespace System.Text.Json
             _propertyNameCaseInsensitive = options._propertyNameCaseInsensitive;
             _writeIndented = options._writeIndented;
 
-            _converters = new ConverterList(this, options._converters);
             EffectiveMaxDepth = options.EffectiveMaxDepth;
             ReferenceHandlingStrategy = options.ReferenceHandlingStrategy;
 
-            // _classes is not copied as sharing the JsonTypeInfo and JsonPropertyInfo caches can result in
+            // _cachingContext is not copied as sharing the JsonTypeInfo and JsonPropertyInfo caches can result in
             // unnecessary references to type metadata, potentially hindering garbage collection on the source options.
-
-            // _haveTypesBeenCreated is not copied; it's okay to make changes to this options instance as (de)serialization has not occurred.
 
             TrackOptionsInstance(this);
         }
@@ -525,6 +533,20 @@ namespace System.Text.Json
             {
                 VerifyMutable();
                 _writeIndented = value;
+            }
+        }
+
+        /// <summary>
+        /// Type predicate configuring what types should be serialized polymorphically.
+        /// Note that this abstraction only governs serialization and offses no support for deserialization.
+        /// </summary>
+        public Func<Type, bool> SupportedPolymorphicTypes
+        {
+            get => _supportedPolymorphicTypes ??= static type => type == JsonTypeInfo.ObjectType;
+            set
+            {
+                VerifyMutable();
+                _supportedPolymorphicTypes = value;
             }
         }
 

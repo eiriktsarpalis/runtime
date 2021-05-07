@@ -12,41 +12,69 @@ namespace System.Text.Json
         internal static readonly JsonEncodedText s_metadataId = JsonEncodedText.Encode("$id", encoder: null);
         internal static readonly JsonEncodedText s_metadataRef = JsonEncodedText.Encode("$ref", encoder: null);
         internal static readonly JsonEncodedText s_metadataValues = JsonEncodedText.Encode("$values", encoder: null);
+        internal static readonly JsonEncodedText s_metadataType = JsonEncodedText.Encode("$type", encoder: null);
 
-        internal static MetadataPropertyName WriteReferenceForObject(
+        internal static MetadataPropertyName WriteMetadataForObject(
             JsonConverter jsonConverter,
             ref WriteStack state,
             Utf8JsonWriter writer)
         {
+            Debug.Assert(jsonConverter.CanHaveMetadata);
+            Debug.Assert(!state.IsContinuation);
+            Debug.Assert(state.CurrentContainsMetadata);
+
+            MetadataPropertyName writtenMetadataName = MetadataPropertyName.None;
+
             if (state.NewReferenceId != null)
             {
-                Debug.Assert(jsonConverter.CanHaveMetadata);
                 writer.WriteString(s_metadataId, state.NewReferenceId);
+                writtenMetadataName |= MetadataPropertyName.Id;
                 state.NewReferenceId = null;
-                return MetadataPropertyName.Id;
             }
 
-            return MetadataPropertyName.None;
+            if (state.PolymorphicTypeDiscriminator is string typeId)
+            {
+                writer.WriteString(s_metadataType, typeId);
+                writtenMetadataName |= MetadataPropertyName.Type;
+                state.PolymorphicTypeDiscriminator = null;
+            }
+
+            return writtenMetadataName;
         }
 
-        internal static MetadataPropertyName WriteReferenceForCollection(
+        internal static MetadataPropertyName WriteMetadataForCollection(
             JsonConverter jsonConverter,
             ref WriteStack state,
             Utf8JsonWriter writer)
         {
+            Debug.Assert(jsonConverter.CanHaveMetadata);
+            Debug.Assert(!state.IsContinuation);
+            Debug.Assert(state.CurrentContainsMetadata);
+
+            // For collections with metadata, we nest the array payload within a JSON object.
+            writer.WriteStartObject();
+
+            MetadataPropertyName metadataPropertyName = MetadataPropertyName.None;
+
             if (state.NewReferenceId != null)
             {
-                Debug.Assert(jsonConverter.CanHaveMetadata);
-                writer.WriteStartObject();
                 writer.WriteString(s_metadataId, state.NewReferenceId);
-                writer.WriteStartArray(s_metadataValues);
+                metadataPropertyName |= MetadataPropertyName.Id;
                 state.NewReferenceId = null;
-                return MetadataPropertyName.Id;
             }
 
-            // If the jsonConverter supports immutable enumerables or value type collections, don't write any metadata
-            writer.WriteStartArray();
-            return MetadataPropertyName.None;
+            if (state.PolymorphicTypeDiscriminator != null)
+            {
+                writer.WriteString(s_metadataType, state.PolymorphicTypeDiscriminator);
+                metadataPropertyName |= MetadataPropertyName.Type;
+                state.PolymorphicTypeDiscriminator = null;
+            }
+
+            // property name containing metadata values
+            writer.WritePropertyName(s_metadataValues);
+
+            Debug.Assert(metadataPropertyName != MetadataPropertyName.None);
+            return metadataPropertyName;
         }
 
         /// <summary>

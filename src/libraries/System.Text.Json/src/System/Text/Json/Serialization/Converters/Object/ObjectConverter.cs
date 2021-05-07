@@ -12,7 +12,6 @@ namespace System.Text.Json.Serialization.Converters
 
         public ObjectConverter()
         {
-            CanBePolymorphic = true;
             // JsonElement/JsonNode parsing does not support async; force read ahead for now.
             RequiresReadAhead = true;
         }

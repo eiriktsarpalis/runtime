@@ -91,6 +91,7 @@ namespace System.Text.Json
             JsonPropertyInfo = null!;
             JsonPropertyNameAsString = null;
             PropertyState = StackFramePropertyState.None;
+            PolymorphicSerializationState = PolymorphicSerializationState.None;
         }
 
         /// <summary>
@@ -109,32 +110,25 @@ namespace System.Text.Json
         /// <summary>
         /// Initializes the state for polymorphic cases and returns the appropriate converter.
         /// </summary>
-        public JsonConverter? ResolvePolymorphicConverter(object value, Type typeToConvert, JsonSerializerOptions options)
+        public JsonConverter InitializePolymorphicReEntry(Type type, JsonSerializerOptions options)
         {
-            Debug.Assert(value != null);
-            Debug.Assert(PolymorphicSerializationState != PolymorphicSerializationState.PolymorphicReEntryStarted);
-
-            if (PolymorphicSerializationState == PolymorphicSerializationState.PolymorphicReEntrySuspended)
-            {
-                // Quickly retrieve the polymorphic converter in case of a re-entrant continuation
-                Debug.Assert(PolymorphicJsonTypeInfo != null && value.GetType() == PolymorphicJsonTypeInfo.PropertyType);
-                return PolymorphicJsonTypeInfo.ConverterBase;
-            }
-
-            Type runtimeType = value.GetType();
-            if (runtimeType == typeToConvert)
-            {
-                return null;
-            }
+            Debug.Assert(PolymorphicSerializationState == PolymorphicSerializationState.None);
 
             // For perf, avoid the dictionary lookup in GetOrAddJsonTypeInfo() for every element of a collection
             // if the current element is the same type as the previous element.
-            if (PolymorphicJsonTypeInfo?.PropertyType != runtimeType)
+            if (PolymorphicJsonTypeInfo?.PropertyType != type)
             {
-                JsonTypeInfo typeInfo = options.GetOrAddJsonTypeInfo(runtimeType);
+                JsonTypeInfo typeInfo = options.GetOrAddJsonTypeInfo(type);
                 PolymorphicJsonTypeInfo = typeInfo.PropertyInfoForTypeInfo;
             }
 
+            return PolymorphicJsonTypeInfo.ConverterBase;
+        }
+
+        public JsonConverter ResumePolymorphicReEntry()
+        {
+            Debug.Assert(PolymorphicSerializationState == PolymorphicSerializationState.PolymorphicReEntrySuspended);
+            Debug.Assert(PolymorphicJsonTypeInfo is not null);
             return PolymorphicJsonTypeInfo.ConverterBase;
         }
 
@@ -146,7 +140,6 @@ namespace System.Text.Json
 
         public void ExitPolymorphicConverter(bool success)
         {
-            Debug.Assert(PolymorphicSerializationState == PolymorphicSerializationState.PolymorphicReEntryStarted);
             PolymorphicSerializationState = success ? PolymorphicSerializationState.None : PolymorphicSerializationState.PolymorphicReEntrySuspended;
         }
 

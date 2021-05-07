@@ -36,8 +36,16 @@ namespace System.Text.Json
         public JsonTypeInfo JsonTypeInfo;
         public StackFrameObjectState ObjectState; // State tracking the current object.
 
+        // Current object can contain metadata
+        public bool CanContainMetadata;
         public MetadataPropertyName LatestMetadataPropertyName;
         public MetadataPropertyName MetadataPropertyNames;
+
+        // Serialization state for value serialized by the current frame.
+        public PolymorphicSerializationState PolymorphicSerializationState;
+
+        // Holds the entered polymorphic type info and acts as an LRU cache for element/field serializations.
+        public JsonPropertyInfo? PolymorphicJsonTypeInfo;
 
         // For performance, we order the properties by the first deserialize and PropertyIndex helps find the right slot quicker.
         public int PropertyIndex;

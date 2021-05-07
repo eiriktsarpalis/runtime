@@ -67,14 +67,14 @@ namespace System.Text.Json
         public string? ReferenceId;
 
         /// <summary>
-        /// Whether we can read without the need of saving state for stream and preserve references cases.
+        /// Holds the value of $type of the currently read object
         /// </summary>
-        public bool UseFastPath;
+        public string? PolymorphicTypeDiscriminator;
 
         /// <summary>
-        /// Global flag indicating whether the current deserializer supports metadata.
+        /// Global flag indicating whether we can read preserved references.
         /// </summary>
-        public bool CanContainMetadata;
+        public bool PreserveReferences;
 
         /// <summary>
         /// Ensures that the stack buffer has sufficient capacity to hold an additional frame.
@@ -103,14 +103,14 @@ namespace System.Text.Json
             if (options.ReferenceHandlingStrategy == ReferenceHandlingStrategy.Preserve)
             {
                 ReferenceResolver = options.ReferenceHandler!.CreateResolver(writing: false);
-                CanContainMetadata = true;
+                PreserveReferences = true;
             }
 
             SupportContinuation = supportContinuation;
             Current.JsonTypeInfo = jsonTypeInfo;
             Current.JsonPropertyInfo = jsonTypeInfo.PropertyInfoForTypeInfo;
             Current.NumberHandling = Current.JsonPropertyInfo.NumberHandling;
-            UseFastPath = !supportContinuation && !CanContainMetadata;
+            Current.CanContainMetadata = PreserveReferences || jsonTypeInfo.HasTypeDiscriminatorResolver;
         }
 
         public void Push()
@@ -128,7 +128,6 @@ namespace System.Text.Json
                 {
                     JsonTypeInfo jsonTypeInfo = Current.JsonPropertyInfo?.JsonTypeInfo ?? Current.CtorArgumentState!.JsonParameterInfo!.JsonTypeInfo;
                     JsonNumberHandling? numberHandling = Current.NumberHandling;
-                    ConverterStrategy converterStrategy = Current.JsonTypeInfo.PropertyInfoForTypeInfo.ConverterStrategy;
 
                     EnsurePushCapacity();
                     _stack[_count - 1] = Current;
@@ -139,11 +138,13 @@ namespace System.Text.Json
                     Current.JsonPropertyInfo = jsonTypeInfo.PropertyInfoForTypeInfo;
                     // Allow number handling on property to win over handling on type.
                     Current.NumberHandling = numberHandling ?? Current.JsonPropertyInfo.NumberHandling;
+                    Current.CanContainMetadata = PreserveReferences || jsonTypeInfo.HasTypeDiscriminatorResolver;
                 }
             }
             else
             {
-                // We are re-entering a continuation, adjust indices accordingly
+                // We are re-entering a continuation, adjust indices accordingly.
+
                 if (_count++ > 0)
                 {
                     _stack[_count - 2] = Current;
@@ -167,6 +168,7 @@ namespace System.Text.Json
         public void Pop(bool success)
         {
             Debug.Assert(_count > 0);
+            Debug.Assert(JsonPath() is not null);
 
             if (!success)
             {
@@ -206,6 +208,47 @@ namespace System.Text.Json
             }
 
             SetConstructorArgumentState();
+        }
+
+        public void InitializePolymorphicConverter(Type type, JsonSerializerOptions options)
+        {
+            Debug.Assert(!IsContinuation);
+            Debug.Assert(Current.PolymorphicJsonTypeInfo == null);
+            Debug.Assert(Current.PolymorphicSerializationState == PolymorphicSerializationState.None);
+
+            // TODO employ LRU cache as in the case of the serializer.
+            // Scenario broken by root-level frame being reused in the case of deserialization.
+            // This could live in metadata layer instead of the WriteStack.
+            JsonTypeInfo typeInfo = options.GetOrAddJsonTypeInfo(type);
+            if (!typeInfo.PropertyInfoForTypeInfo.ConverterBase.CanHaveMetadata)
+            {
+                throw new NotSupportedException("Converter for derived type does not support metadata reads.");
+            }
+
+            Current.PolymorphicJsonTypeInfo = typeInfo.PropertyInfoForTypeInfo;
+        }
+
+        public JsonConverter EnterPolymorphicConverter()
+        {
+            Debug.Assert(Current.PolymorphicJsonTypeInfo != null);
+            Current.JsonTypeInfo = Current.PolymorphicJsonTypeInfo.JsonTypeInfo;
+
+            if (Current.PolymorphicSerializationState == PolymorphicSerializationState.None)
+            {
+                Current.JsonPropertyInfo = Current.JsonTypeInfo.PropertyInfoForTypeInfo;
+                Current.NumberHandling = Current.NumberHandling ?? Current.JsonPropertyInfo.NumberHandling;
+                SetConstructorArgumentState();
+            }
+
+            Current.PolymorphicSerializationState = PolymorphicSerializationState.PolymorphicReEntryStarted;
+            return Current.PolymorphicJsonTypeInfo.ConverterBase;
+        }
+
+        public void ExitPolymorphicConverter(JsonTypeInfo baseJsonTypeInfo, bool success)
+        {
+            Current.JsonTypeInfo = baseJsonTypeInfo;
+            //Current.JsonPropertyInfo = baseJsonTypeInfo.PropertyInfoForTypeInfo;
+            Current.PolymorphicSerializationState = success ? PolymorphicSerializationState.None : PolymorphicSerializationState.PolymorphicReEntrySuspended;
         }
 
         // Return a JSONPath using simple dot-notation when possible. When special characters are present, bracket-notation is used:
