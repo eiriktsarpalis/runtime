@@ -51,6 +51,8 @@ namespace System.Text.Json.Serialization.Metadata
             PropertyInfoForTypeInfo = JsonMetadataServices.CreateJsonPropertyInfoForClassInfo(typeof(T), this, converter, Options);
             NumberHandling = objectInfo.NumberHandling;
             converter.ConfigureJsonTypeInfo(this, Options);
+
+            InitializePolymorphismConfiguration(converter);
         }
 
         /// <summary>
@@ -73,6 +75,7 @@ namespace System.Text.Json.Serialization.Metadata
             ElementTypeInfo = collectionInfo.ElementInfo ?? throw new ArgumentNullException(nameof(collectionInfo.ElementInfo));
             NumberHandling = collectionInfo.NumberHandling;
             PropertyInfoForTypeInfo = JsonMetadataServices.CreateJsonPropertyInfoForClassInfo(typeof(T), this, converter, options);
+            InitializePolymorphismConfiguration(converter);
             SerializeHandler = collectionInfo.SerializeHandler;
             CreateObjectWithArgs = createObjectWithArgs;
             AddMethodDelegate = addFunc;

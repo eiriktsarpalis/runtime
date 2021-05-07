@@ -72,7 +72,7 @@ namespace System.Text.Json.Serialization
         {
             JsonTypeInfo elementTypeInfo = state.Current.JsonTypeInfo.ElementTypeInfo!;
 
-            if (state.UseFastPath)
+            if (!state.SupportContinuation && !state.Current.CanContainMetadata)
             {
                 // Fast path that avoids maintaining state variables and dealing with preserved references.
 
@@ -121,6 +121,7 @@ namespace System.Text.Json.Serialization
             else
             {
                 // Slower path that supports continuation and reading metadata.
+                JsonTypeInfo jsonTypeInfo = state.Current.JsonTypeInfo;
 
                 if (state.Current.ObjectState == StackFrameObjectState.None)
                 {
@@ -128,7 +129,7 @@ namespace System.Text.Json.Serialization
                     {
                         state.Current.ObjectState = StackFrameObjectState.ReadMetadata;
                     }
-                    else if (state.CanContainMetadata)
+                    else if (state.Current.CanContainMetadata)
                     {
                         if (reader.TokenType != JsonTokenType.StartObject)
                         {
@@ -146,20 +147,45 @@ namespace System.Text.Json.Serialization
                 }
 
                 // Handle the metadata properties.
-                if (state.CanContainMetadata && state.Current.ObjectState < StackFrameObjectState.ReadMetadata)
+                if (state.Current.CanContainMetadata && state.Current.ObjectState < StackFrameObjectState.ReadMetadata)
                 {
-                    if (!JsonSerializer.TryReadMetadata(this, ref reader, ref state))
+                    if (!JsonSerializer.TryReadMetadata(this, jsonTypeInfo, ref reader, ref state))
                     {
                         value = default;
                         return false;
                     }
 
+                    if (state.PolymorphicTypeDiscriminator != null)
+                    {
+                        Debug.Assert(!IsValueType);
+                        Debug.Assert(state.Current.PolymorphicSerializationState == PolymorphicSerializationState.None);
+                        Debug.Assert(jsonTypeInfo.TypeDiscriminatorResolver != null);
+                        if (jsonTypeInfo.TypeDiscriminatorResolver.TryResolveTypeByTypeId(state.PolymorphicTypeDiscriminator, out Type? subtype) &&
+                            subtype != TypeToConvert)
+                        {
+                            state.InitializePolymorphicConverter(subtype, options);
+                            state.PolymorphicTypeDiscriminator = null;
+                        }
+                    }
+
                     state.Current.ObjectState = StackFrameObjectState.ReadMetadata;
+                }
+
+                // Dispatch to any polymorphic converters: should always be entered regardless of ObjectState progress
+                if (state.Current.PolymorphicJsonTypeInfo != null &&
+                    state.Current.PolymorphicSerializationState != PolymorphicSerializationState.PolymorphicReEntryStarted)
+                {
+                    Debug.Assert(!IsValueType);
+                    JsonConverter polymorphicConverter = state.EnterPolymorphicConverter();
+                    bool success = polymorphicConverter.OnTryReadAsObject(ref reader, options, ref state, out object? objectResult);
+                    value = (TCollection)objectResult!;
+                    state.ExitPolymorphicConverter(jsonTypeInfo, success);
+                    return success;
                 }
 
                 if (state.Current.ObjectState < StackFrameObjectState.CreatedObject)
                 {
-                    if (state.CanContainMetadata)
+                    if (state.Current.CanContainMetadata)
                     {
                         JsonSerializer.ValidateMetadataForArrayConverter(this, ref reader, ref state);
                     }
@@ -283,17 +309,16 @@ namespace System.Text.Json.Serialization
                 if (!state.Current.ProcessedStartToken)
                 {
                     state.Current.ProcessedStartToken = true;
-                    if (options.ReferenceHandlingStrategy == ReferenceHandlingStrategy.Preserve)
+
+                    if (state.CurrentContainsMetadata && CanHaveMetadata)
                     {
-                        MetadataPropertyName metadata = JsonSerializer.WriteReferenceForCollection(this, ref state, writer);
+                        MetadataPropertyName metadata = JsonSerializer.WriteMetadataForCollection(this, ref state, writer);
                         Debug.Assert(metadata != MetadataPropertyName.Ref);
                         state.Current.MetadataPropertyName = metadata;
                     }
-                    else
-                    {
-                        writer.WriteStartArray();
-                    }
 
+                    // Writing the start of the array must happen after any metadata
+                    writer.WriteStartArray();
                     state.Current.JsonPropertyInfo = state.Current.JsonTypeInfo.ElementTypeInfo!.PropertyInfoForTypeInfo;
                 }
 
@@ -305,7 +330,7 @@ namespace System.Text.Json.Serialization
                         state.Current.ProcessedEndToken = true;
                         writer.WriteEndArray();
 
-                        if (state.Current.MetadataPropertyName == MetadataPropertyName.Id)
+                        if (state.Current.MetadataPropertyName != 0)
                         {
                             // Write the EndObject for $values.
                             writer.WriteEndObject();

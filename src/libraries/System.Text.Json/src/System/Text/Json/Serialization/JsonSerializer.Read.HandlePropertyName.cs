@@ -82,7 +82,7 @@ namespace System.Text.Json
                 unescapedPropertyName = propertyName;
             }
 
-            if (state.CanContainMetadata)
+            if (state.Current.CanContainMetadata)
             {
                 if (propertyName.Length > 0 && propertyName[0] == '$')
                 {

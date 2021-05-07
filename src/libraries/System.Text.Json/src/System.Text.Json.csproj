@@ -102,6 +102,7 @@ System.Text.Json.Nodes.JsonValue</PackageDescription>
     <Compile Include="System\Text\Json\Serialization\Attributes\JsonIgnoreAttribute.cs" />
     <Compile Include="System\Text\Json\Serialization\Attributes\JsonIncludeAttribute.cs" />
     <Compile Include="System\Text\Json\Serialization\Attributes\JsonNumberHandlingAttribute.cs" />
+    <Compile Include="System\Text\Json\Serialization\Attributes\JsonPolymorphicTypeAttribute.cs" />
     <Compile Include="System\Text\Json\Serialization\Attributes\JsonPropertyNameAttribute.cs" />
     <Compile Include="System\Text\Json\Serialization\Attributes\JsonPropertyOrderAttribute.cs" />
     <Compile Include="System\Text\Json\Serialization\Converters\Collection\ImmutableDictionaryOfTKeyTValueConverterWithReflection.cs" />
@@ -114,6 +115,7 @@ System.Text.Json.Nodes.JsonValue</PackageDescription>
     <Compile Include="System\Text\Json\Serialization\IJsonOnDeserializing.cs" />
     <Compile Include="System\Text\Json\Serialization\IJsonOnSerialized.cs" />
     <Compile Include="System\Text\Json\Serialization\IJsonOnSerializing.cs" />
+    <Compile Include="System\Text\Json\Serialization\JsonConverter.ReferenceHandling.cs" />
     <Compile Include="System\Text\Json\Serialization\JsonSerializer.Read.Document.cs" />
     <Compile Include="System\Text\Json\Serialization\JsonSerializer.Read.Element.cs" />
     <Compile Include="System\Text\Json\Serialization\JsonSerializer.Read.Node.cs" />
@@ -121,11 +123,12 @@ System.Text.Json.Nodes.JsonValue</PackageDescription>
     <Compile Include="System\Text\Json\Serialization\JsonSerializer.Write.Element.cs" />
     <Compile Include="System\Text\Json\Serialization\JsonSerializer.Write.Node.cs" />
     <Compile Include="System\Text\Json\Serialization\JsonSerializerContext.cs" />
-    <Compile Include="System\Text\Json\Serialization\JsonSerializerOptions.Caching.cs" />
+    <Compile Include="System\Text\Json\Serialization\Attributes\JsonKnownTypeAttribute.cs" />
     <Compile Include="System\Text\Json\Serialization\PolymorphicSerializationState.cs" />
+    <Compile Include="System\Text\Json\Serialization\TypeDiscriminatorConfiguration.cs" />
     <Compile Include="System\Text\Json\Serialization\ReferenceEqualsWrapper.cs" />
     <Compile Include="System\Text\Json\Serialization\ConverterStrategy.cs" />
-    <Compile Include="System\Text\Json\Serialization\ConverterList.cs" />
+    <Compile Include="System\Text\Json\Serialization\ConfigurationList.cs" />
     <Compile Include="System\Text\Json\Serialization\Converters\Collection\ArrayConverter.cs" />
     <Compile Include="System\Text\Json\Serialization\Converters\Collection\ConcurrentQueueOfTConverter.cs" />
     <Compile Include="System\Text\Json\Serialization\Converters\Collection\ConcurrentStackOfTConverter.cs" />
@@ -225,6 +228,7 @@ System.Text.Json.Nodes.JsonValue</PackageDescription>
     <Compile Include="System\Text\Json\Serialization\JsonSerializer.Write.String.cs" />
     <Compile Include="System\Text\Json\Serialization\JsonSerializer.Write.Utf8JsonWriter.cs" />
     <Compile Include="System\Text\Json\Serialization\JsonSerializerDefaults.cs" />
+	<Compile Include="System\Text\Json\Serialization\JsonSerializerOptions.Caching.cs" />
     <Compile Include="System\Text\Json\Serialization\JsonSerializerOptions.Converters.cs" />
     <Compile Include="System\Text\Json\Serialization\JsonSerializerOptions.cs" />
     <Compile Include="System\Text\Json\Serialization\JsonStringEnumConverter.cs" />
@@ -253,6 +257,7 @@ System.Text.Json.Nodes.JsonValue</PackageDescription>
     <Compile Include="System\Text\Json\Serialization\Metadata\ReflectionEmitCachingMemberAccessor.cs" />
     <Compile Include="System\Text\Json\Serialization\Metadata\ReflectionEmitMemberAccessor.cs" />
     <Compile Include="System\Text\Json\Serialization\Metadata\ReflectionMemberAccessor.cs" />
+	<Compile Include="System\Text\Json\Serialization\Metadata\TypeDiscriminatorResolver.cs" />
     <Compile Include="System\Text\Json\Serialization\MetadataPropertyName.cs" />
     <Compile Include="System\Text\Json\Serialization\PreserveReferenceHandler.cs" />
     <Compile Include="System\Text\Json\Serialization\PreserveReferenceResolver.cs" />

@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 namespace System.Text.Json
 {
@@ -16,13 +17,16 @@ namespace System.Text.Json
         internal static readonly byte[] s_refPropertyName
             = new byte[] { (byte)'$', (byte)'r', (byte)'e', (byte)'f' };
 
+        internal static readonly byte[] s_typePropertyName
+            = new byte[] { (byte)'$', (byte)'t', (byte)'y', (byte)'p', (byte)'e' };
+
         internal static readonly byte[] s_valuesPropertyName
             = new byte[] { (byte)'$', (byte)'v', (byte)'a', (byte)'l', (byte)'u', (byte)'e', (byte)'s' };
 
-        internal static bool TryReadMetadata(JsonConverter converter, ref Utf8JsonReader reader, ref ReadStack state)
+        internal static bool TryReadMetadata(JsonConverter converter, JsonTypeInfo jsonTypeInfo, ref Utf8JsonReader reader, ref ReadStack state)
         {
             Debug.Assert(state.Current.ObjectState == StackFrameObjectState.StartToken);
-            Debug.Assert(state.CanContainMetadata);
+            Debug.Assert(state.Current.CanContainMetadata);
 
             while (true)
             {
@@ -85,6 +89,22 @@ namespace System.Text.Json
                             {
                                 // No metadata properties should precede a $ref property.
                                 ThrowHelper.ThrowJsonException_MetadataReferenceObjectCannotContainOtherProperties(reader.GetSpan(), ref state);
+                            }
+
+                            break;
+
+                        case MetadataPropertyName.Type:
+                            state.Current.JsonPropertyName = s_typePropertyName;
+
+                            if (!jsonTypeInfo.HasTypeDiscriminatorResolver)
+                            {
+                                // That's a wrong error message! Properties that start with '$' are not allowed on preserve mode
+                                ThrowHelper.ThrowJsonException_MetadataInvalidPropertyWithLeadingDollarSign(s_typePropertyName, ref state, reader);
+                            }
+                            if (state.PolymorphicTypeDiscriminator != null)
+                            {
+                                // TODO special error message for duplicate $type property
+                                ThrowHelper.ThrowJsonException_MetadataValueWasNotString(reader.TokenType);
                             }
 
                             break;
@@ -153,6 +173,16 @@ namespace System.Text.Json
                         state.ReferenceId = reader.GetString();
                         break;
 
+                    case MetadataPropertyName.Type:
+                        if (reader.TokenType != JsonTokenType.String)
+                        {
+                            ThrowHelper.ThrowJsonException_MetadataValueWasNotString(reader.TokenType);
+                        }
+
+                        Debug.Assert(state.PolymorphicTypeDiscriminator == null);
+                        state.PolymorphicTypeDiscriminator = reader.GetString();
+                        break;
+
                     case MetadataPropertyName.Values:
 
                         if (reader.TokenType != JsonTokenType.StartArray)
@@ -194,6 +224,16 @@ namespace System.Text.Json
                             propertyName[3] == 'f')
                         {
                             return MetadataPropertyName.Ref;
+                        }
+                        break;
+
+                    case 5:
+                        if (propertyName[1] == 't' &&
+                            propertyName[2] == 'y' &&
+                            propertyName[3] == 'p' &&
+                            propertyName[4] == 'e')
+                        {
+                            return MetadataPropertyName.Type;
                         }
                         break;
 

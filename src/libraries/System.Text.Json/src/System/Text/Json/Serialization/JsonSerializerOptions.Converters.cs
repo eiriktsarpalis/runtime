@@ -113,6 +113,14 @@ namespace System.Text.Json
         /// </remarks>
         public IList<JsonConverter> Converters => _converters;
 
+        /// <summary>
+        /// The list of custom type discriminator polymorphic type declarations.
+        /// </summary>
+        /// <remarks>
+        /// Once serialization or deserialization occurs, the list cannot be modified.
+        /// </remarks>
+        public IList<TypeDiscriminatorConfiguration> TypeDiscriminatorConfigurations => _typeDiscriminatorConfigurations;
+
         internal JsonConverter GetConverterFromMember(Type? parentClassType, Type propertyType, MemberInfo? memberInfo)
         {
             JsonConverter converter = null!;

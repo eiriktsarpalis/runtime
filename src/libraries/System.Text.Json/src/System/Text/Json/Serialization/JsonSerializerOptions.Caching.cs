@@ -274,6 +274,7 @@ namespace System.Text.Json
                     left._jsonPropertyNamingPolicy == right._jsonPropertyNamingPolicy &&
                     left._readCommentHandling == right._readCommentHandling &&
                     left._referenceHandler == right._referenceHandler &&
+                    left._supportedPolymorphicTypes == right._supportedPolymorphicTypes &&
                     left._encoder == right._encoder &&
                     left._defaultIgnoreCondition == right._defaultIgnoreCondition &&
                     left._numberHandling == right._numberHandling &&
@@ -288,9 +289,10 @@ namespace System.Text.Json
                     left._propertyNameCaseInsensitive == right._propertyNameCaseInsensitive &&
                     left._writeIndented == right._writeIndented &&
                     left._serializerContext == right._serializerContext &&
-                    CompareConverters(left._converters, right._converters);
+                    CompareLists(left._converters, right._converters) &&
+                    CompareLists(left._typeDiscriminatorConfigurations, right._typeDiscriminatorConfigurations);
 
-                static bool CompareConverters(ConverterList left, ConverterList right)
+                static bool CompareLists<TValue>(ConfigurationList<TValue> left, ConfigurationList<TValue> right)
                 {
                     int n;
                     if ((n = left.Count) != right.Count)
@@ -300,7 +302,7 @@ namespace System.Text.Json
 
                     for (int i = 0; i < n; i++)
                     {
-                        if (left[i] != right[i])
+                        if (!left[i]!.Equals(right[i]))
                         {
                             return false;
                         }
@@ -318,6 +320,7 @@ namespace System.Text.Json
                 hc.Add(options._jsonPropertyNamingPolicy);
                 hc.Add(options._readCommentHandling);
                 hc.Add(options._referenceHandler);
+                hc.Add(options._supportedPolymorphicTypes);
                 hc.Add(options._encoder);
                 hc.Add(options._defaultIgnoreCondition);
                 hc.Add(options._numberHandling);
@@ -332,10 +335,15 @@ namespace System.Text.Json
                 hc.Add(options._propertyNameCaseInsensitive);
                 hc.Add(options._writeIndented);
                 hc.Add(options._serializerContext);
+                GetHashCode(ref hc, options._converters);
+                GetHashCode(ref hc, options._typeDiscriminatorConfigurations);
 
-                for (int i = 0; i < options._converters.Count; i++)
+                static void GetHashCode<TValue>(ref HashCode hc, ConfigurationList<TValue> list)
                 {
-                    hc.Add(options._converters[i]);
+                    for (int i = 0; i < list.Count; i++)
+                    {
+                        hc.Add(list[i]);
+                    }
                 }
 
                 return hc.ToHashCode();
