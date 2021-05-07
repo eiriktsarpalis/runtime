@@ -34,6 +34,9 @@ namespace System.Text.Json
         public JsonTypeInfo JsonTypeInfo;
         public StackFrameObjectState ObjectState; // State tracking the current object.
 
+        public JsonPropertyInfo? CachedPolymorphicJsonPropertyInfo;
+        public bool IsPolymorphicReEntryStarted;
+
         // Validate EndObject token on array with preserve semantics.
         public bool ValidateEndTokenOnArray;
 
@@ -47,6 +50,79 @@ namespace System.Text.Json
 
         // Whether to use custom number handling.
         public JsonNumberHandling? NumberHandling;
+
+        ///// <summary>
+        ///// Return the property that contains the correct polymorphic properties including
+        ///// the ConverterStrategy and ConverterBase.
+        ///// </summary>
+        //public JsonTypeInfo GetPolymorphicJsonTypeInfo()
+        //{
+        //    //return IsPolymorphicReEntryStarted ? PolymorphicJsonPropertyInfo! : JsonPropertyInfo!;
+        //    JsonTypeInfo? jsonTypeInfo;
+
+        //    if (IsPolymorphicReEntryStarted)
+        //    {
+        //        Debug.Assert(PolymorphicJsonPropertyInfo is not null);
+        //        jsonTypeInfo = PolymorphicJsonPropertyInfo.RuntimeTypeInfo;
+        //    }
+        //    else
+        //    {
+        //        ConverterStrategy converterStrategy = JsonTypeInfo.PropertyInfoForTypeInfo.ConverterStrategy;
+
+        //        if (converterStrategy == ConverterStrategy.Object)
+        //        {
+        //            if (JsonPropertyInfo is not null)
+        //            {
+        //                jsonTypeInfo = JsonPropertyInfo.RuntimeTypeInfo;
+        //            }
+        //            else
+        //            {
+        //                jsonTypeInfo = CtorArgumentState!.JsonParameterInfo!.RuntimeTypeInfo;
+        //            }
+        //        }
+        //        else if (converterStrategy == ConverterStrategy.Value)
+        //        {
+        //            // Although ConverterStrategy.Value doesn't push, a custom custom converter may re-enter serialization.
+        //            Debug.Assert(JsonPropertyInfo is not null);
+        //            jsonTypeInfo = JsonPropertyInfo.RuntimeTypeInfo;
+        //        }
+        //        else
+        //        {
+        //            Debug.Assert(((ConverterStrategy.Enumerable | ConverterStrategy.Dictionary) & converterStrategy) != 0);
+        //            Debug.Assert(JsonTypeInfo.ElementTypeInfo is not null);
+        //            jsonTypeInfo = JsonTypeInfo.ElementTypeInfo;
+        //        }
+        //    }
+
+        //    return jsonTypeInfo;
+        //}
+
+        /// <summary>
+        /// Initializes the state for polymorphic cases and returns the appropriate converter.
+        /// </summary>
+        public JsonConverter InitializeReEntry(Type type, JsonSerializerOptions options)
+        {
+            Debug.Assert(!IsPolymorphicReEntryStarted);
+            // For perf, avoid the dictionary lookup in GetOrAddClass() for every element of a collection
+            // if the current element is the same type as the previous element.
+            if (CachedPolymorphicJsonPropertyInfo?.RuntimePropertyType != type)
+            {
+                JsonTypeInfo typeInfo = options.GetOrAddClass(type);
+                CachedPolymorphicJsonPropertyInfo = typeInfo.PropertyInfoForTypeInfo;
+            }
+
+            JsonTypeInfo = CachedPolymorphicJsonPropertyInfo.RuntimeTypeInfo;
+            JsonPropertyInfo = JsonTypeInfo.PropertyInfoForTypeInfo;
+            NumberHandling ??= JsonTypeInfo.NumberHandling;
+            IsPolymorphicReEntryStarted = true;
+            return CachedPolymorphicJsonPropertyInfo.ConverterBase;
+        }
+
+        public JsonConverter GetPolymorphicConverterForResumedContinuation()
+        {
+            Debug.Assert(IsPolymorphicReEntryStarted && CachedPolymorphicJsonPropertyInfo is not null);
+            return CachedPolymorphicJsonPropertyInfo.ConverterBase;
+        }
 
         public void EndConstructorParameter()
         {
@@ -101,6 +177,8 @@ namespace System.Text.Json
             PropertyIndex = 0;
             PropertyRefCache = null;
             ReturnValue = null;
+            // Do not clear CachedPolymorphicJsonPropertyInfo so it can be reused by sibling nodes
+            IsPolymorphicReEntryStarted = false;
 
             EndProperty();
         }

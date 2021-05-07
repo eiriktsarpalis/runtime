@@ -64,10 +64,9 @@ namespace System.Text.Json
 
         private void AddCurrent()
         {
-            if (_previous == null)
-            {
-                _previous = new List<WriteStackFrame>();
-            }
+            Debug.Assert(_count > 0);
+
+            _previous ??= new List<WriteStackFrame>();
 
             if (_count > _previous.Count)
             {
@@ -111,6 +110,12 @@ namespace System.Text.Json
             return jsonTypeInfo.PropertyInfoForTypeInfo.ConverterBase;
         }
 
+        ///// <summary>Used to obtain the JsonTypeInfo for the current converter _before_ the call to WriteStack.Push() has been made.</summary>
+        //public JsonTypeInfo PeekNextJsonTypeInfo()
+        //{
+        //    return Current.GetPolymorphicJsonPropertyInfo()?.RuntimeTypeInfo ?? Current.JsonTypeInfo;
+        //}
+
         public void Push()
         {
             if (_continuationCount == 0)
@@ -122,8 +127,9 @@ namespace System.Text.Json
                 }
                 else
                 {
-                    JsonTypeInfo jsonTypeInfo = Current.GetPolymorphicJsonPropertyInfo().RuntimeTypeInfo;
+                    JsonTypeInfo jsonTypeInfo = Current.DeclaredJsonPropertyInfo!.RuntimeTypeInfo;
                     JsonNumberHandling? numberHandling = Current.NumberHandling;
+                    //Current.IsPolymorphicReEntryStarted = false;
 
                     AddCurrent();
                     Current.Reset();
@@ -143,6 +149,14 @@ namespace System.Text.Json
             else
             {
                 // A continuation, adjust the index.
+
+                //if (_count > 1)
+                //{
+                //    // ensure any updates made to the stackframe _after_
+                //    // the continuation has been triggered are not lost
+                //    _previous[_count - 2] = Current;
+                //}
+
                 Current = _previous[_count - 1];
 
                 // Check if we are done.

@@ -94,6 +94,14 @@ namespace System.Text.Json
         /// </remarks>
         public IList<JsonConverter> Converters { get; }
 
+        /// <summary>
+        /// The list of custom tagged polymorphic type declarations.
+        /// </summary>
+        /// <remarks>
+        /// Once serialization or deserialization occurs, the list cannot be modified.
+        /// </remarks>
+        public IList<TaggedPolymorphicTypeConfiguration> TaggedPolymorphicTypes { get; }
+
         internal JsonConverter DetermineConverter(Type? parentClassType, Type runtimePropertyType, MemberInfo? memberInfo)
         {
             JsonConverter converter = null!;

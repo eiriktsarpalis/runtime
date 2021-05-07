@@ -14,13 +14,13 @@ namespace System.Text.Json.Serialization.Tests
     public static partial class StreamTests_DeserializeAsyncEnumerable
     {
         [Theory]
-        [InlineData(0, 1)]
+        //[InlineData(0, 1)]
         [InlineData(1, 1)]
-        [InlineData(10, 1)]
-        [InlineData(100, 1)]
-        [InlineData(1000, 1)]
-        [InlineData(1000, 1000)]
-        [InlineData(1000, 32000)]
+        //[InlineData(10, 1)]
+        //[InlineData(100, 1)]
+        //[InlineData(1000, 1)]
+        //[InlineData(1000, 1000)]
+        //[InlineData(1000, 32000)]
         public static async Task DeserializeAsyncEnumerable_ReadSimpleObjectAsync(int count, int bufferSize)
         {
             JsonSerializerOptions options = new JsonSerializerOptions

@@ -238,7 +238,7 @@ namespace System.Text.Json.Serialization.Metadata
                 value != null &&
                 // .NET types that are serialized as JSON primitive values don't need to be tracked for cycle detection e.g: string.
                 // However JsonConverter<object> that uses ConverterStrategy == Value is an exception.
-                (Converter.CanBePolymorphic || (!Converter.IsValueType && ConverterStrategy != ConverterStrategy.Value)) &&
+                (RuntimeTypeInfo.CanBeWritePolymorphic || (!Converter.IsValueType && ConverterStrategy != ConverterStrategy.Value)) &&
                 state.ReferenceResolver.ContainsReferenceForCycleDetection(value))
             {
                 // If a reference cycle is detected, treat value as null.
@@ -357,7 +357,7 @@ namespace System.Text.Json.Serialization.Metadata
 
                 success = true;
             }
-            else if (Converter.CanUseDirectReadOrWrite && state.Current.NumberHandling == null)
+            else if (state.Current.JsonTypeInfo.CanUseDirectReadOrWrite && state.Current.NumberHandling == null)
             {
                 // CanUseDirectReadOrWrite == false when using streams
                 Debug.Assert(!state.IsContinuation);
@@ -422,7 +422,7 @@ namespace System.Text.Json.Serialization.Metadata
             else
             {
                 // Optimize for internal converters by avoiding the extra call to TryRead.
-                if (Converter.CanUseDirectReadOrWrite && state.Current.NumberHandling == null)
+                if (state.Current.JsonTypeInfo.CanUseDirectReadOrWrite && state.Current.NumberHandling == null)
                 {
                     // CanUseDirectReadOrWrite == false when using streams
                     Debug.Assert(!state.IsContinuation);

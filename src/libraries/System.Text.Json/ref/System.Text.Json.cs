@@ -267,10 +267,12 @@ namespace System.Text.Json
         public bool IncludeFields { get { throw null; } set { } }
         public int MaxDepth { get { throw null; } set { } }
         public System.Text.Json.Serialization.JsonNumberHandling NumberHandling { get { throw null; } set { } }
+        public System.Text.Json.Serialization.PolymorphicSerializationResolver PolymorphicSerializationResolver { get { throw null; } set { } }
         public bool PropertyNameCaseInsensitive { get { throw null; } set { } }
         public System.Text.Json.JsonNamingPolicy? PropertyNamingPolicy { get { throw null; } set { } }
         public System.Text.Json.JsonCommentHandling ReadCommentHandling { get { throw null; } set { } }
         public System.Text.Json.Serialization.ReferenceHandler? ReferenceHandler { get { throw null; } set { } }
+        public System.Collections.Generic.IList<System.Text.Json.Serialization.TaggedPolymorphicTypeConfiguration> TaggedPolymorphicTypes { get { throw null; } }
         public System.Text.Json.Serialization.JsonUnknownTypeHandling UnknownTypeHandling { get { throw null; } set { } }
         public bool WriteIndented { get { throw null; } set { } }
         public void AddContext<TContext>() where TContext : System.Text.Json.Serialization.JsonSerializerContext, new() { }
@@ -846,6 +848,19 @@ namespace System.Text.Json.Serialization
         JsonElement = 0,
         JsonNode = 1,
     }
+    [System.AttributeUsageAttribute(System.AttributeTargets.Class | AttributeTargets.Interface, AllowMultiple = true, Inherited = false)]
+    public partial class JsonKnownTypeAttribute : System.Text.Json.Serialization.JsonAttribute
+    {
+        public JsonKnownTypeAttribute(System.Type subtype, string identifier) { }
+        public string Identifier { get { throw null; } }
+        public System.Type Subtype { get { throw null; } }
+    }
+    public abstract partial class PolymorphicSerializationResolver
+    {
+        protected PolymorphicSerializationResolver() { }
+        public static System.Text.Json.Serialization.PolymorphicSerializationResolver ObjectOnly { get { throw null; } }
+        public abstract bool CanBePolymorphic(System.Type type);
+    }
     public abstract partial class ReferenceHandler
     {
         protected ReferenceHandler() { }
@@ -864,6 +879,12 @@ namespace System.Text.Json.Serialization
         public abstract void AddReference(string referenceId, object value);
         public abstract string GetReference(object value, out bool alreadyExists);
         public abstract object ResolveReference(string referenceId);
+    }
+    public partial class TaggedPolymorphicTypeConfiguration
+    {
+        public TaggedPolymorphicTypeConfiguration(System.Type baseType) { }
+        public System.Type BaseType { get { throw null; } }
+        public System.Collections.Generic.IDictionary<System.Type, string> KnownTypes { get { throw null; } }
     }
 }
 namespace System.Text.Json.Serialization.Metadata

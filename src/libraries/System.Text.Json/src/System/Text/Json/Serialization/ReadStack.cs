@@ -46,6 +46,11 @@ namespace System.Text.Json
         /// </summary>
         public bool ReadAhead;
 
+        /// <summary>
+        /// Flag indicating that we have a pending type discriminator read-ahead operation.
+        /// </summary>
+        public bool IsConverterReadAheadOperationPendingBytes;
+
         // The bag of preservable references.
         public ReferenceResolver ReferenceResolver;
 
@@ -105,6 +110,22 @@ namespace System.Text.Json
             SupportContinuation = supportContinuation;
             UseFastPath = !supportContinuation && !preserveReferences;
         }
+
+        //public bool IsNestedPolymorphicReEntryStarted => _count > 1 ? _previous[_count - 2].IsPolymorphicReEntryStarted : Current.IsPolymorphicReEntryStarted;
+
+        ///// <summary>Used to obtain the JsonTypeInfo for the current converter _before_ the call to ReadStack.Push() has been made.</summary>
+        //public JsonTypeInfo PeekNextJsonTypeInfo()
+        //{
+        //    if (_continuationCount == 0)
+        //    {
+        //        if (_count > 0 || Current.IsPolymorphicReEntryStarted)
+        //        {
+        //            return Current.GetPolymorphicJsonTypeInfo();
+        //        }
+        //    }
+
+        //    return Current.JsonTypeInfo;
+        //}
 
         public void Push()
         {
@@ -340,6 +361,16 @@ namespace System.Text.Json
 
                 return propertyName;
             }
+        }
+
+        /// <summary>
+        /// Initializes the state for polymorphic cases and returns the appropriate converter.
+        /// </summary>
+        public JsonConverter InitializeReEntry(Type type, JsonSerializerOptions options)
+        {
+            JsonConverter converter = Current.InitializeReEntry(type, options);
+            SetConstructorArgumentState();
+            return converter;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -399,7 +399,7 @@ namespace System.Text.Json.Serialization.Tests
         }
 
         [Theory]
-        [InlineData(128)]
+        //[InlineData(128)]
         [InlineData(1024)]
         [InlineData(4096)]
         [InlineData(8192)]

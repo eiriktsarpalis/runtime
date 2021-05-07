@@ -32,6 +32,11 @@ namespace System.Text.Json.Serialization.Metadata
 
         internal JsonPropertyInfo? DataExtensionProperty { get; private set; }
 
+        internal bool CanBePolymorphic => CanBeWritePolymorphic || TaggedPolymorphismResolver is not null;
+        internal TaggedPolymorphismResolver? TaggedPolymorphismResolver { get; private set; }
+        internal bool CanBeWritePolymorphic { get; private set; }
+        internal bool CanUseDirectReadOrWrite { get; private set; }
+
         // If enumerable or dictionary, the JsonTypeInfo for the element type.
         private JsonTypeInfo? _elementTypeInfo;
 
@@ -153,6 +158,8 @@ namespace System.Text.Json.Serialization.Metadata
             Options = options ?? throw new ArgumentNullException(nameof(options));
             // Setting this option is deferred to the initialization methods of the various metadada info types.
             PropertyInfoForTypeInfo = null!;
+
+            InitializePolymorphismConfiguration(converterStrategy, isInternalConverter: true);
         }
 
         [RequiresUnreferencedCode(JsonSerializer.SerializationUnreferencedCodeMessage)]
@@ -163,9 +170,8 @@ namespace System.Text.Json.Serialization.Metadata
                     type,
                     parentClassType: null, // A TypeInfo never has a "parent" class.
                     memberInfo: null, // A TypeInfo never has a "parent" property.
-                    out Type runtimeType,
                     options),
-                runtimeType,
+                type,
                 options)
         {
         }
@@ -176,7 +182,9 @@ namespace System.Text.Json.Serialization.Metadata
             Type = type;
             Options = options;
 
-            JsonNumberHandling? typeNumberHandling = GetNumberHandlingForType(Type);
+            JsonNumberHandling? typeNumberHandling = GetNumberHandlingForType(type);
+
+            InitializePolymorphismConfiguration(converter.ConverterStrategy, converter.IsInternalConverter);
 
             PropertyInfoForTypeInfo = CreatePropertyInfoForTypeInfo(Type, runtimeType, converter, typeNumberHandling, Options);
 
@@ -289,14 +297,14 @@ namespace System.Text.Json.Serialization.Metadata
                 case ConverterStrategy.Enumerable:
                     {
                         ElementType = converter.ElementType;
-                        CreateObject = Options.MemberAccessorStrategy.CreateConstructor(runtimeType);
+                        CreateObject = converter.ConstructorDelegate ?? Options.MemberAccessorStrategy.CreateConstructor(runtimeType);
                     }
                     break;
                 case ConverterStrategy.Dictionary:
                     {
                         KeyType = converter.KeyType;
                         ElementType = converter.ElementType;
-                        CreateObject = Options.MemberAccessorStrategy.CreateConstructor(runtimeType);
+                        CreateObject = converter.ConstructorDelegate ?? Options.MemberAccessorStrategy.CreateConstructor(runtimeType);
                     }
                     break;
                 case ConverterStrategy.Value:
@@ -548,6 +556,38 @@ namespace System.Text.Json.Serialization.Metadata
             return property;
         }
 
+        private void InitializePolymorphismConfiguration(ConverterStrategy converterStrategy, bool isInternalConverter)
+        {
+            Debug.Assert(Type != null);
+
+            // Resolve any tagged polymorphism configuration: Options config takes precedence over attribute config
+            foreach (TaggedPolymorphicTypeConfiguration config in Options?.TaggedPolymorphicTypes ?? Array.Empty<TaggedPolymorphicTypeConfiguration>())
+            {
+                if (config.BaseType == Type)
+                {
+                    TaggedPolymorphismResolver = new TaggedPolymorphismResolver(config);
+                    break;
+                }
+            }
+
+            TaggedPolymorphismResolver ??= TaggedPolymorphismResolver.CreateFromAttributes(Type);
+
+            // Resolve polymorphic serialization configuration
+            CanBeWritePolymorphic =
+                Type == JsonTypeInfo.ObjectType ||
+                !Type.IsValueType && !Type.IsSealed && Options?.PolymorphicSerializationResolver?.CanBePolymorphic(Type) == true;
+
+            // For the HandleNull == false case, either:
+            // 1) The default values are assigned in this type's virtual HandleNull property
+            // or
+            // 2) A converter overroad HandleNull and returned false so HandleNullOnRead and HandleNullOnWrite
+            // will be their default values of false.
+            CanUseDirectReadOrWrite =
+                !CanBePolymorphic
+                && isInternalConverter
+                && converterStrategy == ConverterStrategy.Value;
+        }
+
         private static JsonParameterInfo AddConstructorParameter(
             ParameterInfo parameterInfo,
             JsonPropertyInfo jsonPropertyInfo,
@@ -580,7 +620,6 @@ namespace System.Text.Json.Serialization.Metadata
             Type type,
             Type? parentClassType,
             MemberInfo? memberInfo,
-            out Type runtimeType,
             JsonSerializerOptions options)
         {
             Debug.Assert(type != null);
@@ -588,47 +627,47 @@ namespace System.Text.Json.Serialization.Metadata
 
             JsonConverter converter = options.DetermineConverter(parentClassType, type, memberInfo);
 
-            // The runtimeType is the actual value being assigned to the property.
-            // There are three types to consider for the runtimeType:
-            // 1) The declared type (the actual property type).
-            // 2) The converter.TypeToConvert (the T value that the converter supports).
-            // 3) The converter.RuntimeType (used with interfaces such as IList).
+            //// The runtimeType is the actual value being assigned to the property.
+            //// There are three types to consider for the runtimeType:
+            //// 1) The declared type (the actual property type).
+            //// 2) The converter.TypeToConvert (the T value that the converter supports).
+            //// 3) The converter.RuntimeType (used with interfaces such as IList).
 
-            Type converterRuntimeType = converter.RuntimeType;
-            if (type == converterRuntimeType)
-            {
-                runtimeType = type;
-            }
-            else
-            {
-                if (type.IsInterface)
-                {
-                    runtimeType = converterRuntimeType;
-                }
-                else if (converterRuntimeType.IsInterface)
-                {
-                    runtimeType = type;
-                }
-                else
-                {
-                    // Use the most derived version from the converter.RuntimeType or converter.TypeToConvert.
-                    if (type.IsAssignableFrom(converterRuntimeType))
-                    {
-                        runtimeType = converterRuntimeType;
-                    }
-                    else if (converterRuntimeType.IsAssignableFrom(type) || converter.TypeToConvert.IsAssignableFrom(type))
-                    {
-                        runtimeType = type;
-                    }
-                    else
-                    {
-                        runtimeType = default!;
-                        ThrowHelper.ThrowNotSupportedException_SerializationNotSupported(type);
-                    }
-                }
-            }
+            //Type converterRuntimeType = converter.TypeToConvert;
+            //if (type == converterRuntimeType)
+            //{
+            //    runtimeType = type;
+            //}
+            //else
+            //{
+            //    if (type.IsInterface)
+            //    {
+            //        runtimeType = converterRuntimeType;
+            //    }
+            //    else if (converterRuntimeType.IsInterface)
+            //    {
+            //        runtimeType = type;
+            //    }
+            //    else
+            //    {
+            //        // Use the most derived version from the converter.RuntimeType or converter.TypeToConvert.
+            //        if (type.IsAssignableFrom(converterRuntimeType))
+            //        {
+            //            runtimeType = converterRuntimeType;
+            //        }
+            //        else if (converterRuntimeType.IsAssignableFrom(type) || converter.TypeToConvert.IsAssignableFrom(type))
+            //        {
+            //            runtimeType = type;
+            //        }
+            //        else
+            //        {
+            //            runtimeType = default!;
+            //            ThrowHelper.ThrowNotSupportedException_SerializationNotSupported(type);
+            //        }
+            //    }
+            //}
 
-            Debug.Assert(!IsInvalidForSerialization(runtimeType));
+            //Debug.Assert(!IsInvalidForSerialization(runtimeType));
 
             return converter;
         }

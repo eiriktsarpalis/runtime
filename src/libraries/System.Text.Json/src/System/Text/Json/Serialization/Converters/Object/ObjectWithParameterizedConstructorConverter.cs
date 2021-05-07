@@ -24,7 +24,7 @@ namespace System.Text.Json.Serialization.Converters
             object obj;
             ArgumentState argumentState = state.Current.CtorArgumentState!;
 
-            if (state.UseFastPath)
+            if (state.UseFastPath && !state.Current.IsPolymorphicReEntryStarted)
             {
                 // Fast path that avoids maintaining state variables.
 

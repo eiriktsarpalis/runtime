@@ -71,6 +71,9 @@ namespace System.Text.Json
         // Preserve Reference
         public MetadataPropertyName MetadataPropertyName;
 
+        // Indicates that the next converter is polymorphic and must serialize a type id
+        public string? TaggedPolymorphicTypeId;
+
         /// <summary>
         /// The run-time JsonPropertyInfo that contains the TypeInfo and ConverterBase for polymorphic scenarios.
         /// </summary>
@@ -78,7 +81,16 @@ namespace System.Text.Json
         /// For objects, it is the <see cref="JsonTypeInfo.PropertyInfoForTypeInfo"/> for the class and current property.
         /// For collections, it is the <see cref="JsonTypeInfo.PropertyInfoForTypeInfo"/> for the class and current element.
         /// </remarks>
-        private JsonPropertyInfo? PolymorphicJsonPropertyInfo;
+        private JsonPropertyInfo? CachedPolymorphicJsonPropertyInfo;
+
+        /// <summary>
+        /// Dictates how <see cref="CachedPolymorphicJsonPropertyInfo"/> is to be consumed.
+        /// </summary>
+        /// <remarks>
+        /// If true we are dispatching serialization to a polymorphic converter that should consume it.
+        /// If false it is simply a value we are caching for performance.
+        /// </remarks>
+        public bool IsPolymorphicReEntryStarted;
 
         // Whether to use custom number handling.
         public JsonNumberHandling? NumberHandling;
@@ -92,33 +104,43 @@ namespace System.Text.Json
         {
             DeclaredJsonPropertyInfo = null!;
             JsonPropertyNameAsString = null;
-            PolymorphicJsonPropertyInfo = null;
             PropertyState = StackFramePropertyState.None;
         }
 
-        /// <summary>
-        /// Return the property that contains the correct polymorphic properties including
-        /// the ConverterStrategy and ConverterBase.
-        /// </summary>
-        public JsonPropertyInfo GetPolymorphicJsonPropertyInfo()
-        {
-            return PolymorphicJsonPropertyInfo ?? DeclaredJsonPropertyInfo!;
-        }
+        ///// <summary>
+        ///// Return the property that contains the correct polymorphic properties including
+        ///// the ConverterStrategy and ConverterBase.
+        ///// </summary>
+        //public JsonPropertyInfo GetPolymorphicJsonPropertyInfo()
+        //{
+        //    return IsPolymorphicReEntryStarted ? CachedPolymorphicJsonPropertyInfo! : DeclaredJsonPropertyInfo!;
+        //}
 
         /// <summary>
         /// Initializes the state for polymorphic cases and returns the appropriate converter.
         /// </summary>
         public JsonConverter InitializeReEntry(Type type, JsonSerializerOptions options)
         {
+            Debug.Assert(!IsPolymorphicReEntryStarted);
             // For perf, avoid the dictionary lookup in GetOrAddClass() for every element of a collection
             // if the current element is the same type as the previous element.
-            if (PolymorphicJsonPropertyInfo?.RuntimePropertyType != type)
+            if (CachedPolymorphicJsonPropertyInfo?.RuntimePropertyType != type)
             {
                 JsonTypeInfo typeInfo = options.GetOrAddClass(type);
-                PolymorphicJsonPropertyInfo = typeInfo.PropertyInfoForTypeInfo;
+                CachedPolymorphicJsonPropertyInfo = typeInfo.PropertyInfoForTypeInfo;
             }
 
-            return PolymorphicJsonPropertyInfo.ConverterBase;
+            JsonTypeInfo = CachedPolymorphicJsonPropertyInfo.RuntimeTypeInfo;
+            DeclaredJsonPropertyInfo = JsonTypeInfo.PropertyInfoForTypeInfo;
+            NumberHandling ??= DeclaredJsonPropertyInfo.NumberHandling;
+            IsPolymorphicReEntryStarted = true;
+            return CachedPolymorphicJsonPropertyInfo.ConverterBase;
+        }
+
+        public JsonConverter GetPolymorphicConverterForResumedContinuation()
+        {
+            Debug.Assert(IsPolymorphicReEntryStarted && CachedPolymorphicJsonPropertyInfo is not null);
+            return CachedPolymorphicJsonPropertyInfo.ConverterBase;
         }
 
         public void Reset()
@@ -128,6 +150,8 @@ namespace System.Text.Json
             AsyncEnumerator = null;
             AsyncEnumeratorIsPendingCompletion = false;
             IgnoreDictionaryKeyPolicy = false;
+            IsPolymorphicReEntryStarted = false;
+            TaggedPolymorphicTypeId = null;
             JsonTypeInfo = null!;
             OriginalDepth = 0;
             ProcessedStartToken = false;
