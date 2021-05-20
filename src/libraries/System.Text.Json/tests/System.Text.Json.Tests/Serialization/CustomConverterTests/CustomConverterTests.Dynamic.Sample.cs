@@ -508,13 +508,14 @@ namespace System.Text.Json.Serialization.Samples
 
             public override void Write(Utf8JsonWriter writer, object value, JsonSerializerOptions options)
             {
-                JsonDynamicType dynamicType = value as JsonDynamicType;
-                if (dynamicType != null)
-                {
-                    value = dynamicType.Value;
-                }
+                throw new NotImplementedException("polymorphism change triggers stack overflows in this situation.");
+                //JsonDynamicType dynamicType = value as JsonDynamicType;
+                //if (dynamicType != null)
+                //{
+                //    value = dynamicType.Value;
+                //}
 
-                JsonSerializer.Serialize<object>(writer, value, options);
+                //JsonSerializer.Serialize<object>(writer, value, options);
             }
 
             private void ReadList(JsonDynamicArray dynamicArray, ref Utf8JsonReader reader, JsonSerializerOptions options)

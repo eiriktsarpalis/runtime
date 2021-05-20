@@ -119,6 +119,17 @@ namespace System.Text.Json
                 {
                     // The first stack frame is held in Current.
                     _count = 1;
+
+                    if (Current.PolymorphicJsonPropertyInfo is not null)
+                    {
+                        JsonTypeInfo jsonTypeInfo = Current.GetPolymorphicJsonPropertyInfo().RuntimeTypeInfo;
+                        JsonNumberHandling? numberHandling = Current.NumberHandling;
+
+                        Current.JsonTypeInfo = jsonTypeInfo;
+                        Current.DeclaredJsonPropertyInfo = jsonTypeInfo.PropertyInfoForTypeInfo;
+                        // Allow number handling on property to win over handling on type.
+                        Current.NumberHandling = numberHandling ?? Current.DeclaredJsonPropertyInfo.NumberHandling;
+                    }
                 }
                 else
                 {

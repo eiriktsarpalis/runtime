@@ -43,6 +43,21 @@ namespace System.Text.Json.Serialization.Tests
             Serializer = serializer;
         }
 
+        public class POCO<T>
+        {
+            public T Value { get; set; }
+        }
+
+        [Fact]
+        public void PolymorphicNestedPoco()
+        {
+            POCO<POCO<int>> value = new() { Value = new() { Value = 42 } };
+
+            // System.InvalidCastException :
+            // Unable to cast object of type 'POCO`1[System.Int32]' to type 'POCO`1[System.Text.Json.Serialization.Tests.PolymorphicTests+POCO`1[System.Int32]]'.
+            string json = JsonSerializer.Serialize<object>(value);
+        }
+
         [Fact]
         public async Task PrimitivesAsRootObject()
         {

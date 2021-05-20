@@ -54,10 +54,10 @@ namespace System.Text.Json
 
         private static Type GetRuntimeType<TValue>(in TValue value)
         {
-            if (typeof(TValue) == typeof(object) && value != null)
-            {
-                return value.GetType();
-            }
+            //if (typeof(TValue) == typeof(object) && value != null)
+            //{
+            //    return value.GetType();
+            //}
 
             return typeof(TValue);
         }
