@@ -13,6 +13,14 @@ namespace System.Text.Json
     [DebuggerDisplay("Path:{JsonPath()} Current: ConverterStrategy.{Current.JsonTypeInfo.PropertyInfoForTypeInfo.ConverterStrategy}, {Current.JsonTypeInfo.Type.Name}")]
     internal struct ReadStack
     {
+        private ReadStackFrame[] _stack;
+
+        /// <summary>
+        /// Index to the current stackframe.
+        /// </summary>
+        private int _currentIndex;
+        private bool _isFirstFramePushed;
+
         internal static readonly char[] SpecialCharacters = { '.', ' ', '\'', '/', '"', '[', ']', '(', ')', '\t', '\n', '\r', '\f', '\b', '\\', '\u0085', '\u2028', '\u2029' };
 
         /// <summary>
@@ -20,12 +28,6 @@ namespace System.Text.Json
         /// </summary>
         private int _continuationCount;
 
-        /// <summary>
-        /// The number of stack frames including Current. _previous will contain _count-1 higher frames.
-        /// </summary>
-        private int _count;
-
-        private List<ReadStackFrame> _previous;
 
         // State cache when deserializing objects with parameterized constructors.
         private List<ArgumentState>? _ctorArgStateCache;
@@ -35,11 +37,19 @@ namespace System.Text.Json
         /// </summary>
         public long BytesConsumed;
 
-        // A field is used instead of a property to avoid value semantics.
-        public ReadStackFrame Current;
+        //// A field is used instead of a property to avoid value semantics.
+        public ref ReadStackFrame Current
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                Debug.Assert(_stack is not null);
+                return ref _stack[_currentIndex];
+            }
+        }
 
         public bool IsContinuation => _continuationCount != 0;
-        public bool IsLastContinuation => _continuationCount == _count;
+        public bool IsLastContinuation => _continuationCount == _currentIndex;
 
         /// <summary>
         /// Internal flag to let us know that we need to read ahead in the inner read loop.
@@ -64,25 +74,38 @@ namespace System.Text.Json
         /// </summary>
         public bool UseFastPath;
 
-        private void AddCurrent()
-        {
-            if (_previous == null)
-            {
-                _previous = new List<ReadStackFrame>();
-            }
+        //private void AddCurrent()
+        //{
+        //    if (_stack == null)
+        //    {
+        //        _stack = new List<ReadStackFrame>();
+        //    }
 
-            if (_count > _previous.Count)
+        //    if (_currentIndex > _stack.Count)
+        //    {
+        //        // Need to allocate a new array element.
+        //        _stack.Add(Current);
+        //    }
+        //    else
+        //    {
+        //        // Use a previously allocated slot.
+        //        _stack[_currentIndex - 1] = Current;
+        //    }
+
+        //    _currentIndex++;
+        //}
+        private void EnsurePushCapacity()
+        {
+            Debug.Assert(_stack is not null);
+
+            if (_currentIndex == _stack.Length - 1)
             {
-                // Need to allocate a new array element.
-                _previous.Add(Current);
+                Array.Resize(ref _stack, 2 * _stack.Length);
             }
             else
             {
-                // Use a previously allocated slot.
-                _previous[_count - 1] = Current;
+                _stack[_currentIndex + 1] = default;
             }
-
-            _count++;
         }
 
         public void Initialize(Type type, JsonSerializerOptions options, bool supportContinuation)
@@ -93,11 +116,11 @@ namespace System.Text.Json
 
         internal void Initialize(JsonTypeInfo jsonTypeInfo, bool supportContinuation = false)
         {
-            Current.JsonTypeInfo = jsonTypeInfo;
+            _stack = new ReadStackFrame[5];
 
+            Current.JsonTypeInfo = jsonTypeInfo;
             // The initial JsonPropertyInfo will be used to obtain the converter.
             Current.JsonPropertyInfo = jsonTypeInfo.PropertyInfoForTypeInfo;
-
             Current.NumberHandling = Current.JsonPropertyInfo.NumberHandling;
 
             JsonSerializerOptions options = jsonTypeInfo.Options;
@@ -131,13 +154,15 @@ namespace System.Text.Json
         {
             if (_continuationCount == 0)
             {
-                if (_count == 0)
+                if (!_isFirstFramePushed)
                 {
-                    // The first stack frame is held in Current.
-                    _count = 1;
+                    // First push operation must be a no-op
+                    _isFirstFramePushed = true;
                 }
                 else
                 {
+                    EnsurePushCapacity();
+
                     JsonTypeInfo jsonTypeInfo;
                     JsonNumberHandling? numberHandling = Current.NumberHandling;
                     ConverterStrategy converterStrategy = Current.JsonTypeInfo.PropertyInfoForTypeInfo.ConverterStrategy;
@@ -164,8 +189,7 @@ namespace System.Text.Json
                         jsonTypeInfo = Current.JsonTypeInfo.ElementTypeInfo!;
                     }
 
-                    AddCurrent();
-                    Current.Reset();
+                    _currentIndex++;
 
                     Current.JsonTypeInfo = jsonTypeInfo;
                     Current.JsonPropertyInfo = jsonTypeInfo.PropertyInfoForTypeInfo;
@@ -173,26 +197,45 @@ namespace System.Text.Json
                     Current.NumberHandling = numberHandling ?? Current.JsonPropertyInfo.NumberHandling;
                 }
             }
-            else if (_continuationCount == 1)
-            {
-                // No need for a push since there is only one stack frame.
-                Debug.Assert(_count == 1);
-                _continuationCount = 0;
-            }
             else
             {
                 // A continuation; adjust the index.
-                Current = _previous[_count - 1];
-
-                // Check if we are done.
-                if (_count == _continuationCount)
+                if (!_isFirstFramePushed)
                 {
-                    _continuationCount = 0;
+                    // No need for a push since there is only one stack frame.
+                    Debug.Assert(_currentIndex == 0);
+                    _isFirstFramePushed = true;
+                    if (_continuationCount == 1)
+                    {
+                        _continuationCount = 0;
+                    }
                 }
                 else
                 {
-                    _count++;
+                    if (++_currentIndex == _continuationCount - 1)
+                    {
+                        _continuationCount = 0;
+                    }
                 }
+                //else if (_continuationCount == 1)
+                //{
+                //    // No need for a push since there is only one stack frame.
+                //    Debug.Assert(_currentIndex == 1);
+                //    _continuationCount = 0;
+                //}
+                //else
+                //{
+                //    Current = _stack[_currentIndex - 1];
+
+                //    // Check if we are done.
+                //    if (_currentIndex == _continuationCount)
+                //    {
+                //        _continuationCount = 0;
+                //    }
+                //    else
+                //    {
+                //        _currentIndex++;
+                //    }
             }
 
             SetConstructorArgumentState();
@@ -200,50 +243,55 @@ namespace System.Text.Json
 
         public void Pop(bool success)
         {
-            Debug.Assert(_count > 0);
+            Debug.Assert(_isFirstFramePushed is true);
 
             if (!success)
             {
                 // Check if we need to initialize the continuation.
                 if (_continuationCount == 0)
                 {
-                    if (_count == 1)
-                    {
-                        // No need for a continuation since there is only one stack frame.
-                        _continuationCount = 1;
-                    }
-                    else
-                    {
-                        AddCurrent();
-                        _count--;
-                        _continuationCount = _count;
-                        _count--;
-                        Current = _previous[_count - 1];
-                    }
+                    _continuationCount = _currentIndex + 1;
+                    //if (_currentIndex == 1)
+                    //{
+                    //    // No need for a continuation since there is only one stack frame.
+                    //    _continuationCount = 1;
+                    //}
+                    //else
+                    //{
+                    //    AddCurrent();
+                    //    _currentIndex--;
+                    //    _continuationCount = _currentIndex;
+                    //    _currentIndex--;
+                    //    Current = _stack[_currentIndex - 1];
+                    //}
 
-                    return;
+                    //return;
                 }
 
-                if (_continuationCount == 1)
-                {
-                    // No need for a pop since there is only one stack frame.
-                    Debug.Assert(_count == 1);
-                    return;
-                }
+                //if (_continuationCount == 1)
+                //{
+                //    // No need for a pop since there is only one stack frame.
+                //    Debug.Assert(_currentIndex == 1);
+                //    return;
+                //}
 
-                // Update the list entry to the current value.
-                _previous[_count - 1] = Current;
+                //// Update the list entry to the current value.
+                //_stack[_currentIndex - 1] = Current;
 
-                Debug.Assert(_count > 0);
+                //Debug.Assert(_currentIndex > 0);
             }
             else
             {
                 Debug.Assert(_continuationCount == 0);
             }
 
-            if (_count > 1)
+            if (_currentIndex == 0)
             {
-                Current = _previous[--_count -1];
+                _isFirstFramePushed = false;
+            }
+            else
+            {
+                _currentIndex--;
             }
 
             SetConstructorArgumentState();
@@ -257,24 +305,24 @@ namespace System.Text.Json
             StringBuilder sb = new StringBuilder("$");
 
             // If a continuation, always report back full stack.
-            int count = Math.Max(_count, _continuationCount);
+            int count = Math.Max(_currentIndex + 1, _continuationCount);
 
             for (int i = 0; i < count - 1; i++)
             {
-                AppendStackFrame(sb, _previous[i]);
+                AppendStackFrame(sb, ref _stack[i]);
             }
 
             if (_continuationCount == 0)
             {
-                AppendStackFrame(sb, Current);
+                AppendStackFrame(sb, ref Current);
             }
 
             return sb.ToString();
 
-            static void AppendStackFrame(StringBuilder sb, in ReadStackFrame frame)
+            static void AppendStackFrame(StringBuilder sb, ref ReadStackFrame frame)
             {
                 // Append the property name.
-                string? propertyName = GetPropertyName(frame);
+                string? propertyName = GetPropertyName(ref frame);
                 AppendPropertyName(sb, propertyName);
 
                 if (frame.JsonTypeInfo != null && frame.IsProcessingEnumerable())
@@ -332,7 +380,7 @@ namespace System.Text.Json
                 }
             }
 
-            static string? GetPropertyName(in ReadStackFrame frame)
+            static string? GetPropertyName(ref ReadStackFrame frame)
             {
                 string? propertyName = null;
 

@@ -14,7 +14,7 @@ namespace System.Text.Json.Serialization.Converters
         {
             TCollection collection = (TCollection)state.Current.ReturnValue!;
             collection.Add(value);
-            if (IsValueType)
+            if (typeof(TCollection).IsValueType)
             {
                 state.Current.ReturnValue = collection;
             };

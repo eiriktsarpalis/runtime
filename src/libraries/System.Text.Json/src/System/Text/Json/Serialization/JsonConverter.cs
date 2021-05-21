@@ -62,6 +62,11 @@ namespace System.Text.Json.Serialization
         internal bool IsValueType { get; set; }
 
         /// <summary>
+        /// Cached value of TypeToConvert.IsSealed, which is an expensive call.
+        /// </summary>
+        internal bool IsSealedType { get; set; }
+
+        /// <summary>
         /// Whether the converter is built-in.
         /// </summary>
         internal bool IsInternalConverter { get; set; }
@@ -89,7 +94,7 @@ namespace System.Text.Json.Serialization
         internal abstract Type TypeToConvert { get; }
 
         internal abstract bool TryReadAsObject(ref Utf8JsonReader reader, JsonSerializerOptions options, ref ReadStack state, out object? value);
-        internal abstract bool OnTryReadAsObject(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options, ref ReadStack state, out object? value);
+        internal abstract bool OnTryReadWithValidationAsObject(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options, ref ReadStack state, bool wasContinuation, out object? value);
 
         internal abstract bool OnTryWriteAsObject(Utf8JsonWriter writer, object? value, JsonSerializerOptions options, ref WriteStack state);
 

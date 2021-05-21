@@ -145,6 +145,7 @@ namespace System.Text.Json
 
         public void Reset()
         {
+            // Do not reset CachedPolymorphicJsonPropertyInfo
             CollectionEnumerator = null;
             EnumeratorIndex = 0;
             AsyncEnumerator = null;
@@ -156,6 +157,7 @@ namespace System.Text.Json
             OriginalDepth = 0;
             ProcessedStartToken = false;
             ProcessedEndToken = false;
+            MetadataPropertyName = MetadataPropertyName.NoMetadata;
 
             EndProperty();
         }

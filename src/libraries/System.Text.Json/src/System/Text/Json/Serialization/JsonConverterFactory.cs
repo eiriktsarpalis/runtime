@@ -95,11 +95,12 @@ namespace System.Text.Json.Serialization
             throw new InvalidOperationException();
         }
 
-        internal sealed override bool OnTryReadAsObject(
+        internal sealed override bool OnTryReadWithValidationAsObject(
             ref Utf8JsonReader reader,
             Type typeToConvert,
             JsonSerializerOptions options,
             ref ReadStack state,
+            bool wasContinuation,
             out object? value)
         {
             Debug.Fail("We should never get here.");
