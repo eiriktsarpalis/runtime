@@ -465,23 +465,7 @@ namespace System.Text.Json.Serialization
                                 }
                             }
 
-                            // Special handling for System.Object instance
-                            // TODO move logic to relevant converter.
-                            if (type == JsonTypeInfo.ObjectType)
-                            {
-                                writer.WriteStartObject();
-                                writer.WriteEndObject();
-
-                                if (ignoreCyclesPopReference)
-                                {
-                                    state.ReferenceResolver.PopReferenceForCycleDetection();
-                                }
-
-                                return true;
-                            }
-
-                            if (type != TypeToConvert && IsInternalConverter) // TODO: IsInternalConverter should be moved to outer check
-                                                                              // Currently used here so that user converters include handling for System.Object instances
+                            if (type != TypeToConvert)
                             {
                                 // For internal converter only: Handle polymorphic case and get the new converter.
                                 // Custom converter, even though polymorphic converter, get called for reading AND writing.
@@ -518,7 +502,7 @@ namespace System.Text.Json.Serialization
                 }
             }
 
-            if (ConverterStrategy == ConverterStrategy.Value)
+            if (ConverterStrategy == ConverterStrategy.Value && !ignoreCyclesPopReference)
             {
                 Debug.Assert(!state.IsContinuation);
 

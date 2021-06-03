@@ -704,16 +704,6 @@ namespace System.Text.Json.Serialization.Tests
                 }
 
                 {
-                    var value = new object();
-
-                    string json = JsonSerializer.Serialize<object>(new object(), options);
-                    Assert.Equal("{}", json);
-
-                    string newtonsoftJson = Newtonsoft.Json.JsonConvert.SerializeObject(value);
-                    Assert.Equal(newtonsoftJson, json);
-                }
-
-                {
                     var value = new int[] { };
 
                     string json = JsonSerializer.Serialize<object>(value, options);
