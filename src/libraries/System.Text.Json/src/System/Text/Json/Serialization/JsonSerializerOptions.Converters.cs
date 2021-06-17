@@ -100,7 +100,7 @@ namespace System.Text.Json
         /// <remarks>
         /// Once serialization or deserialization occurs, the list cannot be modified.
         /// </remarks>
-        public IList<TypeDiscriminatorConfiguration> TypeDiscriminatorConfigurations { get; }
+        public IList<PolymorphicTypeConfiguration> PolymorphicTypeConfigurations { get; }
 
         internal JsonConverter DetermineConverter(Type? parentClassType, Type runtimePropertyType, MemberInfo? memberInfo)
         {

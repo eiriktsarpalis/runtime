@@ -141,7 +141,7 @@ namespace System.Text.Json.Serialization
                 JsonTypeInfo jsonTypeInfo = state.PeekNextJsonTypeInfo();
                 Debug.Assert(jsonTypeInfo.PropertyInfoForTypeInfo.ConverterBase.TypeToConvert == TypeToConvert);
 
-                if (jsonTypeInfo.TypeDiscriminatorResolver is not null)
+                if (jsonTypeInfo.PolymorphicTypeResolver?.TypeDiscriminatorPropertyName is not null)
                 {
                     // The current converter supports polymorphic deserialization
                     JsonConverter? polymorphicConverter = null;
@@ -165,6 +165,7 @@ namespace System.Text.Json.Serialization
                             // Need to read ahead for the type discriminator before dispatching to the relevant polymorphic converter
                             // Use a copy of the reader to avoid advancing the buffer.
                             Utf8JsonReader readerCopy = reader;
+                            // TODO: pass TypeDiscriminatorPropertyName to reader
                             if (!JsonSerializer.TryReadTypeDiscriminator(ref readerCopy, out string? typeId))
                             {
                                 // Insufficient data in the buffer to read the type discriminator.
@@ -183,7 +184,7 @@ namespace System.Text.Json.Serialization
                             }
 
                             if (typeId is not null &&
-                                jsonTypeInfo.TypeDiscriminatorResolver.TryResolveTypeByTypeId(typeId, out Type? type) &&
+                                jsonTypeInfo.PolymorphicTypeResolver.TryResolveTypeByTypeId(typeId, out Type? type) &&
                                 type != typeToConvert)
                             {
                                 polymorphicConverter = state.Current.InitializePolymorphicReEntry(type, options);
@@ -427,7 +428,7 @@ namespace System.Text.Json.Serialization
                 Debug.Assert(jsonTypeInfo.PropertyInfoForTypeInfo.ConverterBase.TypeToConvert == TypeToConvert || !IsInternalConverter);
 
                 // TODO: refactor into a standalone TryGetPolymorphicConverter method
-                if (jsonTypeInfo.CanBePolymorphic)
+                if (jsonTypeInfo.CanBeWritePolymorphic)
                 {
                     Debug.Assert(IsInternalConverter);
 
@@ -451,18 +452,19 @@ namespace System.Text.Json.Serialization
 
                             Type type = value.GetType();
 
-                            if (jsonTypeInfo.TypeDiscriminatorResolver is not null)
+                            if (jsonTypeInfo.PolymorphicTypeResolver is not null)
                             {
                                 // Prepare serialization for type discriminator polymorphism:
                                 // if the resolver yields a valid typeId dispatch to the converter for the resolved type,
                                 // otherwise revert back to using the current converter type and do not serialize polymorphically.
                                 Debug.Assert(state.PolymorphicTypeDiscriminator is null);
 
-                                if (jsonTypeInfo.TypeDiscriminatorResolver.TryResolvePolymorphicSubtype(type, out Type? resolvedType, out string? typeId))
+                                if (jsonTypeInfo.PolymorphicTypeResolver.TryResolvePolymorphicSubtype(type, out Type? resolvedType, out string? typeId))
                                 {
                                     Debug.Assert(resolvedType.IsAssignableFrom(type));
 
                                     type = resolvedType;
+                                    // TODO: pass custom TypeDiscriminator property name
                                     state.PolymorphicTypeDiscriminator = typeId;
                                 }
                                 else

@@ -32,8 +32,7 @@ namespace System.Text.Json.Serialization.Metadata
 
         internal JsonPropertyInfo? DataExtensionProperty { get; private set; }
 
-        internal bool CanBePolymorphic => CanBeWritePolymorphic || TypeDiscriminatorResolver is not null;
-        internal TypeDiscriminatorResolver? TypeDiscriminatorResolver { get; private set; }
+        internal PolymorphicTypeResolver? PolymorphicTypeResolver { get; private set; }
         internal bool CanBeWritePolymorphic { get; private set; }
         internal bool CanUseDirectReadOrWrite { get; private set; }
 
@@ -537,25 +536,24 @@ namespace System.Text.Json.Serialization.Metadata
         {
             Debug.Assert(Type != null);
 
+            // TODO should we populate resolver if internal converter?
             // Resolve any tagged polymorphism configuration: Options config takes precedence over attribute config
-            foreach (TypeDiscriminatorConfiguration config in Options?.TypeDiscriminatorConfigurations ?? Array.Empty<TypeDiscriminatorConfiguration>())
+            foreach (PolymorphicTypeConfiguration config in Options?.PolymorphicTypeConfigurations ?? Array.Empty<PolymorphicTypeConfiguration>())
             {
                 if (config.BaseType == Type)
                 {
-                    TypeDiscriminatorResolver = new TypeDiscriminatorResolver(config);
+                    PolymorphicTypeResolver = new PolymorphicTypeResolver(config);
                     break;
                 }
             }
 
-            TypeDiscriminatorResolver ??= TypeDiscriminatorResolver.CreateFromAttributes(Type);
+            // TODO this method can throw when validating attributes
+            PolymorphicTypeResolver ??= PolymorphicTypeResolver.CreateFromAttributes(Type);
 
-            // Resolve polymorphic serialization configuration
-            CanBeWritePolymorphic =
-                isInternalConverter &&
-                (Type == JsonTypeInfo.ObjectType ||
-                !Type.IsValueType && !Type.IsSealed &&
-                    (Options?.SupportedPolymorphicTypes(Type) == true ||
-                     Type.GetCustomAttribute<JsonPolymorphicTypeAttribute>(inherit:false) is not null));
+            if (isInternalConverter)
+            {
+                CanBeWritePolymorphic = Type == JsonTypeInfo.ObjectType || PolymorphicTypeResolver is not null;
+            }
 
             // For the HandleNull == false case, either:
             // 1) The default values are assigned in this type's virtual HandleNull property
@@ -564,7 +562,7 @@ namespace System.Text.Json.Serialization.Metadata
             // will be their default values of false.
             // TODO: use separate read & write properties
             CanUseDirectReadOrWrite =
-                !CanBePolymorphic
+                !CanBeWritePolymorphic
                 && isInternalConverter
                 && converterStrategy == ConverterStrategy.Value;
         }

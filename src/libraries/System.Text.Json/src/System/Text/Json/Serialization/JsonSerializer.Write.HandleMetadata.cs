@@ -49,7 +49,7 @@ namespace System.Text.Json
                         // write the typeId ahead of the referenceId
                         if (state.PolymorphicTypeDiscriminator is string typeId)
                         {
-                            writer.WriteString(s_TypeIdPropertyName, typeId);
+                            writer.WriteString(s_metadataType, typeId);
                             writtenMetadataName |= MetadataPropertyName.Type;
                             state.PolymorphicTypeDiscriminator = null;
                         }
@@ -61,7 +61,7 @@ namespace System.Text.Json
             else
             {
                 Debug.Assert(state.PolymorphicTypeDiscriminator is not null);
-                writer.WriteString(s_TypeIdPropertyName, state.PolymorphicTypeDiscriminator);
+                writer.WriteString(s_metadataType, state.PolymorphicTypeDiscriminator);
                 writtenMetadataName = MetadataPropertyName.Type;
                 state.PolymorphicTypeDiscriminator = null;
             }
@@ -107,7 +107,7 @@ namespace System.Text.Json
                         // write the typeId ahead of the referenceId
                         if (state.PolymorphicTypeDiscriminator is string typeId)
                         {
-                            writer.WriteString(s_TypeIdPropertyName, typeId);
+                            writer.WriteString(s_metadataType, typeId);
                             writtenMetadataName |= MetadataPropertyName.Type;
                             state.PolymorphicTypeDiscriminator = null;
                         }
@@ -122,18 +122,13 @@ namespace System.Text.Json
                 Debug.Assert(state.PolymorphicTypeDiscriminator is not null);
 
                 writer.WriteStartObject();
-                writer.WriteString(s_TypeIdPropertyName, state.PolymorphicTypeDiscriminator);
+                writer.WriteString(s_metadataType, state.PolymorphicTypeDiscriminator);
                 writer.WriteStartArray(s_metadataValues);
                 state.PolymorphicTypeDiscriminator = null;
                 writtenMetadataName = MetadataPropertyName.Type;
             }
 
             return writtenMetadataName;
-        }
-
-        internal static void WriteTypeMetata(Utf8JsonWriter writer, string typeId)
-        {
-            writer.WriteString(s_metadataType, typeId);
         }
     }
 }
