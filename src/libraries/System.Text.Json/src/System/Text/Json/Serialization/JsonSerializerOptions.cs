@@ -41,10 +41,9 @@ namespace System.Text.Json
         private JsonNamingPolicy? _jsonPropertyNamingPolicy;
         private JsonCommentHandling _readCommentHandling;
         private ReferenceHandler? _referenceHandler;
-        private Func<Type, bool>? _supportedPolymorphicTypes;
         private JavaScriptEncoder? _encoder;
         private ConfigurationList<JsonConverter> _converters;
-        private ConfigurationList<TypeDiscriminatorConfiguration> _typeDiscriminatorConfigurations;
+        private ConfigurationList<PolymorphicTypeConfiguration> _polymorphicTypeConfigurations;
         private JsonIgnoreCondition _defaultIgnoreCondition;
         private JsonNumberHandling _numberHandling;
         private JsonUnknownTypeHandling _unknownTypeHandling;
@@ -66,7 +65,7 @@ namespace System.Text.Json
         {
             _converters = new ConfigurationList<JsonConverter>(this);
 
-            _typeDiscriminatorConfigurations = new ConfigurationList<TypeDiscriminatorConfiguration>(this)
+            _polymorphicTypeConfigurations = new ConfigurationList<PolymorphicTypeConfiguration>(this)
             {
                 OnElementAdded = static config => { config.IsAssignedToOptionsInstance = true; }
             };
@@ -89,8 +88,7 @@ namespace System.Text.Json
             _readCommentHandling = options._readCommentHandling;
             _referenceHandler = options._referenceHandler;
             _converters = new ConfigurationList<JsonConverter>(this, options._converters);
-            _typeDiscriminatorConfigurations = new ConfigurationList<TypeDiscriminatorConfiguration>(this, options._typeDiscriminatorConfigurations);
-            _supportedPolymorphicTypes = options._supportedPolymorphicTypes;
+            _polymorphicTypeConfigurations = new ConfigurationList<PolymorphicTypeConfiguration>(this, options._polymorphicTypeConfigurations);
             _encoder = options._encoder;
             _defaultIgnoreCondition = options._defaultIgnoreCondition;
             _numberHandling = options._numberHandling;
@@ -533,20 +531,6 @@ namespace System.Text.Json
             {
                 VerifyMutable();
                 _writeIndented = value;
-            }
-        }
-
-        /// <summary>
-        /// Type predicate configuring what types should be serialized polymorphically.
-        /// Note that this abstraction only governs serialization and offses no support for deserialization.
-        /// </summary>
-        public Func<Type, bool> SupportedPolymorphicTypes
-        {
-            get => _supportedPolymorphicTypes ??= static type => type == JsonTypeInfo.ObjectType;
-            set
-            {
-                VerifyMutable();
-                _supportedPolymorphicTypes = value;
             }
         }
 

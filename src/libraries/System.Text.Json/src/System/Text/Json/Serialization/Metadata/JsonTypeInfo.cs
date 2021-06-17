@@ -7,6 +7,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text.Json.Reflection;
+using System.Text.Json.Serialization.Converters;
 using System.Threading;
 
 namespace System.Text.Json.Serialization.Metadata
@@ -34,10 +35,10 @@ namespace System.Text.Json.Serialization.Metadata
 
         internal JsonPropertyInfo? DataExtensionProperty { get; private set; }
 
-        internal bool CanBePolymorphic { get; private set; }
+        internal PolymorphicTypeResolver? PolymorphicTypeResolver { get; private set; }
         internal bool HasTypeDiscriminatorResolver { get; private set; }
-        internal TypeDiscriminatorResolver? TypeDiscriminatorResolver { get; private set; }
         internal bool CanBeWritePolymorphic { get; private set; }
+        internal bool CanBePolymorphic => CanBeWritePolymorphic || HasTypeDiscriminatorResolver;
 
         // If enumerable or dictionary, the JsonTypeInfo for the element type.
         private JsonTypeInfo? _elementTypeInfo;
@@ -553,28 +554,21 @@ namespace System.Text.Json.Serialization.Metadata
         {
             Debug.Assert(Type != null);
 
+            // TODO should we populate resolver if internal converter?
             // Resolve any tagged polymorphism configuration: Options config takes precedence over attribute config
-            foreach (TypeDiscriminatorConfiguration config in Options?.TypeDiscriminatorConfigurations ?? Array.Empty<TypeDiscriminatorConfiguration>())
+            foreach (PolymorphicTypeConfiguration config in Options?.PolymorphicTypeConfigurations ?? Array.Empty<PolymorphicTypeConfiguration>())
             {
                 if (config.BaseType == Type)
                 {
-                    TypeDiscriminatorResolver = new TypeDiscriminatorResolver(config);
+                    PolymorphicTypeResolver = new PolymorphicTypeResolver(config);
                     break;
                 }
             }
 
-            TypeDiscriminatorResolver ??= TypeDiscriminatorResolver.CreateFromAttributes(Type);
-
-            // Resolve polymorphic serialization configuration
-            CanBeWritePolymorphic =
-                converter.IsInternalConverter &&
-                (Type == JsonTypeInfo.ObjectType ||
-                !Type.IsValueType && !Type.IsSealed &&
-                    (Options?.SupportedPolymorphicTypes(Type) == true ||
-                     Type.GetCustomAttribute<JsonPolymorphicTypeAttribute>(inherit:false) is not null));
-
-            HasTypeDiscriminatorResolver = TypeDiscriminatorResolver is not null;
-            CanBePolymorphic = CanBeWritePolymorphic || HasTypeDiscriminatorResolver;
+            // TODO this method can throw when validating attributes
+            PolymorphicTypeResolver ??= PolymorphicTypeResolver.CreateFromAttributes(Type);
+            HasTypeDiscriminatorResolver = PolymorphicTypeResolver is not null;
+            CanBeWritePolymorphic = converter is ObjectConverter;
         }
 
         private bool IsValidDataExtensionProperty(JsonPropertyInfo jsonPropertyInfo)

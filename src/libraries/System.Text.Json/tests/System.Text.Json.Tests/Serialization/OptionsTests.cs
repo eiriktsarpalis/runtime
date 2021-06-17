@@ -587,10 +587,10 @@ namespace System.Text.Json.Serialization.Tests
                     options.Converters.Add(new JsonStringEnumConverter());
                     options.Converters.Add(new ConverterForInt32());
                 }
-                else if (propertyType == typeof(IList<TypeDiscriminatorConfiguration>))
+                else if (propertyType == typeof(IList<PolymorphicTypeConfiguration>))
                 {
-                    options.TypeDiscriminatorConfigurations.Add(
-                        new TypeDiscriminatorConfiguration<ITestClass>()
+                    options.PolymorphicTypeConfigurations.Add(
+                        new PolymorphicTypeConfiguration<ITestClass>("$type")
                             .WithKnownType<Point_With_Array>("point_with_array")
                             .WithKnownType<Point_With_Dictionary>("point_with_dictionary"));
                 }
@@ -606,10 +606,6 @@ namespace System.Text.Json.Serialization.Tests
                 else if (propertyType == typeof(ReferenceHandler))
                 {
                     options.ReferenceHandler = ReferenceHandler.Preserve;
-                }
-                else if (propertyType == typeof(Func<Type, bool>))
-                {
-                    options.SupportedPolymorphicTypes = static type => type == typeof(object);
                 }
                 else if (propertyType.IsValueType)
                 {
@@ -654,10 +650,10 @@ namespace System.Text.Json.Serialization.Tests
                         Assert.Same(list1[i], list2[i]);
                     }
                 }
-                else if (propertyType == typeof(IList<TypeDiscriminatorConfiguration>))
+                else if (propertyType == typeof(IList<PolymorphicTypeConfiguration>))
                 {
-                    var list1 = (IList<TypeDiscriminatorConfiguration>)property.GetValue(options);
-                    var list2 = (IList<TypeDiscriminatorConfiguration>)property.GetValue(newOptions);
+                    var list1 = (IList<PolymorphicTypeConfiguration>)property.GetValue(options);
+                    var list2 = (IList<PolymorphicTypeConfiguration>)property.GetValue(newOptions);
 
                     Assert.Equal(list1.Count, list2.Count);
                     for (int i = 0; i < list1.Count; i++)

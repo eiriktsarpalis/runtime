@@ -371,7 +371,6 @@ namespace System.Text.Json.Serialization.Tests
                 yield return (GetProp(nameof(JsonSerializerOptions.UnknownTypeHandling)), JsonUnknownTypeHandling.JsonNode);
                 yield return (GetProp(nameof(JsonSerializerOptions.WriteIndented)), true);
                 yield return (GetProp(nameof(JsonSerializerOptions.ReferenceHandler)), ReferenceHandler.Preserve);
-                yield return (GetProp(nameof(JsonSerializerOptions.SupportedPolymorphicTypes)), new Func<Type, bool>(t => t == typeof(IEnumerable<int>)));
 
                 static PropertyInfo GetProp(string name)
                 {

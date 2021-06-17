@@ -181,8 +181,8 @@ namespace System.Text.Json.Serialization
                     {
                         Debug.Assert(!IsValueType);
                         Debug.Assert(state.Current.PolymorphicSerializationState == PolymorphicSerializationState.None);
-                        Debug.Assert(jsonTypeInfo.TypeDiscriminatorResolver != null);
-                        if (jsonTypeInfo.TypeDiscriminatorResolver.TryResolveTypeByTypeId(state.PolymorphicTypeDiscriminator, out Type? subtype) &&
+                        Debug.Assert(jsonTypeInfo.PolymorphicTypeResolver != null);
+                        if (jsonTypeInfo.PolymorphicTypeResolver.TryResolveTypeByTypeId(state.PolymorphicTypeDiscriminator, out Type? subtype) &&
                             subtype != TypeToConvert)
                         {
                             state.InitializePolymorphicConverter(subtype, options);
