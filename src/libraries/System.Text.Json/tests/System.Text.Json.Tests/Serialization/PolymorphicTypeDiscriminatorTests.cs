@@ -396,9 +396,9 @@ namespace System.Text.Json.Serialization.Tests
 
         private static JsonSerializerOptions s_optionsWithCustomKnownTypeConfiguration = new JsonSerializerOptions
         {
-            TypeDiscriminatorConfigurations =
+            PolymorphicTypeConfigurations =
             {
-                new TypeDiscriminatorConfiguration<HappyPath_BaseClass>()
+                new PolymorphicTypeConfiguration<HappyPath_BaseClass>("$type")
                     .WithKnownType<HappyPath_DerivedClass2>("derived_2")
                     .WithKnownType<HappyPath_DerivedDerivedClass1>("derived_1")
                     .WithKnownType<HappyPath_DerivedEnumerable>("enum")
@@ -756,15 +756,15 @@ namespace System.Text.Json.Serialization.Tests
 
         private readonly static JsonSerializerOptions s_optionsWithCollectionKnownTypes = new JsonSerializerOptions
         {
-            TypeDiscriminatorConfigurations =
+            PolymorphicTypeConfigurations =
                 {
-                    new TypeDiscriminatorConfiguration<IEnumerable<int>>()
+                    new PolymorphicTypeConfiguration<IEnumerable<int>>("$type")
                         .WithKnownType<int[]>("array")
                         .WithKnownType<List<int>>("list")
                         .WithKnownType<Queue<int>>("set")
                     ,
 
-                    new TypeDiscriminatorConfiguration<IEnumerable<KeyValuePair<int, object>>>()
+                    new PolymorphicTypeConfiguration<IEnumerable<KeyValuePair<int, object>>>("$type")
                         .WithKnownType<Dictionary<int, object>>("dictionary")
                         .WithKnownType<ImmutableDictionary<int, object>>("immutableDictionary")
                         .WithKnownType<IReadOnlyDictionary<int, object>>("readOnlyDictionary")
@@ -798,11 +798,13 @@ namespace System.Text.Json.Serialization.Tests
         [Fact]
         public void PolymorphicTypeDiscriminatorConfiguration_AddingKnownTypesAfterAssignmentToOptions_ShouldThrowInvalidOperationException()
         {
-            var config = new TypeDiscriminatorConfiguration(typeof(HappyPath_BaseClass));
+            var config = new PolymorphicTypeConfiguration(typeof(HappyPath_BaseClass), "$type");
             config.WithKnownType(typeof(HappyPath_DerivedClass1), "derived1");
-            _ = new JsonSerializerOptions { TypeDiscriminatorConfigurations = { config } };
+            _ = new JsonSerializerOptions { PolymorphicTypeConfigurations = { config } };
             Assert.Throws<InvalidOperationException>(() => config.WithKnownType(typeof(HappyPath_DerivedClass2), "derived2"));
         }
+
+        // TODO add test coverage for polymorphism without discriminators
 
         [Theory]
         [InlineData(typeof(int))]
@@ -812,7 +814,7 @@ namespace System.Text.Json.Serialization.Tests
         [InlineData(typeof(BinTree<>))]
         public void KnownTypeConfiguration_InvalidBaseType_ShouldThrowArgumentException(Type baseType)
         {
-            Assert.Throws<ArgumentException>(() => new TypeDiscriminatorConfiguration(baseType));
+            Assert.Throws<ArgumentException>(() => new PolymorphicTypeConfiguration(baseType, "$type"));
         }
 
         [Theory]
@@ -825,14 +827,14 @@ namespace System.Text.Json.Serialization.Tests
         [InlineData(typeof(HappyPath_DerivedClass1), typeof(HappyPath_BaseClass))]
         public void KnownTypeConfiguration_InvalidKnownType_ShouldThrowArgumentException(Type baseType, Type knownType)
         {
-            var config = new TypeDiscriminatorConfiguration(baseType);
+            var config = new PolymorphicTypeConfiguration(baseType, "$type");
             Assert.Throws<ArgumentException>(() => config.WithKnownType(knownType, "knownTypeId"));
         }
 
         [Fact]
         public void KnownTypeConfiguration_DuplicateTypeId_ShouldThrowArgumentException()
         {
-            var config = new TypeDiscriminatorConfiguration(typeof(HappyPath_BaseClass));
+            var config = new PolymorphicTypeConfiguration(typeof(HappyPath_BaseClass), "$type");
             config.WithKnownType(typeof(HappyPath_DerivedClass1), "id1");
             Assert.Throws<ArgumentException>(() => config.WithKnownType(typeof(HappyPath_DerivedClass2), "id1"));
         }
@@ -842,9 +844,9 @@ namespace System.Text.Json.Serialization.Tests
         {
             var options = new JsonSerializerOptions
             {
-                TypeDiscriminatorConfigurations =
+                PolymorphicTypeConfigurations =
                 {
-                    new TypeDiscriminatorConfiguration<IEnumerable<int>>()
+                    new PolymorphicTypeConfiguration<IEnumerable<int>>("$type")
                         .WithKnownType<ICollection<int>>("collection")
                         .WithKnownType<IReadOnlyCollection<int>>("readonlycollection")
                 }
@@ -857,6 +859,7 @@ namespace System.Text.Json.Serialization.Tests
 
         //----------
 
+        [JsonPolymorphicType("$type")]
         [JsonKnownType(typeof(HappyPath_DerivedClass1), "derived1")]
         [JsonKnownType(typeof(HappyPath_DerivedDerivedClass2), "derived2")]
         [JsonKnownType(typeof(HappyPath_DerivedEnumerable), "enumerable")]
@@ -878,6 +881,7 @@ namespace System.Text.Json.Serialization.Tests
             }
         }
 
+        [JsonPolymorphicType("$type")]
         [JsonKnownType(typeof(HappyPath_DerivedDerivedClass1), "derived_derived1")]
         public class HappyPath_DerivedClass1 : HappyPath_BaseClass
         {
@@ -931,6 +935,7 @@ namespace System.Text.Json.Serialization.Tests
             public Dictionary<string, object>? ExtensionData { get; set; }
         }
 
+        [JsonPolymorphicType("$type")]
         [JsonKnownType(typeof(HappyPath_Interface_DerivedClass1), "derived1")]
         [JsonKnownType(typeof(HappyPath_Interface_DerivedInterface), "derived_interface")]
         [JsonKnownType(typeof(HappyPath_Interface_DerivedStruct), "derived_struct")]
@@ -985,6 +990,7 @@ namespace System.Text.Json.Serialization.Tests
         }
 
         /// <summary>A Peano arithmetic encoding.</summary>
+        [JsonPolymorphicType("$type")]
         [JsonKnownType(typeof(Zero), "zero")]
         [JsonKnownType(typeof(Succ), "succ")]
         public abstract record Peano
@@ -1003,30 +1009,34 @@ namespace System.Text.Json.Serialization.Tests
             public static JsonSerializerOptions Options { get; } =
                 new JsonSerializerOptions
                 {
-                    TypeDiscriminatorConfigurations =
+                    PolymorphicTypeConfigurations =
                     {
-                        new TypeDiscriminatorConfiguration<BinTree<T>>()
+                        new PolymorphicTypeConfiguration<BinTree<T>>("TODO: fix passing custom names")
                             .WithKnownType<Leaf>("leaf")
                             .WithKnownType<Node>("node")
                     }
                 };
         }
 
+        [JsonPolymorphicType("$type")]
         [JsonKnownType(typeof(int), "integer")]
         public class InvalidConfig_KnownTypeIsInteger
         {
         }
 
+        [JsonPolymorphicType("$type")]
         [JsonKnownType(typeof(int), "string")]
         public class InvalidConfig_KnownTypeIsString
         {
         }
 
+        [JsonPolymorphicType("$type")]
         [JsonKnownType(typeof(HappyPath_BaseClass), "baseclass")]
         public class InvalidConfig_KnownTypeNotASubclass
         {
         }
 
+        [JsonPolymorphicType("$type")]
         [JsonKnownType(typeof(Subtype), "A")]
         [JsonKnownType(typeof(Subtype), "B")]
         public class InvalidConfig_DuplicateTypes
@@ -1034,6 +1044,7 @@ namespace System.Text.Json.Serialization.Tests
             public class Subtype : InvalidConfig_DuplicateTypes { }
         }
 
+        [JsonPolymorphicType("$type")]
         [JsonKnownType(typeof(A), "duplicateId")]
         [JsonKnownType(typeof(B), "duplicateId")]
         public class InvalidConfig_DuplicateTypeIds

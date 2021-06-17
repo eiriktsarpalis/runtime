@@ -32,8 +32,8 @@ namespace System.Text.Json.Serialization
                         // if the resolver yields a valid typeId dispatch to the converter for the resolved type,
                         // otherwise revert back to using the current converter type and do not serialize polymorphically.
 
-                        Debug.Assert(jsonTypeInfo.TypeDiscriminatorResolver != null);
-                        if (jsonTypeInfo.TypeDiscriminatorResolver.TryResolvePolymorphicSubtype(runtimeType, out Type? resolvedType, out string? typeId))
+                        Debug.Assert(jsonTypeInfo.PolymorphicTypeResolver != null);
+                        if (jsonTypeInfo.PolymorphicTypeResolver.TryResolvePolymorphicSubtype(runtimeType, out Type? resolvedType, out string? typeId))
                         {
                             Debug.Assert(resolvedType.IsAssignableFrom(runtimeType));
 

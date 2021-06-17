@@ -4,8 +4,7 @@
 namespace System.Text.Json.Serialization
 {
     /// <summary>
-    /// When placed on a type, indicates that the specified subtype should
-    /// be serialized polymorphically using type discriminator identifiers.
+    /// When placed on a type declaration, indicates that the specified subtype should be opted into polymorphic serialization.
     /// </summary>
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Interface, AllowMultiple = true, Inherited = false)]
     public class JsonKnownTypeAttribute : JsonAttribute
@@ -14,11 +13,20 @@ namespace System.Text.Json.Serialization
         /// Initializes a new attribute with specified parameters.
         /// </summary>
         /// <param name="subtype">The known subtype that should be serialized polymorphically.</param>
-        /// <param name="identifier">The string identifier to be used for the serialization of the subtype.</param>
-        public JsonKnownTypeAttribute(Type subtype, string identifier)
+        public JsonKnownTypeAttribute(Type subtype)
         {
             Subtype = subtype;
-            Identifier = identifier;
+        }
+
+        /// <summary>
+        /// Initializes a new attribute with specified parameters.
+        /// </summary>
+        /// <param name="subtype">The known subtype that should be serialized polymorphically.</param>
+        /// <param name="typeDiscriminatorId">The type discriminator identifier to be used for the serialization of the subtype.</param>
+        public JsonKnownTypeAttribute(Type subtype, string typeDiscriminatorId)
+        {
+            Subtype = subtype;
+            TypeDiscriminatorId = typeDiscriminatorId;
         }
 
         /// <summary>
@@ -27,8 +35,8 @@ namespace System.Text.Json.Serialization
         public Type Subtype { get; }
 
         /// <summary>
-        /// The string identifier to be used for the serialization of the subtype.
+        /// The type discriminator identifier to be used for the serialization of the subtype.
         /// </summary>
-        public string Identifier { get; }
+        public string? TypeDiscriminatorId { get; }
     }
 }

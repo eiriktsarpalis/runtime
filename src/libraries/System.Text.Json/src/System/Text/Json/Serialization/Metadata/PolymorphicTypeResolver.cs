@@ -11,18 +11,20 @@ namespace System.Text.Json.Serialization.Metadata
     /// <summary>
     /// Type used to hold tagged polymorphic serialization metadata for a given base type.
     /// </summary>
-    internal sealed class TypeDiscriminatorResolver
+    internal sealed class PolymorphicTypeResolver
     {
-        private readonly Type _baseType;
+        public Type BaseType { get; }
+        public string? TypeDiscriminatorPropertyName { get; }
+
         // TypeId -> Type map; is not modified by the object
-        private readonly Dictionary<string, Type> _typeIdToType = new();
+        private readonly Dictionary<string, Type>? _typeIdToType;
         // Type -> (KnownType, TypeId)? map; used as a cache for the subtype hierarchy so can be modified during the object's lifetime.
         // `null` values denote a subtype that is not associated with any known type (we want to cache negative results as well).
         private readonly ConcurrentDictionary<Type, CachedTypeResolution?> _typeToTypeId = new();
 
         private sealed class CachedTypeResolution
         {
-            public CachedTypeResolution(Type type, string typeIdentifier, CachedTypeResolution? conflictingResolution)
+            public CachedTypeResolution(Type type, string? typeIdentifier, CachedTypeResolution? conflictingResolution)
             {
                 Type = type;
                 TypeIdentifier = typeIdentifier;
@@ -30,37 +32,50 @@ namespace System.Text.Json.Serialization.Metadata
             }
 
             public Type Type { get; }
-            public string TypeIdentifier { get; }
+            public string? TypeIdentifier { get; }
             public CachedTypeResolution? ConflictingResolution { get; }
         }
 
-        public TypeDiscriminatorResolver(TypeDiscriminatorConfiguration configuration)
+        public PolymorphicTypeResolver(PolymorphicTypeConfiguration configuration)
         {
             Debug.Assert(!configuration.BaseType.IsValueType && !configuration.BaseType.IsSealed);
 
-            _baseType = configuration.BaseType;
+            BaseType = configuration.BaseType;
+            TypeDiscriminatorPropertyName = configuration.TypeDiscriminatorPropertyName;
 
-            foreach (KeyValuePair<Type, string> kvp in configuration)
+            if (TypeDiscriminatorPropertyName is not null)
             {
-                _typeToTypeId[kvp.Key] = new CachedTypeResolution(kvp.Key, kvp.Value, conflictingResolution: null);
-                _typeIdToType.Add(kvp.Value, kvp.Key);
+                _typeIdToType = new();
+                foreach (var kvp in configuration.KnownTypes)
+                {
+                    Type subtype = kvp.Key;
+                    string? typeDiscriminatorId = kvp.Value;
+                    Debug.Assert(typeDiscriminatorId is not null);
+
+                    _typeToTypeId[subtype] = new CachedTypeResolution(subtype, typeDiscriminatorId, conflictingResolution: null);
+                    _typeIdToType.Add(typeDiscriminatorId, subtype);
+                }
             }
         }
 
-        public static TypeDiscriminatorResolver? CreateFromAttributes(Type baseType)
+        public static PolymorphicTypeResolver? CreateFromAttributes(Type baseType)
         {
-            if (!TypeDiscriminatorConfiguration.TryCreateFromKnownTypeAttributes(baseType, out TypeDiscriminatorConfiguration? config))
+            if (!PolymorphicTypeConfiguration.TryCreateFromAttributes(baseType, out PolymorphicTypeConfiguration? config))
             {
                 return null;
             }
 
-            return new TypeDiscriminatorResolver(config);
+            return new PolymorphicTypeResolver(config);
         }
 
         /// <summary>
         /// Used during polymorphic deserialization to recover the subtype corresponding to the supplied type id.
         /// </summary>
-        public bool TryResolveTypeByTypeId(string typeId, [NotNullWhen(true)] out Type? result) => _typeIdToType.TryGetValue(typeId, out result);
+        public bool TryResolveTypeByTypeId(string typeId, [NotNullWhen(true)] out Type? result)
+        {
+            Debug.Assert(_typeIdToType is not null);
+            return _typeIdToType.TryGetValue(typeId, out result);
+        }
 
         /// <summary>
         /// Used during polymorphic serialization to recover the type identifier as well as the actual subtype to be used.
@@ -68,10 +83,10 @@ namespace System.Text.Json.Serialization.Metadata
         ///   Baz : Bar : Foo
         /// with `Bar` being the only declared known type, then an instance of type `Baz` should be serialized using the `Bar` converter.
         /// </summary>
-        public bool TryResolvePolymorphicSubtype(Type type, [NotNullWhen(true)] out Type? resolvedType, [NotNullWhen(true)] out string? typeIdentifier)
+        public bool TryResolvePolymorphicSubtype(Type type, [NotNullWhen(true)] out Type? resolvedType, out string? typeIdentifier)
         {
             Debug.Assert(!type.IsInterface && !type.IsAbstract, "input should always be the reflected type of a serialized object.");
-            Debug.Assert(_baseType.IsAssignableFrom(type));
+            Debug.Assert(BaseType.IsAssignableFrom(type));
 
             // check the cache for existing resolutions first
             if (!_typeToTypeId.TryGetValue(type, out var result))
@@ -110,7 +125,7 @@ namespace System.Text.Json.Serialization.Metadata
 
             CachedTypeResolution? result = null;
 
-            for (Type? candidate = type.BaseType; _baseType.IsAssignableFrom(candidate); candidate = candidate.BaseType)
+            for (Type? candidate = type.BaseType; BaseType.IsAssignableFrom(candidate); candidate = candidate.BaseType)
             {
                 Debug.Assert(candidate != null);
 
@@ -122,11 +137,11 @@ namespace System.Text.Json.Serialization.Metadata
 
             // Interface hierarchies admit the possibility of diamond ambiguities in type discriminators
             // iterate through all interface implementations and identify potential conflicts.
-            if (result?.ConflictingResolution is null && _baseType.IsInterface)
+            if (result?.ConflictingResolution is null && BaseType.IsInterface)
             {
                 foreach (Type interfaceTy in type.GetInterfaces())
                 {
-                    if (_baseType.IsAssignableFrom(interfaceTy) &&
+                    if (BaseType.IsAssignableFrom(interfaceTy) &&
                         _typeToTypeId.TryGetValue(interfaceTy, out var interfaceResult) &&
                         interfaceResult is not null)
                     {

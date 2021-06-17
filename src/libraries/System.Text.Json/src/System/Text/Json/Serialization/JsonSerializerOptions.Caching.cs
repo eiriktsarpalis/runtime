@@ -274,7 +274,6 @@ namespace System.Text.Json
                     left._jsonPropertyNamingPolicy == right._jsonPropertyNamingPolicy &&
                     left._readCommentHandling == right._readCommentHandling &&
                     left._referenceHandler == right._referenceHandler &&
-                    left._supportedPolymorphicTypes == right._supportedPolymorphicTypes &&
                     left._encoder == right._encoder &&
                     left._defaultIgnoreCondition == right._defaultIgnoreCondition &&
                     left._numberHandling == right._numberHandling &&
@@ -290,7 +289,7 @@ namespace System.Text.Json
                     left._writeIndented == right._writeIndented &&
                     left._serializerContext == right._serializerContext &&
                     CompareLists(left._converters, right._converters) &&
-                    CompareLists(left._typeDiscriminatorConfigurations, right._typeDiscriminatorConfigurations);
+                    CompareLists(left._polymorphicTypeConfigurations, right._polymorphicTypeConfigurations);
 
                 static bool CompareLists<TValue>(ConfigurationList<TValue> left, ConfigurationList<TValue> right)
                 {
@@ -320,7 +319,6 @@ namespace System.Text.Json
                 hc.Add(options._jsonPropertyNamingPolicy);
                 hc.Add(options._readCommentHandling);
                 hc.Add(options._referenceHandler);
-                hc.Add(options._supportedPolymorphicTypes);
                 hc.Add(options._encoder);
                 hc.Add(options._defaultIgnoreCondition);
                 hc.Add(options._numberHandling);
@@ -336,7 +334,7 @@ namespace System.Text.Json
                 hc.Add(options._writeIndented);
                 hc.Add(options._serializerContext);
                 GetHashCode(ref hc, options._converters);
-                GetHashCode(ref hc, options._typeDiscriminatorConfigurations);
+                GetHashCode(ref hc, options._polymorphicTypeConfigurations);
 
                 static void GetHashCode<TValue>(ref HashCode hc, ConfigurationList<TValue> list)
                 {
