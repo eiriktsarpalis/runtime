@@ -3,6 +3,8 @@
 
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
+using System.Text.Json.Reflection;
 using System.Text.Json.Serialization.Metadata;
 
 namespace System.Text.Json.Serialization
@@ -311,8 +313,24 @@ namespace System.Text.Json.Serialization
 
         /// <summary>
         /// Overridden by the nullable converter to prevent boxing of values by the JIT.
+        /// TODO remove once https://github.com/dotnet/runtime/issues/50915 has been addressed.
         /// </summary>
-        internal virtual bool IsNull(in T value) => value == null;
+        internal virtual bool IsNullHelper(in T value) => value is null;
+
+        /// TODO remove once https://github.com/dotnet/runtime/issues/50915 has been addressed.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private bool IsNull(in T value)
+        {
+            Debug.Assert(CanBeNull);
+
+            if (typeof(T).IsValueType)
+            {
+                Debug.Assert(TypeToConvert.IsNullableOfT());
+                return IsNullHelper(value);
+            }
+
+            return value is null;
+        }
 
         internal bool TryWrite(Utf8JsonWriter writer, in T value, JsonSerializerOptions options, ref WriteStack state)
         {

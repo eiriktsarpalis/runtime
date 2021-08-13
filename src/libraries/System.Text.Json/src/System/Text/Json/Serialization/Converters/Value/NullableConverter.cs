@@ -71,6 +71,6 @@ namespace System.Text.Json.Serialization.Converters
             }
         }
 
-        internal override bool IsNull(in T? value) => !value.HasValue;
+        internal override bool IsNullHelper(in T? value) => !value.HasValue;
     }
 }
