@@ -312,7 +312,7 @@ namespace System.Text.Json.Serialization
         /// <summary>
         /// Overridden by the nullable converter to prevent boxing of values by the JIT.
         /// </summary>
-        internal virtual bool IsNull(in T value) => value == null;
+        private bool IsNull(in T value) => value == null;
 
         internal bool TryWrite(Utf8JsonWriter writer, in T value, JsonSerializerOptions options, ref WriteStack state)
         {
