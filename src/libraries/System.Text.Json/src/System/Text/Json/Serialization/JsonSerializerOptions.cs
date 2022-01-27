@@ -564,6 +564,9 @@ namespace System.Text.Json
         // The cached value used to determine if ReferenceHandler should use Preserve or IgnoreCycles semanitcs or None of them.
         internal ReferenceHandlingStrategy ReferenceHandlingStrategy = ReferenceHandlingStrategy.None;
 
+#if NETCOREAPP
+        private static MemberAccessor? s_globalMemberAccessor;
+#endif
         internal MemberAccessor MemberAccessorStrategy
         {
             get
@@ -572,9 +575,11 @@ namespace System.Text.Json
                 {
 #if NETCOREAPP
                     // if dynamic code isn't supported, fallback to reflection
-                    _memberAccessorStrategy = RuntimeFeature.IsDynamicCodeSupported ?
-                        new ReflectionEmitMemberAccessor() :
-                        new ReflectionMemberAccessor();
+                    _memberAccessorStrategy = s_globalMemberAccessor ??=
+                            new MemoizingMemberAccessor(
+                                RuntimeFeature.IsDynamicCodeSupported ?
+                                new ReflectionEmitMemberAccessor() :
+                                new ReflectionMemberAccessor());
 #elif NETFRAMEWORK
                     _memberAccessorStrategy = new ReflectionEmitMemberAccessor();
 #else
