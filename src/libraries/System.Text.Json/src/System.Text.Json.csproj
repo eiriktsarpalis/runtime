@@ -121,7 +121,8 @@ System.Text.Json.Nodes.JsonValue</PackageDescription>
     <Compile Include="System\Text\Json\Serialization\JsonSerializer.Write.Element.cs" />
     <Compile Include="System\Text\Json\Serialization\JsonSerializer.Write.Node.cs" />
     <Compile Include="System\Text\Json\Serialization\JsonSerializerContext.cs" />
-    <Compile Include="System\Text\Json\Serialization\Metadata\MemoizingMemberAccessor.cs" />
+    <Compile Include="System\Text\Json\Serialization\Metadata\CachingMemberAccessor.cs" />
+    <Compile Include="System\Text\Json\Serialization\Metadata\ConcurrentMruCache.cs" />
     <Compile Include="System\Text\Json\Serialization\ReferenceEqualsWrapper.cs" />
     <Compile Include="System\Text\Json\Serialization\ConverterStrategy.cs" />
     <Compile Include="System\Text\Json\Serialization\ConverterList.cs" />

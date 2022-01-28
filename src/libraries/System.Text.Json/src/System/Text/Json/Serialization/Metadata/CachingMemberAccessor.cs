@@ -3,17 +3,18 @@
 
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 namespace System.Text.Json.Serialization.Metadata
 {
-    internal sealed class MemoizingMemberAccessor : MemberAccessor
+    internal sealed partial class CachingMemberAccessor : MemberAccessor
     {
         private readonly MemberAccessor _source;
-        private readonly ConcurrentDictionary<(string id, Type declaringType, MemberInfo? member), object?> _cache = new();
+        private readonly ConcurrentMruCache<(string id, Type declaringType, MemberInfo? member), object?> _cache = new(maxCapacity: 3);
 
-        public MemoizingMemberAccessor(MemberAccessor source)
+        public CachingMemberAccessor(MemberAccessor source)
         {
             _source = source;
         }
@@ -21,11 +22,7 @@ namespace System.Text.Json.Serialization.Metadata
         private TResult GetOrAdd<TResult>((string id, Type declaringType, MemberInfo? member) key, Func<(string id, Type declaringType, MemberInfo? member), MemberAccessor, TResult> factory)
             where TResult : class?
         {
-#if NETCOREAPP
             return (TResult)_cache.GetOrAdd(key, factory, _source)!;
-#else
-            return (TResult)_cache.GetOrAdd(key, key => factory(key, _source))!;
-#endif
         }
 
         public override Action<TCollection, object?> CreateAddMethodDelegate<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods)] TCollection>()

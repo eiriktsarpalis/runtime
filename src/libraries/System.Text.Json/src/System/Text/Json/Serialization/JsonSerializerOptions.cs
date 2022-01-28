@@ -576,7 +576,7 @@ namespace System.Text.Json
 #if NETCOREAPP
                     // if dynamic code isn't supported, fallback to reflection
                     _memberAccessorStrategy = s_globalMemberAccessor ??=
-                            new MemoizingMemberAccessor(
+                            new CachingMemberAccessor(
                                 RuntimeFeature.IsDynamicCodeSupported ?
                                 new ReflectionEmitMemberAccessor() :
                                 new ReflectionMemberAccessor());
