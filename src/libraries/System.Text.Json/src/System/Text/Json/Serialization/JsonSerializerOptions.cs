@@ -573,10 +573,10 @@ namespace System.Text.Json
 #if NETCOREAPP
                     // if dynamic code isn't supported, fallback to reflection
                     _memberAccessorStrategy = RuntimeFeature.IsDynamicCodeSupported ?
-                        new ReflectionEmitMemberAccessor() :
+                        new ReflectionEmitCachingMemberAccessor() :
                         new ReflectionMemberAccessor();
 #elif NETFRAMEWORK
-                    _memberAccessorStrategy = new ReflectionEmitMemberAccessor();
+                    _memberAccessorStrategy = new ReflectionEmitCachingMemberAccessor();
 #else
                     _memberAccessorStrategy = new ReflectionMemberAccessor();
 #endif
