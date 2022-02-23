@@ -76,6 +76,16 @@ namespace System.Text.Json
             _cachingContext = TrackedCachingContexts.GetOrCreate(this);
         }
 
+        private void InvalidateCachingContext()
+        {
+            // Nullity of `_cachingContext` indicates that instance is immutable,
+            // so replace with a new instance if and only if it is already populated.
+            if (_cachingContext != null)
+            {
+                _cachingContext = TrackedCachingContexts.GetOrCreate(this);
+            }
+        }
+
         /// <summary>
         /// Stores and manages all reflection caches for one or more <see cref="JsonSerializerOptions"/> instances.
         /// NB the type encapsulates the original options instance and only consults that one when building new types;
@@ -159,7 +169,13 @@ namespace System.Text.Json
 
                     // Use a defensive copy of the options instance as key to
                     // avoid capturing references to any caching contexts.
-                    var key = new JsonSerializerOptions(options) { _serializerContext = options._serializerContext };
+                    var key = new JsonSerializerOptions(options)
+                    {
+                        // Copy fields ignored by the copy constructor
+                        // but are necessary to determine equivalence.
+                        _serializerContext = options._serializerContext,
+                        IsInitializedForReflectionSerializer = options.IsInitializedForReflectionSerializer,
+                    };
                     Debug.Assert(key._cachingContext == null);
 
                     ctx = new CachingContext(options);
@@ -279,6 +295,7 @@ namespace System.Text.Json
                     left._propertyNameCaseInsensitive == right._propertyNameCaseInsensitive &&
                     left._writeIndented == right._writeIndented &&
                     left._serializerContext == right._serializerContext &&
+                    left.IsInitializedForReflectionSerializer == right.IsInitializedForReflectionSerializer &&
                     CompareConverters(left._converters, right._converters);
 
                 static bool CompareConverters(ConverterList left, ConverterList right)
@@ -323,6 +340,7 @@ namespace System.Text.Json
                 hc.Add(options._propertyNameCaseInsensitive);
                 hc.Add(options._writeIndented);
                 hc.Add(options._serializerContext);
+                hc.Add(options.IsInitializedForReflectionSerializer);
 
                 for (int i = 0; i < options._converters.Count; i++)
                 {
