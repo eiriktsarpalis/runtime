@@ -23,32 +23,28 @@ namespace System.Text.Json.SourceGeneration
     {
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
-            IncrementalValuesProvider<ClassDeclarationSyntax> classDeclarations = context.SyntaxProvider
-                .CreateSyntaxProvider(static (s, _) => Parser.IsSyntaxTargetForGeneration(s), static (s, _) => Parser.GetSemanticTargetForGeneration(s))
-                .Where(static c => c is not null);
-
-            IncrementalValueProvider<(Compilation, ImmutableArray<ClassDeclarationSyntax>)> compilationAndClasses =
-                context.CompilationProvider.Combine(classDeclarations.Collect());
-
-            context.RegisterSourceOutput(compilationAndClasses, (spc, source) => Execute(source.Item1, source.Item2, spc));
-        }
-
-        private void Execute(Compilation compilation, ImmutableArray<ClassDeclarationSyntax> contextClasses, SourceProductionContext sourceProductionContext)
-        {
 #if LAUNCH_DEBUGGER
             if (!Diagnostics.Debugger.IsAttached)
             {
                 Diagnostics.Debugger.Launch();
             }
 #endif
-            if (contextClasses.IsDefaultOrEmpty)
-            {
-                return;
-            }
+            IncrementalValuesProvider<ClassDeclarationSyntax> classDeclarations = context.SyntaxProvider
+                .CreateSyntaxProvider(static (s, _) => Parser.IsSyntaxTargetForGeneration(s), static (s, _) => Parser.GetSemanticTargetForGeneration(s))
+                .Where(static c => c is not null);
 
+            IncrementalValuesProvider<(ClassDeclarationSyntax Class, Compilation Compilation)> compilationAndClass = classDeclarations
+                .Combine(context.CompilationProvider)
+                .WithComparer(IgnoreCompilationEqualityComparer.Instance);
+
+            context.RegisterSourceOutput(compilationAndClass, (spc, source) => Execute(source.Compilation, source.Class, spc));
+        }
+
+        private void Execute(Compilation compilation, ClassDeclarationSyntax contextClass, SourceProductionContext sourceProductionContext)
+        {
             JsonSourceGenerationContext context = new JsonSourceGenerationContext(sourceProductionContext);
             Parser parser = new(compilation, context);
-            SourceGenerationSpec? spec = parser.GetGenerationSpec(contextClasses);
+            SourceGenerationSpec? spec = parser.GetGenerationSpec(new[] { contextClass });
             if (spec != null)
             {
                 _rootTypes = spec.ContextGenerationSpecList[0].RootSerializableTypes;
@@ -63,6 +59,16 @@ namespace System.Text.Json.SourceGeneration
         /// </summary>
         public Dictionary<string, Type>? GetSerializableTypes() => _rootTypes?.ToDictionary(p => p.Type.FullName, p => p.Type);
         private List<TypeGenerationSpec>? _rootTypes;
+
+        private class IgnoreCompilationEqualityComparer : IEqualityComparer<(ClassDeclarationSyntax Class, Compilation Compilation)>
+        {
+            public static IgnoreCompilationEqualityComparer Instance { get; } = new();
+
+            public bool Equals((ClassDeclarationSyntax Class, Compilation Compilation) x, (ClassDeclarationSyntax Class, Compilation Compilation) y)
+                => x.Class.IsEquivalentTo(y.Class);
+
+            public int GetHashCode((ClassDeclarationSyntax Class, Compilation Compilation) obj) => obj.Class.GetHashCode();
+        }
     }
 
     internal readonly struct JsonSourceGenerationContext
