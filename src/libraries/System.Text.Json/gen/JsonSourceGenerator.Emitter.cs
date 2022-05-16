@@ -50,6 +50,7 @@ namespace System.Text.Json.SourceGeneration
             private const string TypeTypeRef = "global::System.Type";
             private const string UnsafeTypeRef = "global::System.Runtime.CompilerServices.Unsafe";
             private const string NullableTypeRef = "global::System.Nullable";
+            private const string ConditionalWeakTableTypeRef = "global::System.Runtime.CompilerServices.ConditionalWeakTable";
             private const string EqualityComparerTypeRef = "global::System.Collections.Generic.EqualityComparer";
             private const string IListTypeRef = "global::System.Collections.Generic.IList";
             private const string KeyValuePairTypeRef = "global::System.Collections.Generic.KeyValuePair";
@@ -70,6 +71,7 @@ namespace System.Text.Json.SourceGeneration
             private const string JsonPropertyInfoTypeRef = "global::System.Text.Json.Serialization.Metadata.JsonPropertyInfo";
             private const string JsonPropertyInfoValuesTypeRef = "global::System.Text.Json.Serialization.Metadata.JsonPropertyInfoValues";
             private const string JsonTypeInfoTypeRef = "global::System.Text.Json.Serialization.Metadata.JsonTypeInfo";
+            private const string JsonTypeInfoResolverTypeRef = "global::System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver";
 
             private static DiagnosticDescriptor TypeNotSupported { get; } = new DiagnosticDescriptor(
                 id: "SYSLIB1030",
@@ -131,14 +133,14 @@ namespace System.Text.Json.SourceGeneration
                         isRootContextDef: true);
 
                     // Add GetJsonTypeInfo override implementation.
-                    AddSource($"{contextName}.GetJsonTypeInfo.g.cs", GetGetTypeInfoImplementation());
+                    AddSource($"{contextName}.GetJsonTypeInfo.g.cs", GetGetTypeInfoImplementation(), interfaceImplementation: JsonTypeInfoResolverTypeRef);
 
                     // Add property name initialization.
                     AddSource($"{contextName}.PropertyNames.g.cs", GetPropertyNameInitialization());
                 }
             }
 
-            private void AddSource(string fileName, string source, bool isRootContextDef = false)
+            private void AddSource(string fileName, string source, bool isRootContextDef = false, string? interfaceImplementation = null)
             {
                 string? generatedCodeAttributeSource = isRootContextDef ? s_generatedCodeAttributeSource : null;
 
@@ -175,7 +177,7 @@ namespace {@namespace}
 
                 // Add the core implementation for the derived context class.
                 string partialContextImplementation = $@"
-{generatedCodeAttributeSource}{declarationList[0]}
+{generatedCodeAttributeSource}{declarationList[0]}{(interfaceImplementation is null ? "" : ": " + interfaceImplementation)}
 {{
     {IndentSource(source, Math.Max(1, declarationCount - 1))}
 }}";
@@ -338,7 +340,7 @@ namespace {@namespace}
                             {{
                                 // Allow nullable handling to forward to the underlying type's converter.
                                 converter = {JsonMetadataServicesTypeRef}.GetNullableConverter<{typeCompilableName}>(this.{typeFriendlyName})!;
-                                converter = (({ JsonConverterFactoryTypeRef })converter).CreateConverter(typeToConvert, { OptionsInstanceVariableName })!;
+                                converter = (({JsonConverterFactoryTypeRef})converter).CreateConverter(typeToConvert, {OptionsInstanceVariableName})!;
                             }}
                             else
                             {{
@@ -356,7 +358,7 @@ namespace {@namespace}
                 }
 
                 metadataInitSource.Append($@"
-                    _{typeFriendlyName} = { JsonMetadataServicesTypeRef }.{ GetCreateValueInfoMethodRef(typeCompilableName)} ({ OptionsInstanceVariableName}, converter); ");
+                    _{typeFriendlyName} = {JsonMetadataServicesTypeRef}.{GetCreateValueInfoMethodRef(typeCompilableName)} ({OptionsInstanceVariableName}, converter); ");
 
                 return GenerateForType(typeMetadata, metadataInitSource.ToString());
             }
@@ -704,10 +706,10 @@ namespace {@namespace}
 
                 sb.Append($@"
 
-private static {JsonPropertyInfoTypeRef}[] {propInitMethodName}({JsonSerializerContextTypeRef} context)
+private {JsonPropertyInfoTypeRef}[] {propInitMethodName}({JsonSerializerContextTypeRef}? context)
 {{
-    {contextTypeRef} {JsonContextVarName} = ({contextTypeRef})context;
-    {JsonSerializerOptionsTypeRef} options = context.Options;
+    {contextTypeRef} {JsonContextVarName} = ({contextTypeRef}?)context ?? this;
+    {JsonSerializerOptionsTypeRef} options = {JsonContextVarName}.Options;
 
     {JsonPropertyInfoTypeRef}[] {PropVarName} = {propertyArrayInstantiationValue};
 ");
@@ -1176,6 +1178,10 @@ public {contextTypeName}({JsonSerializerOptionsTypeRef} options) : base(options)
 {{
 }}
 
+private {contextTypeName}({JsonSerializerOptionsTypeRef} options, bool bindOptionsToContext) : base(options, bindOptionsToContext)
+{{
+}}
+
 {GetFetchLogicForRuntimeSpecifiedCustomConverter()}");
 
                 if (_generateGetConverterMethodForProperties)
@@ -1291,9 +1297,27 @@ private {JsonConverterTypeRef} {GetConverterFromFactoryMethodName}({TypeTypeRef}
                     }
                 }
 
-                sb.Append(@"
+                sb.AppendLine(@"
     return null!;
 }");
+
+                // Explicit IJsonTypeInfoResolver implementation
+                string contextTypeName = _currentContext.ContextType.Name;
+
+                sb.AppendLine();
+                sb.Append(@$"{JsonTypeInfoTypeRef}? {JsonTypeInfoResolverTypeRef}.GetTypeInfo({TypeTypeRef} type, {JsonSerializerOptionsTypeRef} options)
+{{
+    {contextTypeName} context = this;
+
+    if (options != null && {OptionsInstanceVariableName} != options)
+    {{
+        context = (s_resolverCache ??= new()).GetValue(options, static options => new {contextTypeName}(options, bindOptionsToContext: false));
+    }}
+
+    return context.GetTypeInfo(type);
+}}
+
+private {ConditionalWeakTableTypeRef}<{JsonSerializerOptionsTypeRef},{contextTypeName}>? s_resolverCache;");
 
                 return sb.ToString();
             }

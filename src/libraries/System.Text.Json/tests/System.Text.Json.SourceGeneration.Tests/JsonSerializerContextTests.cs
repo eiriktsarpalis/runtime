@@ -4,6 +4,7 @@
 using System.Collections.Generic;
 using System.Reflection;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using Microsoft.DotNet.RemoteExecutor;
 using Xunit;
 
@@ -37,25 +38,20 @@ namespace System.Text.Json.SourceGeneration.Tests
                     Assert.Contains("JsonSerializerOptions", exAsStr);
 
                     // This test uses reflection to:
-                    // - Access JsonSerializerOptions.s_defaultSimpleConverters
-                    // - Access JsonSerializerOptions.s_defaultFactoryConverters
-                    // - Access JsonSerializerOptions.s_typeInfoCreationFunc
+                    // - Access DefaultJsonTypeInfoResolver.s_defaultSimpleConverters
+                    // - Access DefaultJsonTypeInfoResolver.s_defaultFactoryConverters
                     //
                     // If any of them changes, this test will need to be kept in sync.
 
                     // Confirm built-in converters not set.
-                    AssertFieldNull("s_defaultSimpleConverters", optionsInstance: null);
-                    AssertFieldNull("s_defaultFactoryConverters", optionsInstance: null);
+                    AssertFieldNull("s_defaultSimpleConverters");
+                    AssertFieldNull("s_defaultFactoryConverters");
 
-                    // Confirm type info dynamic creator not set.
-                    AssertFieldNull("s_typeInfoCreationFunc", optionsInstance: null);
-
-                    static void AssertFieldNull(string fieldName, JsonSerializerOptions? optionsInstance)
+                    static void AssertFieldNull(string fieldName)
                     {
-                        BindingFlags bindingFlags = BindingFlags.NonPublic | (optionsInstance == null ? BindingFlags.Static : BindingFlags.Instance);
-                        FieldInfo fieldInfo = typeof(JsonSerializerOptions).GetField(fieldName, bindingFlags);
+                        FieldInfo fieldInfo = typeof(DefaultJsonTypeInfoResolver).GetField(fieldName, BindingFlags.Static | BindingFlags.NonPublic);
                         Assert.NotNull(fieldInfo);
-                        Assert.Null(fieldInfo.GetValue(optionsInstance));
+                        Assert.Null(fieldInfo.GetValue(null));
                     }
                 }).Dispose();
         }
@@ -70,6 +66,73 @@ namespace System.Text.Json.SourceGeneration.Tests
             person = JsonSerializer.Deserialize<Person>(utf8Json, PersonJsonContext.Default.Person);
             Assert.Equal("Jane", person.FirstName);
             Assert.Equal("Doe", person.LastName);
+        }
+
+        [Fact]
+        public static void CombiningContexts_ResolveJsonTypeInfo()
+        {
+            // Basic smoke test establishing combination of JsonSerializerContext classes.
+            IJsonTypeInfoResolver combined = JsonTypeInfoResolver.Combine(NestedContext.Default, PersonJsonContext.Default);
+            var options = new JsonSerializerOptions { TypeInfoResolver = combined };
+
+            JsonTypeInfo messageInfo = combined.GetTypeInfo(typeof(JsonMessage), options);
+            Assert.IsAssignableFrom<JsonTypeInfo<JsonMessage>>(messageInfo);
+            Assert.Same(options, messageInfo.Options);
+
+            JsonTypeInfo personInfo = combined.GetTypeInfo(typeof(Person), options);
+            Assert.IsAssignableFrom<JsonTypeInfo<Person>>(personInfo);
+            Assert.Same(options, personInfo.Options);
+        }
+
+        [Fact]
+        public static void CombiningContexts_ResolveJsonTypeInfo_DifferentCasing()
+        {
+            IJsonTypeInfoResolver combined = JsonTypeInfoResolver.Combine(NestedContext.Default, PersonJsonContext.Default);
+            var options = new JsonSerializerOptions
+            {
+                TypeInfoResolver = combined,
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            };
+
+            Assert.NotSame(JsonNamingPolicy.CamelCase, NestedContext.Default.Options.PropertyNamingPolicy);
+            Assert.Same(JsonNamingPolicy.CamelCase, PersonJsonContext.Default.Options.PropertyNamingPolicy);
+
+            JsonTypeInfo messageInfo = combined.GetTypeInfo(typeof(JsonMessage), options);
+            Assert.Equal(2, messageInfo.Properties.Count);
+            Assert.Equal("message", messageInfo.Properties[0].Name);
+            Assert.Equal("length", messageInfo.Properties[1].Name);
+
+            JsonTypeInfo personInfo = combined.GetTypeInfo(typeof(Person), options);
+            Assert.Equal(2, personInfo.Properties.Count);
+            Assert.Equal("firstName", personInfo.Properties[0].Name);
+            Assert.Equal("lastName", personInfo.Properties[1].Name);
+        }
+
+        [Theory]
+        [MemberData(nameof(GetCombiningContextsData))]
+        public static void CombiningContexts_Serialization<T>(T value, string expectedJson)
+        {
+            // Basic smoke test establishing combination of JsonSerializerContext classes.
+            IJsonTypeInfoResolver combined = JsonTypeInfoResolver.Combine(NestedContext.Default, PersonJsonContext.Default);
+            var options = new JsonSerializerOptions { TypeInfoResolver = combined };
+
+            JsonTypeInfo<T> typeInfo = (JsonTypeInfo<T>)combined.GetTypeInfo(typeof(T), options)!;
+
+            string json = JsonSerializer.Serialize(value, typeInfo);
+            JsonTestHelper.AssertJsonEqual(expectedJson, json);
+
+            json = JsonSerializer.Serialize(value, options);
+            JsonTestHelper.AssertJsonEqual(expectedJson, json);
+
+            JsonSerializer.Deserialize<T>(json, typeInfo);
+            JsonSerializer.Deserialize<T>(json, options);
+        }
+
+        public static IEnumerable<object[]> GetCombiningContextsData()
+        {
+            yield return WrapArgs(new JsonMessage { Message = "Hi" }, """{ "Message" : "Hi", "Length" : 2 }""");
+            yield return WrapArgs(new Person("John", "Doe"), """{ "FirstName" : "John", "LastName" : "Doe" }""");
+            static object[] WrapArgs<T>(T value, string expectedJson) => new object[] { value, expectedJson };
         }
 
         [JsonSerializable(typeof(JsonMessage))]

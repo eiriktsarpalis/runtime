@@ -264,7 +264,7 @@ namespace System.Text.Json.Serialization.Metadata
                 ThrowHelper.ThrowArgumentNullException(nameof(underlyingTypeInfo));
             }
 
-            JsonConverter<T>? underlyingConverter = underlyingTypeInfo.PropertyInfoForTypeInfo?.ConverterBase as JsonConverter<T>;
+            JsonConverter<T>? underlyingConverter = underlyingTypeInfo.Converter as JsonConverter<T>;
             if (underlyingConverter == null)
             {
                 throw new InvalidOperationException(SR.Format(SR.SerializationConverterNotCompatible, underlyingConverter, typeof(T)));

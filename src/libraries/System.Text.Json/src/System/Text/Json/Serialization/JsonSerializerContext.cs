@@ -1,6 +1,7 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Diagnostics;
 using System.Text.Json.Serialization.Metadata;
 
 namespace System.Text.Json.Serialization
@@ -8,7 +9,7 @@ namespace System.Text.Json.Serialization
     /// <summary>
     /// Provides metadata about a set of types that is relevant to JSON serialization.
     /// </summary>
-    public abstract partial class JsonSerializerContext
+    public abstract partial class JsonSerializerContext : IJsonTypeInfoResolver
     {
         private bool? _canUseSerializationLogic;
 
@@ -19,9 +20,9 @@ namespace System.Text.Json.Serialization
         /// when instanciating the context, then a new instance is bound and returned.
         /// </summary>
         /// <remarks>
-        /// The instance cannot be mutated once it is bound with the context instance.
+        /// The instance cannot be mutated once it is bound to the context instance.
         /// </remarks>
-        public JsonSerializerOptions Options => _options ??= new JsonSerializerOptions { JsonSerializerContext = this };
+        public JsonSerializerOptions Options => _options ??= new JsonSerializerOptions { TypeInfoResolver = this };
 
         /// <summary>
         /// Indicates whether pre-generated serialization logic for types in the context
@@ -80,11 +81,32 @@ namespace System.Text.Json.Serialization
         /// or until <see cref="Options"/> is called, where a new options instance is created and bound.
         /// </remarks>
         protected JsonSerializerContext(JsonSerializerOptions? options)
+            : this(options, bindOptionsToContext: true)
+        {
+        }
+
+        /// <summary>
+        /// Creates an instance of <see cref="JsonSerializerContext"/> and optionally binds it with the indicated <see cref="JsonSerializerOptions"/>.
+        /// </summary>
+        /// <param name="options">The run time provided options for the context instance.</param>
+        /// <param name="bindOptionsToContext">Specify whether the options <paramref name="options"/> instance should be bound to the new context.</param>
+        /// <remarks>
+        /// If no instance options are passed, then no options are set until the context is bound using <see cref="JsonSerializerOptions.AddContext{TContext}"/>,
+        /// or until <see cref="Options"/> is called, where a new options instance is created and bound.
+        /// </remarks>
+        protected JsonSerializerContext(JsonSerializerOptions? options, bool bindOptionsToContext)
         {
             if (options != null)
             {
-                options.JsonSerializerContext = this;
-                _options = options;
+                if (bindOptionsToContext)
+                {
+                    options.TypeInfoResolver = this;
+                    Debug.Assert(_options == options, "options.TypeInfoResolver setter did not assign options");
+                }
+                else
+                {
+                    _options = options;
+                }
             }
         }
 
@@ -94,5 +116,16 @@ namespace System.Text.Json.Serialization
         /// <param name="type">The type to fetch metadata about.</param>
         /// <returns>The metadata for the specified type, or <see langword="null" /> if the context has no metadata for the type.</returns>
         public abstract JsonTypeInfo? GetTypeInfo(Type type);
+
+        JsonTypeInfo? IJsonTypeInfoResolver.GetTypeInfo(Type type, JsonSerializerOptions options)
+        {
+            if (options != null && _options != options)
+            {
+                // TODO is this the appropriate exception message to throw?
+                ThrowHelper.ThrowInvalidOperationException_SerializerContextOptionsImmutable();
+            }
+
+            return GetTypeInfo(type);
+        }
     }
 }

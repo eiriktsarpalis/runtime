@@ -49,16 +49,6 @@ namespace System.Text.Json.Serialization.Metadata
                 throw new ArgumentException(nameof(propertyInfo.PropertyName));
             }
 
-            JsonConverter? converter = propertyInfo.Converter;
-            if (converter == null)
-            {
-                converter = propertyTypeInfo.PropertyInfoForTypeInfo.ConverterBase as JsonConverter<T>;
-                if (converter == null)
-                {
-                    throw new InvalidOperationException(SR.Format(SR.ConverterForPropertyMustBeValid, declaringType, propertyName, typeof(T)));
-                }
-            }
-
             if (!propertyInfo.IsProperty && propertyInfo.IsVirtual)
             {
                 throw new InvalidOperationException(SR.Format(SR.FieldCannotBeVirtual, nameof(propertyInfo.IsProperty), nameof(propertyInfo.IsVirtual)));
