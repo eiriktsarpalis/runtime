@@ -10,10 +10,79 @@ namespace System.Text.Json.Serialization.Metadata
     /// Provides JSON serialization-related metadata about a type.
     /// </summary>
     /// <typeparam name="T">The generic definition of the type.</typeparam>
-    [EditorBrowsable(EditorBrowsableState.Never)]
     public abstract class JsonTypeInfo<T> : JsonTypeInfo
     {
         private Action<Utf8JsonWriter, T>? _serialize;
+
+        private Func<T>? _typedCreateObject;
+
+        /// <summary>
+        /// Function for creating object before properties are set. If set to null type is not deserializable.
+        /// </summary>
+        public new Func<T>? CreateObject
+        {
+            get => _typedCreateObject;
+            set
+            {
+                SetCreateObject(value);
+            }
+        }
+
+        private protected override void SetCreateObject(Delegate? createObject, bool useForExtensionDataProperty = false)
+        {
+            Debug.Assert(createObject is null or Func<object> or Func<T>);
+
+            CheckMutable();
+
+            Func<object>? untypedCreateObject;
+            Func<T>? typedCreateObject;
+
+            if (createObject is null)
+            {
+                untypedCreateObject = null;
+                typedCreateObject = null;
+            }
+            else if (createObject is Func<T> typedDelegate)
+            {
+                if (createObject is Func<object> untypedDelegate)
+                {
+                    untypedCreateObject = untypedDelegate;
+                }
+                else
+                {
+                    // we will get here if T is value type
+                    untypedCreateObject = () => typedDelegate()!;
+                }
+
+                typedCreateObject = typedDelegate;
+            }
+            else
+            {
+                Debug.Assert(createObject is Func<object>);
+                untypedCreateObject = (Func<object>)createObject;
+                typedCreateObject = () => (T)untypedCreateObject();
+            }
+
+
+            if (Kind != JsonTypeInfoKind.None)
+            {
+                _createObject = untypedCreateObject;
+                _typedCreateObject = typedCreateObject;
+            }
+            else
+            {
+                if (useForExtensionDataProperty)
+                {
+                    CreateObjectForExtensionDataProperty = untypedCreateObject;
+                }
+                else
+                {
+                    Debug.Assert(_createObject == null);
+                    Debug.Assert(_typedCreateObject == null);
+                    ThrowHelper.ThrowInvalidOperationException_JsonTypeInfoOperationNotPossibleForKindNone();
+                }
+            }
+        }
 
         internal JsonTypeInfo(JsonConverter converter, JsonSerializerOptions options)
             : base(typeof(T), converter, options)
@@ -24,6 +93,7 @@ namespace System.Text.Json.Serialization.Metadata
         /// <see cref="JsonSourceGenerationOptionsAttribute"/> values specified at design time.
         /// </summary>
         /// <remarks>The writer is not flushed after writing.</remarks>
+        [EditorBrowsable(EditorBrowsableState.Never)]
         public Action<Utf8JsonWriter, T>? SerializeHandler
         {
             get
@@ -32,6 +102,7 @@ namespace System.Text.Json.Serialization.Metadata
             }
             private protected set
             {
+                CheckMutable();
                 _serialize = value;
                 HasSerialize = value != null;
             }

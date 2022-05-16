@@ -1,8 +1,10 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Text.Json.Serialization.Converters;
 using System.Text.Json.Serialization.Metadata;
 
 namespace System.Text.Json.Serialization
@@ -68,6 +70,13 @@ namespace System.Text.Json.Serialization
         internal abstract JsonPropertyInfo CreateJsonPropertyInfo();
 
         internal abstract JsonParameterInfo CreateJsonParameterInfo();
+
+        internal virtual JsonConverter<TargetType> CreateCastingConverter<TargetType>()
+        {
+            // This can only happen for factory converters and we should always expand factory here.
+            ThrowHelper.ThrowInvalidOperationException_ConverterCanConvertMultipleTypes(typeof(TargetType), this);
+            return null!;
+        }
 
         internal abstract Type? ElementType { get; }
 

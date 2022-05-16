@@ -15,18 +15,6 @@ namespace System.Text.Json
         }
 
         [DoesNotReturn]
-        public static void ThrowArgumentException_NodeArrayTooSmall(string paramName)
-        {
-            throw new ArgumentException(SR.NodeArrayTooSmall, paramName);
-        }
-
-        [DoesNotReturn]
-        public static void ThrowArgumentOutOfRangeException_NodeArrayIndexNegative(string paramName)
-        {
-            throw new ArgumentOutOfRangeException(paramName, SR.NodeArrayIndexNegative);
-        }
-
-        [DoesNotReturn]
         public static void ThrowArgumentException_DuplicateKey(string propertyName)
         {
             throw new ArgumentException(SR.NodeDuplicateKey, propertyName);
@@ -51,14 +39,14 @@ namespace System.Text.Json
         }
 
         [DoesNotReturn]
-        public static void ThrowNotSupportedException_NodeCollectionIsReadOnly()
+        public static void ThrowNotSupportedException_CollectionIsReadOnly()
         {
-            throw GetNotSupportedException_NodeCollectionIsReadOnly();
+            throw GetNotSupportedException_CollectionIsReadOnly();
         }
 
-        public static NotSupportedException GetNotSupportedException_NodeCollectionIsReadOnly()
+        public static NotSupportedException GetNotSupportedException_CollectionIsReadOnly()
         {
-            return new NotSupportedException(SR.NodeCollectionIsReadOnly);
+            return new NotSupportedException(SR.CollectionIsReadOnly);
         }
     }
 }

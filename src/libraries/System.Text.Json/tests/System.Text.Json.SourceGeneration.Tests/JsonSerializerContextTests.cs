@@ -4,6 +4,7 @@
 using System.Collections.Generic;
 using System.Reflection;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using Microsoft.DotNet.RemoteExecutor;
 using Xunit;
 
@@ -37,25 +38,20 @@ namespace System.Text.Json.SourceGeneration.Tests
                     Assert.Contains("JsonSerializerOptions", exAsStr);
 
                     // This test uses reflection to:
-                    // - Access JsonSerializerOptions.s_defaultSimpleConverters
-                    // - Access JsonSerializerOptions.s_defaultFactoryConverters
-                    // - Access JsonSerializerOptions.s_typeInfoCreationFunc
+                    // - Access DefaultJsonTypeInfoResolver.s_defaultSimpleConverters
+                    // - Access DefaultJsonTypeInfoResolver.s_defaultFactoryConverters
                     //
                     // If any of them changes, this test will need to be kept in sync.
 
                     // Confirm built-in converters not set.
-                    AssertFieldNull("s_defaultSimpleConverters", optionsInstance: null);
-                    AssertFieldNull("s_defaultFactoryConverters", optionsInstance: null);
+                    AssertFieldNull("s_defaultSimpleConverters");
+                    AssertFieldNull("s_defaultFactoryConverters");
 
-                    // Confirm type info dynamic creator not set.
-                    AssertFieldNull("s_typeInfoCreationFunc", optionsInstance: null);
-
-                    static void AssertFieldNull(string fieldName, JsonSerializerOptions? optionsInstance)
+                    static void AssertFieldNull(string fieldName)
                     {
-                        BindingFlags bindingFlags = BindingFlags.NonPublic | (optionsInstance == null ? BindingFlags.Static : BindingFlags.Instance);
-                        FieldInfo fieldInfo = typeof(JsonSerializerOptions).GetField(fieldName, bindingFlags);
+                        FieldInfo fieldInfo = typeof(DefaultJsonTypeInfoResolver).GetField(fieldName, BindingFlags.Static | BindingFlags.NonPublic);
                         Assert.NotNull(fieldInfo);
-                        Assert.Null(fieldInfo.GetValue(optionsInstance));
+                        Assert.Null(fieldInfo.GetValue(null));
                     }
                 }).Dispose();
         }
