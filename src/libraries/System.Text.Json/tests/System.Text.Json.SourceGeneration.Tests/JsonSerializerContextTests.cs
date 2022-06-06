@@ -69,20 +69,46 @@ namespace System.Text.Json.SourceGeneration.Tests
         }
 
         [Fact]
-        public static void CombiningContexts()
+        public static void CombiningContexts_ResolveJsonTypeInfo()
         {
+            // Basic smoke test establishing combination of JsonSerializerContext classes.
             IJsonTypeInfoResolver combined = JsonTypeInfoResolver.Combine(NestedContext.Default, PersonJsonContext.Default);
             var options = new JsonSerializerOptions { TypeInfoResolver = combined };
 
             JsonTypeInfo messageInfo = combined.GetTypeInfo(typeof(JsonMessage), options);
             Assert.IsAssignableFrom<JsonTypeInfo<JsonMessage>>(messageInfo);
             Assert.Same(options, messageInfo.Options);
-            JsonSerializer.Serialize(new JsonMessage { Message = "Hi" }, (JsonTypeInfo<JsonMessage>) messageInfo);
 
             JsonTypeInfo personInfo = combined.GetTypeInfo(typeof(Person), options);
             Assert.IsAssignableFrom<JsonTypeInfo<Person>>(personInfo);
             Assert.Same(options, personInfo.Options);
-            JsonSerializer.Serialize(new Person("John", "Doe"), (JsonTypeInfo<Person>) personInfo);
+        }
+
+        [Theory]
+        [MemberData(nameof(GetCombiningContextsData))]
+        public static void CombiningContexts_Serialization<T>(T value, string expectedJson)
+        {
+            // Basic smoke test establishing combination of JsonSerializerContext classes.
+            IJsonTypeInfoResolver combined = JsonTypeInfoResolver.Combine(NestedContext.Default, PersonJsonContext.Default);
+            var options = new JsonSerializerOptions { TypeInfoResolver = combined };
+
+            JsonTypeInfo<T> typeInfo = (JsonTypeInfo<T>)combined.GetTypeInfo(typeof(T), options)!;
+
+            string json = JsonSerializer.Serialize(value, typeInfo);
+            JsonTestHelper.AssertJsonEqual(expectedJson, json);
+
+            json = JsonSerializer.Serialize(value, options);
+            JsonTestHelper.AssertJsonEqual(expectedJson, json);
+
+            JsonSerializer.Deserialize<T>(json, typeInfo);
+            JsonSerializer.Deserialize<T>(json, options);
+        }
+
+        public static IEnumerable<object[]> GetCombiningContextsData()
+        {
+            yield return WrapArgs(new JsonMessage { Message = "Hi" }, """{ "Message" : { "Hi" } }""");
+            yield return WrapArgs(new Person("John", "Doe"), """{ "FirstName" : "John", "LastName" : "Doe" }""");
+            static object[] WrapArgs<T>(T value, string expectedJson) => new object[] { value, expectedJson };
         }
 
         [JsonSerializable(typeof(JsonMessage))]
