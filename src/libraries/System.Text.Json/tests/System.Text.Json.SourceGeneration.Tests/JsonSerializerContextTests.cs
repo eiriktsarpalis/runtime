@@ -68,6 +68,23 @@ namespace System.Text.Json.SourceGeneration.Tests
             Assert.Equal("Doe", person.LastName);
         }
 
+        [Fact]
+        public static void CombiningContexts()
+        {
+            IJsonTypeInfoResolver combined = JsonTypeInfoResolver.Combine(NestedContext.Default, PersonJsonContext.Default);
+            var options = new JsonSerializerOptions { TypeInfoResolver = combined };
+
+            JsonTypeInfo messageInfo = combined.GetTypeInfo(typeof(JsonMessage), options);
+            Assert.IsAssignableFrom<JsonTypeInfo<JsonMessage>>(messageInfo);
+            Assert.Same(options, messageInfo.Options);
+            JsonSerializer.Serialize(new JsonMessage { Message = "Hi" }, (JsonTypeInfo<JsonMessage>) messageInfo);
+
+            JsonTypeInfo personInfo = combined.GetTypeInfo(typeof(Person), options);
+            Assert.IsAssignableFrom<JsonTypeInfo<Person>>(personInfo);
+            Assert.Same(options, personInfo.Options);
+            JsonSerializer.Serialize(new Person("John", "Doe"), (JsonTypeInfo<Person>) personInfo);
+        }
+
         [JsonSerializable(typeof(JsonMessage))]
         internal partial class NestedContext : JsonSerializerContext { }
 

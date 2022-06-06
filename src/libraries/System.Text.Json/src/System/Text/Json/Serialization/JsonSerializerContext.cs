@@ -81,10 +81,31 @@ namespace System.Text.Json.Serialization
         /// or until <see cref="Options"/> is called, where a new options instance is created and bound.
         /// </remarks>
         protected JsonSerializerContext(JsonSerializerOptions? options)
+            : this(options, bindOptionsToContext: true)
+        {
+        }
+
+        /// <summary>
+        /// Creates an instance of <see cref="JsonSerializerContext"/> and optionally binds it with the indicated <see cref="JsonSerializerOptions"/>.
+        /// </summary>
+        /// <param name="options">The run time provided options for the context instance.</param>
+        /// <param name="bindOptionsToContext">Specify whether the options <paramref name="options"/> instance should be bound to the new context.</param>
+        /// <remarks>
+        /// If no instance options are passed, then no options are set until the context is bound using <see cref="JsonSerializerOptions.AddContext{TContext}"/>,
+        /// or until <see cref="Options"/> is called, where a new options instance is created and bound.
+        /// </remarks>
+        protected JsonSerializerContext(JsonSerializerOptions? options, bool bindOptionsToContext)
         {
             if (options != null)
             {
-                options.TypeInfoResolver = this;
+                if (bindOptionsToContext)
+                {
+                    options.TypeInfoResolver = this;
+                }
+                else
+                {
+                    _options = options;
+                }
             }
         }
 

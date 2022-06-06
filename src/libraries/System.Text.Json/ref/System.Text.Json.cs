@@ -960,6 +960,7 @@ namespace System.Text.Json.Serialization
     public abstract partial class JsonSerializerContext : System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver
     {
         protected JsonSerializerContext(System.Text.Json.JsonSerializerOptions? options) { }
+        protected JsonSerializerContext(System.Text.Json.JsonSerializerOptions? options, bool bindOptionsToContext) { }
         protected abstract System.Text.Json.JsonSerializerOptions? GeneratedSerializerOptions { get; }
         public System.Text.Json.JsonSerializerOptions Options { get { throw null; } }
         public abstract System.Text.Json.Serialization.Metadata.JsonTypeInfo? GetTypeInfo(System.Type type);
