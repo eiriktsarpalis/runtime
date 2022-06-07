@@ -102,7 +102,7 @@ namespace System.Text.Json.Serialization.Metadata
         {
             JsonSerializerContext? context = Options.SerializerContext;
             JsonParameterInfoValues[] array;
-            if (context == null || CtorParamInitFunc == null || (array = CtorParamInitFunc()) == null)
+            if (CtorParamInitFunc == null || (array = CtorParamInitFunc()) == null)
             {
                 ThrowHelper.ThrowInvalidOperationException_NoMetadataForTypeCtorParams(context, Type);
                 return null!;
@@ -120,7 +120,7 @@ namespace System.Text.Json.Serialization.Metadata
 
             JsonSerializerContext? context = Options.SerializerContext;
             JsonPropertyInfo[] array;
-            if (context == null || PropInitFunc == null || (array = PropInitFunc(context)) == null)
+            if (PropInitFunc == null || (array = PropInitFunc(context!)) == null)
             {
                 if (typeof(T) == typeof(object))
                 {

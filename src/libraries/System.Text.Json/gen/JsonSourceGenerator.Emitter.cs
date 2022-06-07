@@ -706,10 +706,10 @@ namespace {@namespace}
 
                 sb.Append($@"
 
-private static {JsonPropertyInfoTypeRef}[] {propInitMethodName}({JsonSerializerContextTypeRef} context)
+private {JsonPropertyInfoTypeRef}[] {propInitMethodName}({JsonSerializerContextTypeRef}? context)
 {{
-    {contextTypeRef} {JsonContextVarName} = ({contextTypeRef})context;
-    {JsonSerializerOptionsTypeRef} options = context.Options;
+    {contextTypeRef} {JsonContextVarName} = ({contextTypeRef}?)context ?? this;
+    {JsonSerializerOptionsTypeRef} options = {JsonContextVarName}.Options;
 
     {JsonPropertyInfoTypeRef}[] {PropVarName} = {propertyArrayInstantiationValue};
 ");

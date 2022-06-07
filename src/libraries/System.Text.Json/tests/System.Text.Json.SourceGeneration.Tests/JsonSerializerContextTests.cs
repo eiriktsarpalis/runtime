@@ -106,7 +106,7 @@ namespace System.Text.Json.SourceGeneration.Tests
 
         public static IEnumerable<object[]> GetCombiningContextsData()
         {
-            yield return WrapArgs(new JsonMessage { Message = "Hi" }, """{ "Message" : { "Hi" } }""");
+            yield return WrapArgs(new JsonMessage { Message = "Hi" }, """{ "Message" : "Hi", "Length" : 2 }""");
             yield return WrapArgs(new Person("John", "Doe"), """{ "FirstName" : "John", "LastName" : "Doe" }""");
             static object[] WrapArgs<T>(T value, string expectedJson) => new object[] { value, expectedJson };
         }
