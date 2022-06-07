@@ -84,6 +84,30 @@ namespace System.Text.Json.SourceGeneration.Tests
             Assert.Same(options, personInfo.Options);
         }
 
+        [Fact]
+        public static void CombiningContexts_ResolveJsonTypeInfo_DifferentCasing()
+        {
+            IJsonTypeInfoResolver combined = JsonTypeInfoResolver.Combine(NestedContext.Default, PersonJsonContext.Default);
+            var options = new JsonSerializerOptions
+            {
+                TypeInfoResolver = combined,
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            };
+
+            Assert.NotSame(JsonNamingPolicy.CamelCase, NestedContext.Default.Options.PropertyNamingPolicy);
+            Assert.Same(JsonNamingPolicy.CamelCase, PersonJsonContext.Default.Options.PropertyNamingPolicy);
+
+            JsonTypeInfo messageInfo = combined.GetTypeInfo(typeof(JsonMessage), options);
+            Assert.Equal(2, messageInfo.Properties.Count);
+            Assert.Equal("message", messageInfo.Properties[0].Name);
+            Assert.Equal("length", messageInfo.Properties[1].Name);
+
+            JsonTypeInfo personInfo = combined.GetTypeInfo(typeof(Person), options);
+            Assert.Equal(2, personInfo.Properties.Count);
+            Assert.Equal("firstName", personInfo.Properties[0].Name);
+            Assert.Equal("lastName", personInfo.Properties[1].Name);
+        }
+
         [Theory]
         [MemberData(nameof(GetCombiningContextsData))]
         public static void CombiningContexts_Serialization<T>(T value, string expectedJson)
