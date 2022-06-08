@@ -167,22 +167,15 @@ namespace System.Text.Json
         /// <summary>
         /// Gets or sets JsonTypeInfo resolver.
         /// </summary>
-        public IJsonTypeInfoResolver TypeInfoResolver
+        public IJsonTypeInfoResolver? TypeInfoResolver
         {
-            [RequiresUnreferencedCode(JsonSerializer.SerializationUnreferencedCodeMessage)]
-            [RequiresDynamicCode(JsonSerializer.SerializationRequiresDynamicCodeMessage)]
             get
             {
-                return _typeInfoResolver ?? DefaultJsonTypeInfoResolver.RootDefaultInstance();
+                return _typeInfoResolver;
             }
             set
             {
                 VerifyMutable();
-
-                if (value is null)
-                {
-                    throw new ArgumentNullException(nameof(value));
-                }
 
                 if (value is JsonSerializerContext ctx)
                 {

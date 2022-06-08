@@ -34,14 +34,8 @@ namespace System.Text.Json.Serialization.Tests
 
             TestIListNonThrowingOperationsWhenMutable(options.Converters, () => new TestConverter());
 
-            // Verify TypeInfoResolver throws on null resolver
-            Assert.Throws<ArgumentNullException>(() => options.TypeInfoResolver = null);
-
-            // Verify default TypeInfoResolver throws
-            Action<JsonTypeInfo> tiModifier = (ti) => { };
-            Assert.Throws<InvalidOperationException>(() => (options.TypeInfoResolver as DefaultJsonTypeInfoResolver).Modifiers.Clear());
-            Assert.Throws<InvalidOperationException>(() => (options.TypeInfoResolver as DefaultJsonTypeInfoResolver).Modifiers.Add(tiModifier));
-            Assert.Throws<InvalidOperationException>(() => (options.TypeInfoResolver as DefaultJsonTypeInfoResolver).Modifiers.Insert(0, tiModifier));
+            // Verify TypeInfoResolver can be set to null for mutable converters
+            options.TypeInfoResolver = null;
 
             // Now set DefaultTypeInfoResolver
             options.TypeInfoResolver = new DefaultJsonTypeInfoResolver();
@@ -50,6 +44,7 @@ namespace System.Text.Json.Serialization.Tests
             // Add one item for later.
             TestConverter tc = new TestConverter();
             options.Converters.Add(tc);
+            Action<JsonTypeInfo> tiModifier = (ti) => { };
             (options.TypeInfoResolver as DefaultJsonTypeInfoResolver).Modifiers.Add(tiModifier);
 
             TestIListThrowingOperationsWhenMutable(options.Converters);
@@ -136,10 +131,13 @@ namespace System.Text.Json.Serialization.Tests
         }
 
         [Fact]
-        public static void TypeInfoResolverIsNotNullAndCorrectType()
+        public static void TypeInfoResolverIsNullAndCorrectType()
         {
             var options = new JsonSerializerOptions();
-            Assert.NotNull(options.TypeInfoResolver);
+            Assert.Null(options.TypeInfoResolver);
+
+            JsonSerializer.Serialize(new { Message = "oh, hai" }, options); // lock & root the options instance
+
             Assert.IsType<DefaultJsonTypeInfoResolver>(options.TypeInfoResolver);
             Assert.Same(options.TypeInfoResolver, options.TypeInfoResolver);
         }
@@ -625,6 +623,16 @@ namespace System.Text.Json.Serialization.Tests
             Assert.Throws<InvalidOperationException>(() => optionsSingleton.Converters.Add(new JsonStringEnumConverter()));
             Assert.Throws<InvalidOperationException>(() => optionsSingleton.AddContext<JsonContext>());
             Assert.Throws<InvalidOperationException>(() => new JsonContext(optionsSingleton));
+
+            // Ensure reflection components are rooted before fetching the resolver
+            JsonSerializer.Serialize(42);
+
+            DefaultJsonTypeInfoResolver resolver = Assert.IsType<DefaultJsonTypeInfoResolver>(optionsSingleton.TypeInfoResolver);
+            Assert.Equal(0, resolver.Modifiers.Count);
+            Assert.True(resolver.Modifiers.IsReadOnly);
+            Assert.Throws<InvalidOperationException>(() => resolver.Modifiers.Clear());
+            Assert.Throws<InvalidOperationException>(() => resolver.Modifiers.Add(_ => { }));
+            Assert.Throws<InvalidOperationException>(() => resolver.Modifiers.Insert(0, _ => { }));
         }
 
         [Fact]
@@ -755,6 +763,14 @@ namespace System.Text.Json.Serialization.Tests
                     {
                         Assert.Same(list1[i], list2[i]);
                     }
+                }
+                else if (propertyType == typeof(IJsonTypeInfoResolver))
+                {
+                    IJsonTypeInfoResolver resolver1 = (IJsonTypeInfoResolver)property.GetValue(options);
+                    IJsonTypeInfoResolver resolver2 = (IJsonTypeInfoResolver)property.GetValue(newOptions);
+                    IJsonTypeInfoResolver defaultResolver = JsonSerializerOptions.Default.TypeInfoResolver;
+
+                    Assert.Same(resolver1 ?? defaultResolver, resolver2 ?? defaultResolver);
                 }
                 else if (propertyType.IsValueType)
                 {
