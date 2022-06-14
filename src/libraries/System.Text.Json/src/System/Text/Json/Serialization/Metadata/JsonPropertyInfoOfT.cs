@@ -183,23 +183,29 @@ namespace System.Text.Json.Serialization.Metadata
             Options = options;
             ClrName = propertyInfo.PropertyName;
 
+            string name;
+
             // Property name settings.
             if (propertyInfo.JsonPropertyName != null)
             {
-                Name = propertyInfo.JsonPropertyName;
+                name = propertyInfo.JsonPropertyName;
             }
             else if (options.PropertyNamingPolicy == null)
             {
-                Name = ClrName;
+                name = ClrName;
             }
             else
             {
-                Name = options.PropertyNamingPolicy.ConvertName(ClrName);
-                if (Name == null)
-                {
-                    ThrowHelper.ThrowInvalidOperationException_SerializerPropertyNameNull(DeclaringType, this);
-                }
+                name = options.PropertyNamingPolicy.ConvertName(ClrName);
             }
+
+            if (name == null)
+            {
+                ThrowHelper.ThrowInvalidOperationException_SerializerPropertyNameNull(DeclaringType, this);
+            }
+
+            // Compat: We need to do validation before we assign this so that we get InvalidOperationException rather than ArgumentNullException
+            Name = name;
 
             SrcGen_IsPublic = propertyInfo.IsPublic;
             SrcGen_HasJsonInclude = propertyInfo.HasJsonInclude;
