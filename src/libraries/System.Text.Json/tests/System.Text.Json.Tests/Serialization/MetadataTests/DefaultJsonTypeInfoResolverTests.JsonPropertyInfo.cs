@@ -437,6 +437,110 @@ namespace System.Text.Json.Serialization.Tests
             Assert.True(setterCalled);
         }
 
+        [Fact]
+        public static void AddingNumberHandlingToPropertyIsRespected()
+        {
+            DefaultJsonTypeInfoResolver resolver = new();
+            resolver.Modifiers.Add((ti) =>
+            {
+                if (ti.Type == typeof(TestClassWithNumber))
+                {
+                    Assert.Null(ti.Properties[0].NumberHandling);
+                    ti.Properties[0].NumberHandling = JsonNumberHandling.WriteAsString | JsonNumberHandling.AllowReadingFromString;
+                }
+            });
+
+            JsonSerializerOptions o = new();
+            o.TypeInfoResolver = resolver;
+
+            TestClassWithNumber obj = new()
+            {
+                IntProperty = 37,
+            };
+
+            string json = JsonSerializer.Serialize(obj, o);
+            Assert.Equal("""{"IntProperty":"37"}""", json);
+
+            TestClassWithNumber deserialized = JsonSerializer.Deserialize<TestClassWithNumber>(json, o);
+            Assert.Equal(obj.IntProperty, deserialized.IntProperty);
+        }
+
+        private class TestClassWithNumber
+        {
+            public int IntProperty { get; set; }
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData(JsonNumberHandling.Strict)]
+        public static void RemovingOrChangingNumberHandlingFromPropertyIsRespected(JsonNumberHandling? numberHandling)
+        {
+            DefaultJsonTypeInfoResolver resolver = new();
+            resolver.Modifiers.Add((ti) =>
+            {
+                if (ti.Type == typeof(TestClassWithNumberHandlingOnProperty))
+                {
+                    Assert.Equal(JsonNumberHandling.WriteAsString | JsonNumberHandling.AllowReadingFromString, ti.Properties[0].NumberHandling);
+                    ti.Properties[0].NumberHandling = numberHandling;
+                }
+            });
+
+            JsonSerializerOptions o = new();
+            o.TypeInfoResolver = resolver;
+
+            TestClassWithNumberHandlingOnProperty obj = new()
+            {
+                IntProperty = 37,
+            };
+
+            string json = JsonSerializer.Serialize(obj, o);
+            Assert.Equal("""{"IntProperty":37}""", json);
+
+            TestClassWithNumberHandlingOnProperty deserialized = JsonSerializer.Deserialize<TestClassWithNumberHandlingOnProperty>(json, o);
+            Assert.Equal(obj.IntProperty, deserialized.IntProperty);
+        }
+
+        private class TestClassWithNumberHandlingOnProperty
+        {
+            [JsonNumberHandling(JsonNumberHandling.WriteAsString | JsonNumberHandling.AllowReadingFromString)]
+            public int IntProperty { get; set; }
+        }
+
+
+        [Fact]
+        public static void NumberHandlingFromTypeDoesntFlowToPropertyAndOverrideIsRespected()
+        {
+            DefaultJsonTypeInfoResolver resolver = new();
+            resolver.Modifiers.Add((ti) =>
+            {
+                if (ti.Type == typeof(TestClassWithNumberHandling))
+                {
+                    Assert.Null(ti.Properties[0].NumberHandling);
+                    ti.Properties[0].NumberHandling = JsonNumberHandling.Strict;
+                }
+            });
+
+            JsonSerializerOptions o = new();
+            o.TypeInfoResolver = resolver;
+
+            TestClassWithNumberHandling obj = new()
+            {
+                IntProperty = 37,
+            };
+
+            string json = JsonSerializer.Serialize(obj, o);
+            Assert.Equal("""{"IntProperty":37}""", json);
+
+            TestClassWithNumberHandling deserialized = JsonSerializer.Deserialize<TestClassWithNumberHandling>(json, o);
+            Assert.Equal(obj.IntProperty, deserialized.IntProperty);
+        }
+
+        [JsonNumberHandling(JsonNumberHandling.WriteAsString | JsonNumberHandling.AllowReadingFromString)]
+        private class TestClassWithNumberHandling
+        {
+            public int IntProperty { get; set; }
+        }
+
         private class TestClassWithCustomConverterOnProperty
         {
             [JsonConverter(typeof(MyClassConverterOriginal))]

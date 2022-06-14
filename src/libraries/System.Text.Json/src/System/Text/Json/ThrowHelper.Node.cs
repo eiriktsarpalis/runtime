@@ -15,9 +15,9 @@ namespace System.Text.Json
         }
 
         [DoesNotReturn]
-        public static void ThrowArgumentException_DuplicateKey(string propertyName)
+        public static void ThrowArgumentException_DuplicateKey(string paramName, string propertyName)
         {
-            throw new ArgumentException(SR.NodeDuplicateKey, propertyName);
+            throw new ArgumentException(SR.Format(SR.NodeDuplicateKey, propertyName), paramName);
         }
 
         [DoesNotReturn]

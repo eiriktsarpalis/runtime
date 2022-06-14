@@ -70,7 +70,7 @@ namespace System.Text.Json
                 }
             }
 
-            public void FinishEditingAndMakeReadOnly()
+            public void FinishEditingAndMakeReadOnly(Type parentType)
             {
                 Debug.Assert(!IsReadOnly, $"{nameof(FinishEditingAndMakeReadOnly)} called on read-only ValueList");
 
@@ -79,7 +79,11 @@ namespace System.Text.Json
 
                 foreach (var item in _items)
                 {
-                    _parent.AddValue(_getKey(item), item);
+                    string key = _getKey(item);
+                    if (!_parent.TryAddValue(key, item))
+                    {
+                        ThrowHelper.ThrowInvalidOperationException_SerializerPropertyNameConflict(parentType, key);
+                    }
                 }
 
                 // clearing those so that we don't keep GC from freeing

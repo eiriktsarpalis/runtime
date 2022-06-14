@@ -176,9 +176,9 @@ namespace System.Text.Json
         }
 
         [DoesNotReturn]
-        public static void ThrowInvalidOperationException_SerializerPropertyNameConflict(Type type, JsonPropertyInfo jsonPropertyInfo)
+        public static void ThrowInvalidOperationException_SerializerPropertyNameConflict(Type type, string propertyName)
         {
-            throw new InvalidOperationException(SR.Format(SR.SerializerPropertyNameConflict, type, jsonPropertyInfo.ClrName));
+            throw new InvalidOperationException(SR.Format(SR.SerializerPropertyNameConflict, type, propertyName));
         }
 
         [DoesNotReturn]

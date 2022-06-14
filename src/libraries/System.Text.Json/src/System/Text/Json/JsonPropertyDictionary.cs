@@ -278,7 +278,7 @@ namespace System.Text.Json
         {
             if (!TryAddValue(propertyName, value))
             {
-                ThrowHelper.ThrowArgumentException_DuplicateKey(propertyName);
+                ThrowHelper.ThrowArgumentException_DuplicateKey(nameof(propertyName), propertyName);
             }
         }
 

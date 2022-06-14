@@ -434,6 +434,71 @@ namespace System.Text.Json.Serialization.Tests
         }
 
         [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public static void JsonTypeInfoAddDuplicatedPropertyNames(bool ignoreDuplicatedProperty)
+        {
+            DefaultJsonTypeInfoResolver r = new();
+            r.Modifiers.Add((ti) =>
+            {
+                if (ti.Type == typeof(MyClass))
+                {
+                    JsonPropertyInfo prop = ti.CreateJsonPropertyInfo(typeof(uint), ti.Properties[0].Name);
+                    uint valueHolder = 7;
+
+                    if (!ignoreDuplicatedProperty)
+                    {
+                        prop.Get = (o) => valueHolder;
+                        prop.Set = (o, val) => valueHolder = (uint)val;
+                    }
+
+                    ti.Properties.Add(prop);
+                }
+            });
+
+            JsonSerializerOptions o = new();
+            o.TypeInfoResolver = r;
+
+            MyClass obj = new()
+            {
+                Value = "foo",
+            };
+
+            Assert.Throws<InvalidOperationException>(() => JsonSerializer.Serialize<MyClass>(obj, o));
+        }
+
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public static void JsonTypeInfoRenameToDuplicatePropertyNames(bool ignoreDuplicatedProperty)
+        {
+            DefaultJsonTypeInfoResolver r = new();
+            r.Modifiers.Add((ti) =>
+            {
+                if (ti.Type == typeof(MyClass))
+                {
+                    if (ignoreDuplicatedProperty)
+                    {
+                        ti.Properties[1].Get = null;
+                        ti.Properties[1].Set = null;
+                    }
+
+                    ti.Properties[1].Name = ti.Properties[0].Name;
+                }
+            });
+
+            JsonSerializerOptions o = new();
+            o.TypeInfoResolver = r;
+
+            MyClass obj = new()
+            {
+                Value = "foo",
+            };
+
+            Assert.Throws<InvalidOperationException>(() => JsonSerializer.Serialize<MyClass>(obj, o));
+        }
+
+        [Theory]
         [InlineData(typeof(object))]
         [InlineData(typeof(string))]
         [InlineData(typeof(int))]

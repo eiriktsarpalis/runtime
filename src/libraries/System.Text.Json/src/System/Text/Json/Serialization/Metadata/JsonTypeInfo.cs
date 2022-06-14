@@ -323,7 +323,7 @@ namespace System.Text.Json.Serialization.Metadata
                 // Properties will already be read-only
                 if (!_properties.IsReadOnly)
                 {
-                    _properties.FinishEditingAndMakeReadOnly();
+                    _properties.FinishEditingAndMakeReadOnly(Type);
                 }
             }
             else
@@ -483,7 +483,7 @@ namespace System.Text.Json.Serialization.Metadata
                     ignoredMembers?.ContainsKey(memberName) != true)
                 {
                     // We throw if we have two public properties that have the same JSON property name, and neither have been ignored.
-                    ThrowHelper.ThrowInvalidOperationException_SerializerPropertyNameConflict(Type, jsonPropertyInfo);
+                    ThrowHelper.ThrowInvalidOperationException_SerializerPropertyNameConflict(Type, jsonPropertyInfo.Name);
                 }
                 // Ignore the current property.
             }
