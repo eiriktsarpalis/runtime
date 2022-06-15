@@ -83,10 +83,16 @@ namespace System.Text.Json.Serialization.Metadata
             {
                 CheckMutable();
                 _shouldSerialize = value;
+                // By default we will go through faster path (not using delegate) and use IgnoreCondition
+                // If users sets it explicitly we always go through delegate
+                IgnoreCondition = null;
+                IsIgnored = false;
+                _shouldSerializeIsExplicitlySet = true;
             }
         }
 
-        private Func<object, object?, bool>? _shouldSerialize;
+        private protected Func<object, object?, bool>? _shouldSerialize;
+        private bool _shouldSerializeIsExplicitlySet;
 
         internal JsonPropertyInfo()
         {
@@ -103,27 +109,6 @@ namespace System.Text.Json.Serialization.Metadata
             info.Name = string.Empty;
 
             return info;
-        }
-
-        // Create a property that is ignored at run-time.
-        internal static JsonPropertyInfo CreateIgnoredPropertyPlaceholder(
-            MemberInfo memberInfo,
-            Type memberType,
-            bool isVirtual,
-            JsonSerializerOptions options)
-        {
-            JsonPropertyInfo jsonPropertyInfo = new JsonPropertyInfo<sbyte>();
-
-            jsonPropertyInfo.Options = options;
-            jsonPropertyInfo.MemberInfo = memberInfo;
-            jsonPropertyInfo.IsIgnored = true;
-            jsonPropertyInfo.PropertyType = memberType;
-            jsonPropertyInfo.IsVirtual = isVirtual;
-            jsonPropertyInfo.DeterminePropertyName();
-
-            Debug.Assert(!jsonPropertyInfo.CanDeserialize);
-            Debug.Assert(!jsonPropertyInfo.CanSerialize);
-            return jsonPropertyInfo;
         }
 
         /// <summary>
@@ -175,9 +160,13 @@ namespace System.Text.Json.Serialization.Metadata
             }
             else
             {
-                PropertyTypeCanBeNull = PropertyType.CanBeNull();
                 DetermineNumberHandlingForProperty();
-                DetermineIgnoreCondition(IgnoreCondition);
+
+                if (!IsIgnored)
+                {
+                    DetermineIgnoreCondition(IgnoreCondition);
+                }
+
                 DetermineSerializationCapabilities(IgnoreCondition);
             }
         }
@@ -242,6 +231,13 @@ namespace System.Text.Json.Serialization.Metadata
 
         internal void DetermineSerializationCapabilities(JsonIgnoreCondition? ignoreCondition)
         {
+            if (IsIgnored)
+            {
+                CanSerialize = false;
+                CanDeserialize = false;
+                return;
+            }
+
             Debug.Assert(MemberType == MemberTypes.Property || MemberType == MemberTypes.Field || MemberType == default);
 
             if ((ConverterStrategy & (ConverterStrategy.Enumerable | ConverterStrategy.Dictionary)) == 0)
@@ -257,7 +253,7 @@ namespace System.Text.Json.Serialization.Metadata
                     : !Options.IgnoreReadOnlyFields);
 
                 // We serialize if there is a getter + not ignoring readonly properties.
-                CanSerialize = HasGetter && (HasSetter || serializeReadOnlyProperty);
+                CanSerialize = HasGetter && (HasSetter || serializeReadOnlyProperty || _shouldSerializeIsExplicitlySet);
 
                 // We deserialize if there is a setter.
                 CanDeserialize = HasSetter;
@@ -280,6 +276,23 @@ namespace System.Text.Json.Serialization.Metadata
 
         internal void DetermineIgnoreCondition(JsonIgnoreCondition? ignoreCondition)
         {
+            if (_shouldSerializeIsExplicitlySet)
+            {
+                Debug.Assert(ignoreCondition == null);
+#pragma warning disable SYSLIB0020 // JsonSerializerOptions.IgnoreNullValues is obsolete
+                if (Options.IgnoreNullValues)
+#pragma warning restore SYSLIB0020
+                {
+                    Debug.Assert(Options.DefaultIgnoreCondition == JsonIgnoreCondition.Never);
+                    if (PropertyTypeCanBeNull)
+                    {
+                        IgnoreDefaultValuesOnRead = true;
+                    }
+                }
+
+                return;
+            }
+
             if (ignoreCondition != null)
             {
                 // This is not true for CodeGen scenarios since we do not cache this as of yet.

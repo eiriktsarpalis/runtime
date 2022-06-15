@@ -633,7 +633,6 @@ namespace System.Text.Json.Serialization.Tests
             Assert.Equal("""{"IntProperty":37}""", json);
         }
 
-        [ActiveIssue("TODO")]
         [Theory]
         [InlineData(true)]
         [InlineData(false)]
@@ -700,11 +699,10 @@ namespace System.Text.Json.Serialization.Tests
             public int IntProperty { get; set; }
         }
 
-        [ActiveIssue("TODO")]
         [Fact]
         public static void DefaultIgnoreConditionFromOptionsDoesntFlowToShouldSerializePropertyAndOverrideIsRespected()
         {
-            TestClassWithNumberAndIgnoreConditionOnProperty obj = new()
+            TestClassWithNumber obj = new()
             {
                 IntProperty = 37,
             };
@@ -791,7 +789,6 @@ namespace System.Text.Json.Serialization.Tests
             DontSerializeNumber3OrStringAsd,
         }
 
-        [ActiveIssue("TODO")]
         [Theory]
         [InlineData(JsonIgnoreCondition.WhenWritingDefault, ModifyJsonIgnore.DontModify)]
         [InlineData(JsonIgnoreCondition.WhenWritingNull, ModifyJsonIgnore.DontModify)]
@@ -846,7 +843,6 @@ namespace System.Text.Json.Serialization.Tests
             // - check every options default
             string json = JsonSerializer.Serialize(obj, options);
             Assert.True(modifierTestRun);
-            modifierTestRun = false;
 
             switch (modify)
             {
@@ -869,8 +865,6 @@ namespace System.Text.Json.Serialization.Tests
             obj.Property = default;
 
             json = JsonSerializer.Serialize(obj, options);
-            Assert.True(modifierTestRun);
-            modifierTestRun = false;
 
             switch (modify)
             {
@@ -896,7 +890,6 @@ namespace System.Text.Json.Serialization.Tests
             obj.Property = "asd";
 
             json = JsonSerializer.Serialize(obj, options);
-            Assert.True(modifierTestRun);
 
             switch (modify)
             {
@@ -965,7 +958,11 @@ namespace System.Text.Json.Serialization.Tests
                     case ModifyJsonIgnore.DontSerializeNumber3OrStringAsd:
                         property.ShouldSerialize = (o, v) =>
                         {
-                            if (v is int intVal)
+                            if (v is null)
+                            {
+                                return true;
+                            }
+                            else if (v is int intVal)
                             {
                                 return intVal != 3;
                             }

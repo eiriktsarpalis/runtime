@@ -601,7 +601,7 @@ namespace System.Text.Json.Serialization.Metadata
 
         internal static bool IsInvalidForSerialization(Type type)
         {
-            return type.IsPointer || IsByRefLike(type) || type.ContainsGenericParameters;
+            return type.IsPointer || type.IsByRef || IsByRefLike(type) || type.ContainsGenericParameters;
         }
 
         private static bool IsByRefLike(Type type)

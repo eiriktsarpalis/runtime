@@ -181,7 +181,13 @@ namespace System.Text.Json.Serialization.Metadata
                 ThrowHelper.ThrowInvalidOperationException_SerializationDuplicateTypeAttribute(Type, typeof(JsonExtensionDataAttribute));
             }
 
-            JsonPropertyInfo jsonPropertyInfo = AddProperty(memberInfo, memberType, declaringType, isVirtual, Options);
+            JsonPropertyInfo? jsonPropertyInfo = AddProperty(memberInfo, memberType, declaringType, isVirtual, Options);
+            if (jsonPropertyInfo == null)
+            {
+                // ignored invalid property
+                return;
+            }
+
             Debug.Assert(jsonPropertyInfo.Name != null);
 
             if (hasExtensionAttribute)
@@ -197,7 +203,7 @@ namespace System.Text.Json.Serialization.Metadata
             }
         }
 
-        private static JsonPropertyInfo AddProperty(
+        private static JsonPropertyInfo? AddProperty(
             MemberInfo memberInfo,
             Type memberType,
             Type parentClassType,
@@ -205,20 +211,31 @@ namespace System.Text.Json.Serialization.Metadata
             JsonSerializerOptions options)
         {
             JsonIgnoreCondition? ignoreCondition = JsonPropertyInfo.GetAttribute<JsonIgnoreAttribute>(memberInfo)?.Condition;
-            if (ignoreCondition == JsonIgnoreCondition.Always)
+
+            if (IsInvalidForSerialization(memberType))
             {
-                return JsonPropertyInfo.CreateIgnoredPropertyPlaceholder(memberInfo, memberType, isVirtual, options);
+                if (ignoreCondition == JsonIgnoreCondition.Always)
+                    return null;
+
+                ThrowHelper.ThrowInvalidOperationException_CannotSerializeInvalidType(memberType, parentClassType, memberInfo);
             }
 
-            ValidateType(memberType, parentClassType, memberInfo, options);
-
             JsonConverter? customConverter;
-            JsonConverter converter = GetConverter(
+            JsonConverter converter;
+
+            try
+            {
+                converter = GetConverter(
                 memberType,
                 parentClassType,
                 memberInfo,
                 options,
                 out customConverter);
+            }
+            catch (InvalidOperationException) when (ignoreCondition == JsonIgnoreCondition.Always)
+            {
+                return null;
+            }
 
             return CreateProperty(
                 declaredPropertyType: memberType,
