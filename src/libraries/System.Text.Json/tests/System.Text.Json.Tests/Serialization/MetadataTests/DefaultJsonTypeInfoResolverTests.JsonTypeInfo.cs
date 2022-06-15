@@ -558,5 +558,80 @@ namespace System.Text.Json.Serialization.Tests
             yield return new object[] { new SomeClass { IntProp = 17 } };
             yield return new object[] { new SomeRecursiveClass() };
         }
+
+        [Fact]
+        public static void JsonConstructorAttributeIsNotRespectedWhenCreateObjectIsSet()
+        {
+            DefaultJsonTypeInfoResolver resolver = new();
+            resolver.Modifiers.Add(ti =>
+            {
+                if (ti.Type == typeof(ClassWithParametrizedConstructorAndReadOnlyProperties))
+                {
+                    Assert.Null(ti.CreateObject);
+                    ti.CreateObject = () => new ClassWithParametrizedConstructorAndReadOnlyProperties(1, "test");
+                }
+            });
+
+            JsonSerializerOptions o = new();
+            o.TypeInfoResolver = resolver;
+
+            string json = """{"A":2,"B":"foo"}""";
+            var deserialized = JsonSerializer.Deserialize<ClassWithParametrizedConstructorAndReadOnlyProperties>(json, o);
+
+            Assert.NotNull(deserialized);
+            Assert.Equal(1, deserialized.A);
+            Assert.Equal("test", deserialized.B);
+        }
+
+        private class ClassWithParametrizedConstructorAndReadOnlyProperties
+        {
+            public int A { get; }
+            public string B { get; }
+
+            [JsonConstructor]
+            public ClassWithParametrizedConstructorAndReadOnlyProperties(int a, string b)
+            {
+                A = a;
+                B = b;
+            }
+        }
+
+        [Fact]
+        public static void JsonConstructorAttributeIsNotRespectedAndPropertiesAreSetWhenCreateObjectIsSet()
+        {
+            DefaultJsonTypeInfoResolver resolver = new();
+            resolver.Modifiers.Add(ti =>
+            {
+                if (ti.Type == typeof(ClassWithParametrizedConstructorAndWritableProperties))
+                {
+                    Assert.Null(ti.CreateObject);
+                    ti.CreateObject = () => new ClassWithParametrizedConstructorAndWritableProperties(1, "test");
+                }
+            });
+
+            JsonSerializerOptions o = new();
+            o.TypeInfoResolver = resolver;
+
+            string json = """{"A":2,"B":"foo","C":"bar"}""";
+            var deserialized = JsonSerializer.Deserialize<ClassWithParametrizedConstructorAndWritableProperties>(json, o);
+
+            Assert.NotNull(deserialized);
+            Assert.Equal(2, deserialized.A);
+            Assert.Equal("foo", deserialized.B);
+            Assert.Equal("bar", deserialized.C);
+        }
+
+        private class ClassWithParametrizedConstructorAndWritableProperties
+        {
+            public int A { get; set; }
+            public string B { get; set; }
+            public string C { get; set; }
+
+            [JsonConstructor]
+            public ClassWithParametrizedConstructorAndWritableProperties(int a, string b)
+            {
+                Assert.Fail("this ctor should not be used");
+            }
+        }
     }
 }
