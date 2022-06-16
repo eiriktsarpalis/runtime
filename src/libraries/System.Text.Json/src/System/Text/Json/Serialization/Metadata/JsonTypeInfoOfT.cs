@@ -28,11 +28,18 @@ namespace System.Text.Json.Serialization.Metadata
             }
         }
 
-        private protected override void SetCreateObject(Delegate? createObject, bool useForExtensionDataProperty = false)
+        private protected override void SetCreateObject(Delegate? createObject)
         {
             Debug.Assert(createObject is null or Func<object> or Func<T>);
 
             CheckMutable();
+
+            if (Kind == JsonTypeInfoKind.None)
+            {
+                Debug.Assert(_createObject == null);
+                Debug.Assert(_typedCreateObject == null);
+                ThrowHelper.ThrowInvalidOperationException_JsonTypeInfoOperationNotPossibleForKindNone();
+            }
 
             Func<object>? untypedCreateObject;
             Func<T>? typedCreateObject;
@@ -54,25 +61,8 @@ namespace System.Text.Json.Serialization.Metadata
                 typedCreateObject = () => (T)untypedCreateObject();
             }
 
-
-            if (Kind != JsonTypeInfoKind.None)
-            {
-                _createObject = untypedCreateObject;
-                _typedCreateObject = typedCreateObject;
-            }
-            else
-            {
-                if (useForExtensionDataProperty)
-                {
-                    CreateObjectForExtensionDataProperty = untypedCreateObject;
-                }
-                else
-                {
-                    Debug.Assert(_createObject == null);
-                    Debug.Assert(_typedCreateObject == null);
-                    ThrowHelper.ThrowInvalidOperationException_JsonTypeInfoOperationNotPossibleForKindNone();
-                }
-            }
+            _createObject = untypedCreateObject;
+            _typedCreateObject = typedCreateObject;
         }
 
         internal JsonTypeInfo(JsonConverter converter, JsonSerializerOptions options)

@@ -19,7 +19,7 @@ namespace System.Text.Json.Serialization.Tests
         [InlineData(typeof(int))]
         [InlineData(typeof(string))]
         [InlineData(typeof(SomeClass))]
-        [InlineData(typeof(StructWithFourArgs))]
+        //[InlineData(typeof(StructWithFourArgs))] // TODO redesign test to accommodate JsonConstructor metadata handling
         [InlineData(typeof(Dictionary<string, int>))]
         [InlineData(typeof(DictionaryWrapper))]
         [InlineData(typeof(List<int>))]
@@ -560,7 +560,7 @@ namespace System.Text.Json.Serialization.Tests
         }
 
         [Fact]
-        public static void JsonConstructorAttributeIsNotRespectedWhenCreateObjectIsSet()
+        public static void JsonConstructorAttributeIsOverriddenWhenCreateObjectIsSet()
         {
             DefaultJsonTypeInfoResolver resolver = new();
             resolver.Modifiers.Add(ti =>
@@ -568,13 +568,11 @@ namespace System.Text.Json.Serialization.Tests
                 if (ti.Type == typeof(ClassWithParametrizedConstructorAndReadOnlyProperties))
                 {
                     Assert.Null(ti.CreateObject);
-                    ti.CreateObject = () => new ClassWithParametrizedConstructorAndReadOnlyProperties(1, "test");
+                    ti.CreateObject = () => new ClassWithParametrizedConstructorAndReadOnlyProperties(1, "test", dummyParam: true);
                 }
             });
 
-            JsonSerializerOptions o = new();
-            o.TypeInfoResolver = resolver;
-
+            JsonSerializerOptions o = new() { TypeInfoResolver = resolver };
             string json = """{"A":2,"B":"foo"}""";
             var deserialized = JsonSerializer.Deserialize<ClassWithParametrizedConstructorAndReadOnlyProperties>(json, o);
 
@@ -588,16 +586,21 @@ namespace System.Text.Json.Serialization.Tests
             public int A { get; }
             public string B { get; }
 
-            [JsonConstructor]
-            public ClassWithParametrizedConstructorAndReadOnlyProperties(int a, string b)
+            public ClassWithParametrizedConstructorAndReadOnlyProperties(int a, string b, bool dummyParam)
             {
                 A = a;
                 B = b;
             }
+
+            [JsonConstructor]
+            public ClassWithParametrizedConstructorAndReadOnlyProperties(int a, string b)
+            {
+                Assert.Fail("this ctor should not be used");
+            }
         }
 
         [Fact]
-        public static void JsonConstructorAttributeIsNotRespectedAndPropertiesAreSetWhenCreateObjectIsSet()
+        public static void JsonConstructorAttributeIsOverridenAndPropertiesAreSetWhenCreateObjectIsSet()
         {
             DefaultJsonTypeInfoResolver resolver = new();
             resolver.Modifiers.Add(ti =>
@@ -605,12 +608,11 @@ namespace System.Text.Json.Serialization.Tests
                 if (ti.Type == typeof(ClassWithParametrizedConstructorAndWritableProperties))
                 {
                     Assert.Null(ti.CreateObject);
-                    ti.CreateObject = () => new ClassWithParametrizedConstructorAndWritableProperties(1, "test");
+                    ti.CreateObject = () => new ClassWithParametrizedConstructorAndWritableProperties();
                 }
             });
 
-            JsonSerializerOptions o = new();
-            o.TypeInfoResolver = resolver;
+            JsonSerializerOptions o = new() { TypeInfoResolver = resolver };
 
             string json = """{"A":2,"B":"foo","C":"bar"}""";
             var deserialized = JsonSerializer.Deserialize<ClassWithParametrizedConstructorAndWritableProperties>(json, o);
@@ -626,6 +628,8 @@ namespace System.Text.Json.Serialization.Tests
             public int A { get; set; }
             public string B { get; set; }
             public string C { get; set; }
+
+            public ClassWithParametrizedConstructorAndWritableProperties() { }
 
             [JsonConstructor]
             public ClassWithParametrizedConstructorAndWritableProperties(int a, string b)

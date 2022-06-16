@@ -34,7 +34,8 @@ namespace System.Text.Json.Serialization.Metadata
             }
             else
             {
-                SetCreateObject(objectInfo.ObjectCreator, useForExtensionDataProperty: true);
+                SetCreateObject(objectInfo.ObjectCreator);
+                CreateObjectForExtensionDataProperty = ((JsonTypeInfo)this).CreateObject;
             }
 
             PropInitFunc = objectInfo.PropertyMetadataInitializer;

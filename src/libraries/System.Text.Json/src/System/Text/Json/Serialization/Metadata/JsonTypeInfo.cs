@@ -35,11 +35,10 @@ namespace System.Text.Json.Serialization.Metadata
             }
         }
 
-        private protected abstract void SetCreateObject(Delegate? createObject, bool useForExtensionDataProperty = false);
+        private protected abstract void SetCreateObject(Delegate? createObject);
         private protected Func<object>? _createObject;
 
-        // this is only assigned if Kind == None
-        internal Func<object>? CreateObjectForExtensionDataProperty { get; set; }
+        internal Func<object>? CreateObjectForExtensionDataProperty { get; private protected set; }
 
         /// <summary>
         /// Gets JsonPropertyInfo list. Only applicable when Kind is Object.

@@ -40,7 +40,12 @@ namespace System.Text.Json.Serialization.Metadata
                 AddPropertiesAndParametersUsingReflection();
             }
 
-            SetCreateObject(Options.MemberAccessorStrategy.CreateConstructor(typeof(T)), useForExtensionDataProperty: true);
+            Func<object>? createObject = Options.MemberAccessorStrategy.CreateConstructor(typeof(T));
+            if (converter.UsesDefaultConstructor)
+            {
+                SetCreateObject(createObject);
+            }
+            CreateObjectForExtensionDataProperty = createObject;
         }
 
         [UnconditionalSuppressMessage("ReflectionAnalysis", "IL2026:RequiresUnreferencedCode",
