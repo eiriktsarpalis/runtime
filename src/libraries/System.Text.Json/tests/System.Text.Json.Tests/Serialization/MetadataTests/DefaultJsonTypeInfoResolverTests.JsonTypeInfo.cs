@@ -637,5 +637,48 @@ namespace System.Text.Json.Serialization.Tests
                 Assert.Fail("this ctor should not be used");
             }
         }
+
+        [Fact]
+        public static void JsonConstructorAttributeIsOverridenAndPropertiesAreSetWhenCreateObjectIsSet_LargeConstructor()
+        {
+            DefaultJsonTypeInfoResolver resolver = new();
+            resolver.Modifiers.Add(ti =>
+            {
+                if (ti.Type == typeof(ClassWithLargeParameterizedConstructor))
+                {
+                    Assert.Null(ti.CreateObject);
+                    ti.CreateObject = () => new ClassWithLargeParameterizedConstructor();
+                }
+            });
+
+            JsonSerializerOptions o = new() { TypeInfoResolver = resolver };
+
+            string json = """{"A":2,"B":"foo","C":"bar","E":true}""";
+            var deserialized = JsonSerializer.Deserialize<ClassWithLargeParameterizedConstructor>(json, o);
+
+            Assert.NotNull(deserialized);
+            Assert.Equal(2, deserialized.A);
+            Assert.Equal("foo", deserialized.B);
+            Assert.Equal("bar", deserialized.C);
+            Assert.True(deserialized.E);
+        }
+
+        private class ClassWithLargeParameterizedConstructor
+        {
+            public int A { get; set; }
+            public string B { get; set; }
+            public string C { get; set; }
+            public string D { get; set; }
+            public bool E { get; set; }
+            public int F { get; set; }
+
+            public ClassWithLargeParameterizedConstructor() { }
+
+            [JsonConstructor]
+            public ClassWithLargeParameterizedConstructor(int a, string b, string c, string d, bool e, int f)
+            {
+                Assert.Fail("this ctor should not be used");
+            }
+        }
     }
 }

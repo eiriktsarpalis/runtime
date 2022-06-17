@@ -45,6 +45,7 @@ namespace System.Text.Json.Serialization.Metadata
             {
                 SetCreateObject(createObject);
             }
+
             CreateObjectForExtensionDataProperty = createObject;
         }
 
