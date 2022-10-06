@@ -653,7 +653,7 @@ namespace System.Text.Json
 
                 case JsonSerializerContext ctx when AppContextSwitchHelper.IsSourceGenReflectionFallbackEnabled:
                     // .NET 6 compatibility mode: enable fallback to reflection metadata for JsonSerializerContext
-                    _effectiveJsonTypeInfoResolver = JsonTypeInfoResolver.Combine(ctx, defaultResolver);
+                    _effectiveJsonTypeInfoResolver = JsonTypeInfoResolver.Combine(ctx, DefaultJsonTypeInfoResolver.CreateReflectionFallbackResolver());
                     break;
             }
 

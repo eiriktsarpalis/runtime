@@ -43,14 +43,18 @@ namespace System.Text.Json
         {
             Debug.Assert(context != null);
             Debug.Assert(inputType != null);
+            Debug.Assert(context.Options.IsReadOnly);
 
-            JsonTypeInfo? info = context.GetTypeInfo(inputType);
-            if (info is null)
+            JsonTypeInfo? info = context.Options.TryGetTypeInfoInternal(inputType);
+            if (info is null || info.IsReflectionFallbackMetadata)
             {
+                // If the the compatibility flag for reflection fallback has been enabled,
+                // the JsonSerializerOptions cache can report reflection-based metadata.
+                // Discard the result to preserve backward compabitility.
+                Debug.Assert(info is null || AppContextSwitchHelper.IsSourceGenReflectionFallbackEnabled);
                 ThrowHelper.ThrowInvalidOperationException_NoMetadataForType(inputType, context);
             }
 
-            info.EnsureConfigured();
             return info;
         }
 

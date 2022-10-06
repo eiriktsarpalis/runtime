@@ -152,5 +152,20 @@ namespace System.Text.Json.Serialization.Metadata
             DefaultJsonTypeInfoResolver? originalInstance = Interlocked.CompareExchange(ref s_defaultInstance, newInstance, comparand: null);
             return originalInstance ?? newInstance;
         }
+
+        [RequiresUnreferencedCode(JsonSerializer.SerializationUnreferencedCodeMessage)]
+        [RequiresDynamicCode(JsonSerializer.SerializationRequiresDynamicCodeMessage)]
+        internal static DefaultJsonTypeInfoResolver CreateReflectionFallbackResolver()
+        {
+            return s_fallbackResolver ??= new DefaultJsonTypeInfoResolver
+            {
+                Modifiers =
+                {
+                    static jsonTypeInfo => jsonTypeInfo.IsReflectionFallbackMetadata = true
+                }
+            };
+        }
+
+        private static DefaultJsonTypeInfoResolver? s_fallbackResolver;
     }
 }

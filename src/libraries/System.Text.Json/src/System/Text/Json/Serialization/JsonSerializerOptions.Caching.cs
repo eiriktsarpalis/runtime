@@ -55,6 +55,18 @@ namespace System.Text.Json
         /// </summary>
         internal JsonTypeInfo GetTypeInfoInternal(Type type, bool ensureConfigured = true, bool resolveIfMutable = false)
         {
+            JsonTypeInfo? typeInfo = TryGetTypeInfoInternal(type, ensureConfigured, resolveIfMutable);
+
+            if (typeInfo == null)
+            {
+                ThrowHelper.ThrowNotSupportedException_NoMetadataForType(type, TypeInfoResolver);
+            }
+
+            return typeInfo;
+        }
+
+        internal JsonTypeInfo? TryGetTypeInfoInternal(Type type, bool ensureConfigured = true, bool resolveIfMutable = false)
+        {
             JsonTypeInfo? typeInfo = null;
 
             if (IsReadOnly)
@@ -68,11 +80,6 @@ namespace System.Text.Json
             else if (resolveIfMutable)
             {
                 typeInfo = GetTypeInfoNoCaching(type);
-            }
-
-            if (typeInfo == null)
-            {
-                ThrowHelper.ThrowNotSupportedException_NoMetadataForType(type, TypeInfoResolver);
             }
 
             return typeInfo;
@@ -152,8 +159,34 @@ namespace System.Text.Json
             // If changing please ensure that src/ILLink.Descriptors.LibraryBuild.xml is up-to-date.
             public int Count => _jsonTypeInfoCache.Count;
 
-            public JsonTypeInfo? GetOrAddJsonTypeInfo(Type type) => _jsonTypeInfoCache.GetOrAdd(type, Options.GetTypeInfoNoCaching);
+            public JsonTypeInfo? GetOrAddJsonTypeInfo(Type type)
+            {
+                return AppContextSwitchHelper.IsSourceGenReflectionFallbackEnabled
+                    ? GetOrAddJsonTypeInfoNoCacheNull(type)
+                    : _jsonTypeInfoCache.GetOrAdd(type, Options.GetTypeInfoNoCaching);
+            }
+
             public bool TryGetJsonTypeInfo(Type type, [NotNullWhen(true)] out JsonTypeInfo? typeInfo) => _jsonTypeInfoCache.TryGetValue(type, out typeInfo);
+
+            private JsonTypeInfo? GetOrAddJsonTypeInfoNoCacheNull(Type type)
+            {
+                // Specifically for source gen reflection fallback compatibility mode,
+                // we don't want to cache nulls as that would break scenaria where fallback
+                // kicks in later in the application's lifetime.
+                Debug.Assert(AppContextSwitchHelper.IsSourceGenReflectionFallbackEnabled);
+
+                ConcurrentDictionary<Type, JsonTypeInfo?> cache = _jsonTypeInfoCache;
+                if (!cache.TryGetValue(type, out JsonTypeInfo? typeInfo))
+                {
+                    typeInfo = Options.GetTypeInfoNoCaching(type);
+                    if (typeInfo != null)
+                    {
+                        typeInfo = cache.GetOrAdd(type, typeInfo);
+                    }
+                }
+
+                return typeInfo;
+            }
 
             public void Clear()
             {

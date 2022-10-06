@@ -273,6 +273,10 @@ namespace System.Text.Json.Serialization.Metadata
         // Flag indicating that JsonTypeInfo<T>.SerializeHandler is populated and is compatible with the associated Options instance.
         internal bool CanUseSerializeHandler { get; private protected set; }
 
+        // Flag indicating that the metadata has been generated as part of a reflection fallback
+        // in source generators. Only used if the relevant AppContext compat switch has been enabled.
+        internal bool IsReflectionFallbackMetadata { get; set; }
+
         // Configure would normally have thrown why initializing properties for source gen but type had SerializeHandler
         // so it is allowed to be used for fast-path serialization but it will throw if used for metadata-based serialization
         internal bool MetadataSerializationNotSupported { get; private protected set; }
