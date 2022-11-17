@@ -73,15 +73,33 @@ namespace System.Text.Json
             bool isFinalBlock;
             if (jsonTypeInfo is JsonTypeInfo<TValue> typedInfo)
             {
-                isFinalBlock = typedInfo.EffectiveConverter.WriteCore(writer, value, jsonTypeInfo.Options, ref state);
+                if (typedInfo.CanUseSerializeHandlerInStreaming)
+                {
+                    Debug.Assert(typedInfo.SerializeHandler != null);
+                    Debug.Assert(typedInfo.Options.SerializerContext?.CanUseSerializationLogic == true);
+                    Debug.Assert(typedInfo.Converter is JsonMetadataServicesConverter<TValue>);
+
+                    typedInfo.SerializeHandler(writer, value);
+                    isFinalBlock = true;
+                }
+                else
+                {
+                    isFinalBlock = typedInfo.EffectiveConverter.WriteCore(writer, value, typedInfo.Options, ref state);
+                }
+
+                writer.Flush();
+                if (jsonTypeInfo.CanUseSerializeHandler)
+                {
+                    jsonTypeInfo.OnRootLevelAsyncSerializationCompleted(writer.BytesCommitted);
+                }
             }
             else
             {
                 // The non-generic API was called.
                 isFinalBlock = jsonTypeInfo.Converter.WriteCoreAsObject(writer, value, jsonTypeInfo.Options, ref state);
+                writer.Flush();
             }
 
-            writer.Flush();
             return isFinalBlock;
         }
 

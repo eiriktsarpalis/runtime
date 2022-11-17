@@ -290,6 +290,38 @@ namespace System.Text.Json.Serialization.Metadata
         // Flag indicating that JsonTypeInfo<T>.SerializeHandler is populated and is compatible with the associated Options instance.
         internal bool CanUseSerializeHandler { get; private protected set; }
 
+        // Flag indicating whether it is safe to use SerializeHandler in streaming serialization.
+        // Returns true iff:
+        // * The type has been used in at least 10 root-level streaming serializations AND
+        // * No output size exceeds JsonSerializerOptions.DefaultBufferSize
+        internal bool CanUseSerializeHandlerInStreaming =>
+            CanUseSerializeHandler &&
+            !_serializationSizeExceedsBufferSize &&
+            (uint)_rootLevelSerializations >= MinSampleSize;
+
+        // Record the JSON serialization size once serialization has completed
+        // to recalculate the value of CanUseSerializeHandlerInStreaming
+        internal void OnRootLevelAsyncSerializationCompleted(long serializationSize)
+        {
+            Debug.Assert(CanUseSerializeHandler);
+
+            if (!_serializationSizeExceedsBufferSize)
+            {
+                if ((ulong)serializationSize > (ulong)Options.DefaultBufferSize)
+                {
+                    _serializationSizeExceedsBufferSize = true;
+                }
+                else if ((uint)_rootLevelSerializations < MinSampleSize)
+                {
+                    Interlocked.Increment(ref _rootLevelSerializations);
+                }
+            }
+        }
+
+        private const uint MinSampleSize = 10;
+        private int _rootLevelSerializations;
+        private bool _serializationSizeExceedsBufferSize;
+
         // Configure would normally have thrown why initializing properties for source gen but type had SerializeHandler
         // so it is allowed to be used for fast-path serialization but it will throw if used for metadata-based serialization
         internal bool MetadataSerializationNotSupported { get; private protected set; }
