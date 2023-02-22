@@ -223,6 +223,7 @@ namespace System.ComponentModel.DataAnnotations
         public RangeAttribute(int minimum, int maximum) { }
         [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCodeAttribute("Generic TypeConverters may require the generic types to be annotated. For example, NullableConverter requires the underlying type to be DynamicallyAccessedMembers All.")]
         public RangeAttribute([System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembersAttribute(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.All)] System.Type type, string minimum, string maximum) { }
+        protected RangeAttribute(IComparable minimum, IComparable maximum) { }
         public bool ConvertValueInInvariantCulture { get { throw null; } set { } }
         public object Maximum { get { throw null; } }
         public object Minimum { get { throw null; } }

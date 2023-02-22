@@ -59,6 +59,28 @@ namespace System.ComponentModel.DataAnnotations
         }
 
         /// <summary>
+        /// TODO API docs
+        /// </summary>
+        /// <param name="minimum"></param>
+        /// <param name="maximum"></param>
+        protected RangeAttribute(IComparable minimum, IComparable maximum)
+            : base(() => SR.RangeAttribute_ValidationError)
+        {
+            // TODO move validation to SetupConversion()
+            ArgumentNullException.ThrowIfNull(minimum);
+            ArgumentNullException.ThrowIfNull(maximum);
+
+            if ((OperandType = minimum.GetType()) != maximum.GetType())
+            {
+                throw new ArgumentException("Type mismatch", nameof(maximum));
+            }
+
+            Minimum = minimum;
+            Maximum = maximum;
+            Conversion = value => Convert.ChangeType(value, OperandType, CultureInfo.InvariantCulture);
+        }
+
+        /// <summary>
         ///     Gets the minimum value for the range
         /// </summary>
         public object Minimum { get; private set; }

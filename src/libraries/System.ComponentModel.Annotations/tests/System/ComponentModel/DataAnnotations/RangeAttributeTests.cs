@@ -906,5 +906,28 @@ namespace System.ComponentModel.DataAnnotations.Tests
             RangeAttribute attribute = new RangeAttribute(typeof(int), "1", "1");
             Assert.Throws<ValidationException>(() => attribute.Validate(new IConvertibleImplementor() { IntThrow = new ArithmeticException() }, new ValidationContext(new object())));
         }
+
+        [Fact]
+        public static void TimeSpanMillisecondRangeAttribute_Works()
+        {
+            var attribute = new TimeSpanMillisecondRangeAttribute(0, 1000);
+
+            Assert.False(attribute.IsValid(TimeSpan.FromSeconds(-1)));
+            Assert.True(attribute.IsValid(TimeSpan.FromSeconds(0)));
+            Assert.True(attribute.IsValid(TimeSpan.FromSeconds(1)));
+            Assert.False(attribute.IsValid(TimeSpan.FromSeconds(2)));
+
+            Assert.False(attribute.IsValid(false));
+            Assert.False(attribute.IsValid(1000));
+            Assert.False(attribute.IsValid(3.1));
+            Assert.False(attribute.IsValid("str"));
+        }
+
+        public class TimeSpanMillisecondRangeAttribute : RangeAttribute
+        {
+            public TimeSpanMillisecondRangeAttribute(int minimumMs, int maximumMs)
+                : base(TimeSpan.FromMilliseconds(minimumMs), TimeSpan.FromMilliseconds(maximumMs))
+            { }
+        }
     }
 }
