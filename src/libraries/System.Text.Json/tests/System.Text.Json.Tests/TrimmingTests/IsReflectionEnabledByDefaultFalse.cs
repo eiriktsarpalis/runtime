@@ -46,6 +46,8 @@ public static class Program
 
         // Serializing with a custom resolver should work as expected.
         options.TypeInfoResolver = new MyJsonResolver();
+        options.GetConverter(typeof(MyPoco));
+        
         if (JsonSerializer.Serialize(valueToSerialize, options) != "{\"Value\":42}")
         {
             return -4;
