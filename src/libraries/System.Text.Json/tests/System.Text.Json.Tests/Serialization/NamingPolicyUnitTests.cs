@@ -4,6 +4,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using FsCheck;
+using FsCheck.Xunit;
 using Newtonsoft.Json.Serialization;
 using Xunit;
 
@@ -306,5 +308,35 @@ namespace System.Text.Json.Serialization.Tests
                 .Distinct()
                 .Select(name => new object[] { name })
                 .ToArray();
+
+        private const string? ReplaySeed = "(42,42)"; // set a seed for deterministic runs, null for randomized runs
+        private const int MaxTests = 1_000_000; // FsCheck default is 100
+
+        [Property(Replay = ReplaySeed, MaxTest = MaxTests)]
+        public static void CamelCaseNamingPolicyMatchesNewtonsoftNamingStrategy_PropertyTest(string name)
+        {
+            if (name is null)
+                return;
+
+            CamelCaseNamingPolicyMatchesNewtonsoftNamingStrategy(name);
+        }
+
+        [Property(Replay = ReplaySeed, MaxTest = MaxTests)]
+        public static void SnakeCaseNamingPolicyMatchesNewtonsoftNamingStrategy_PropertyTest(string name)
+        {
+            if (name is null)
+                return;
+
+            SnakeCaseNamingPolicyMatchesNewtonsoftNamingStrategy(name);
+        }
+
+        [Property(Replay = ReplaySeed, MaxTest = MaxTests)]
+        public static void KebabCaseNamingPolicyMatchesNewtonsoftNamingStrategy_PropertyTest(string name)
+        {
+            if (name is null)
+                return;
+
+            KebabCaseNamingPolicyMatchesNewtonsoftNamingStrategy(name);
+        }
     }
 }
