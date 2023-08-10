@@ -28,29 +28,30 @@ namespace System.Text.Json
                 ThrowHelper.ThrowArgumentNullException(nameof(name));
             }
 
-            return ConvertNameCore(_separator, _lowercase, name);
+            return ConvertNameCore(_separator, _lowercase, name.AsSpan());
         }
 
-        private static string ConvertNameCore(char separator, bool lowercase, string name)
+        private static string ConvertNameCore(char separator, bool lowercase, ReadOnlySpan<char> chars)
         {
-            Debug.Assert(name != null);
-
             char[]? rentedBuffer = null;
 
-            // Rented buffer 20% longer that the input.
-            int initialBufferLength = (12 * name.Length) / 10;
+            // While we can't predict the expansion factor of the resultant string,
+            // start with a buffer that is at least 20% larger than the input.
+            int initialBufferLength = (int)(1.20 * chars.Length);
             Span<char> destination = initialBufferLength <= JsonConstants.StackallocCharThreshold
                 ? stackalloc char[JsonConstants.StackallocCharThreshold]
                 : (rentedBuffer = ArrayPool<char>.Shared.Rent(initialBufferLength));
 
-            ReadOnlySpan<char> chars = name.AsSpan();
             SeparatorState state = SeparatorState.NotStarted;
             int charsWritten = 0;
 
-            for (int i = 0; i < chars.Length; i++)
+            scoped Span<char> tempBuffer = stackalloc char[2];
+
+            while (!chars.IsEmpty)
             {
-                char current = chars[i];
-                UnicodeCategory category = char.GetUnicodeCategory(current);
+                // TODO replace with Rune APIs once a ns2.0 package becomes available
+                // https://github.com/dotnet/runtime/issues/52947
+                UnicodeCategory category = GetNextUnicodeCategory(chars, out int charsConsumed);
 
                 if (category is UnicodeCategory.UppercaseLetter)
                 {
@@ -71,10 +72,10 @@ namespace System.Text.Json
                             // Uppercase letters are grouped together with the exception of the
                             // final letter, assuming it is followed by additional characters.
                             // For example, the value 'XMLReader' should render as 'xml_reader'.
-                            if (i + 1 < chars.Length)
+                            if (charsConsumed + 1 < chars.Length)
                             {
-                                char nextChar = chars[i + 1];
-                                if (!char.IsUpper(nextChar) && nextChar != separator)
+                                UnicodeCategory nextCategory = GetNextUnicodeCategory(chars.Slice(charsConsumed), out _);
+                                if (nextCategory != UnicodeCategory.UppercaseLetter && chars[charsConsumed + 1] != separator)
                                 {
                                     // This is the last uppercase letter in the sequence,
                                     // emit a separator before handling it.
@@ -88,10 +89,15 @@ namespace System.Text.Json
                             break;
                     }
 
+                    scoped ReadOnlySpan<char> charsToWrite = chars.Slice(0, charsConsumed);
                     if (lowercase)
-                        current = char.ToLowerInvariant(current);
+                    {
+                        int written = charsToWrite.ToLowerInvariant(tempBuffer);
+                        Debug.Assert(written == charsConsumed);
+                        charsToWrite = tempBuffer.Slice(0, written);
+                    }
 
-                    WriteChar(current, ref destination);
+                    WriteChars(charsToWrite, ref destination);
                     state = SeparatorState.UppercaseLetter;
                 }
                 else if (category is UnicodeCategory.SpaceSeparator)
@@ -103,7 +109,7 @@ namespace System.Text.Json
                         state = SeparatorState.SpaceSeparator;
                     }
                 }
-                else if (current == separator)
+                else if (chars[0] == separator)
                 {
                     // Json.NET compat: reset state if the separator character is encountered in the input string.
                     WriteChar(separator, ref destination);
@@ -118,15 +124,22 @@ namespace System.Text.Json
                         WriteChar(separator, ref destination);
                     }
 
+                    scoped ReadOnlySpan<char> charsToWrite = chars.Slice(0, charsConsumed);
                     if (!lowercase)
-                        current = char.ToUpperInvariant(current);
+                    {
+                        int written = charsToWrite.ToUpperInvariant(tempBuffer);
+                        Debug.Assert(written == charsConsumed);
+                        charsToWrite = tempBuffer.Slice(0, written);
+                    }
 
-                    WriteChar(current, ref destination);
+                    WriteChars(charsToWrite, ref destination);
                     state = SeparatorState.OtherCharacter;
                 }
+
+                chars = chars.Slice(charsConsumed);
             }
 
-            name = destination.Slice(0, charsWritten).ToString();
+            string result = destination.Slice(0, charsWritten).ToString();
 
             if (rentedBuffer is not null)
             {
@@ -134,7 +147,7 @@ namespace System.Text.Json
                 ArrayPool<char>.Shared.Return(rentedBuffer);
             }
 
-            return name;
+            return result;
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             void WriteChar(char value, ref Span<char> destination)
@@ -145,6 +158,18 @@ namespace System.Text.Json
                 }
 
                 destination[charsWritten++] = value;
+            }
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            void WriteChars(scoped ReadOnlySpan<char> chars, ref Span<char> destination)
+            {
+                if (charsWritten + chars.Length > destination.Length)
+                {
+                    ExpandBuffer(ref destination);
+                }
+
+                chars.CopyTo(destination.Slice(charsWritten));
+                charsWritten += chars.Length;
             }
 
             void ExpandBuffer(ref Span<char> destination)
@@ -162,6 +187,26 @@ namespace System.Text.Json
                 rentedBuffer = newBuffer;
                 destination = rentedBuffer;
             }
+        }
+
+        private static UnicodeCategory GetNextUnicodeCategory(ReadOnlySpan<char> buffer, out int charsConsumed)
+        {
+            UnicodeCategory category = char.GetUnicodeCategory(buffer[0]);
+            if (category is UnicodeCategory.Surrogate &&
+                buffer.Length > 1 && char.IsSurrogatePair(buffer[0], buffer[1]))
+            {
+                charsConsumed = 2;
+#if NETCOREAPP
+                int codepoint = char.ConvertToUtf32(buffer[0], buffer[1]);
+                return CharUnicodeInfo.GetUnicodeCategory(codepoint);
+#else
+                string surrogate = buffer.Slice(0, 2).ToString();
+                return CharUnicodeInfo.GetUnicodeCategory(surrogate, 0);
+#endif
+            }
+
+            charsConsumed = 1;
+            return category;
         }
 
         private enum SeparatorState
