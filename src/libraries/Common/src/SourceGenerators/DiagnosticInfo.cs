@@ -20,18 +20,12 @@ internal readonly struct DiagnosticInfo : IEquatable<DiagnosticInfo>
 
     public static DiagnosticInfo Create(DiagnosticDescriptor descriptor, Location? location, object?[]? messageArgs)
     {
-        Location? trimmedLocation = location is null ? null : GetTrimmedLocation(location);
-
         return new DiagnosticInfo
         {
             Descriptor = descriptor,
-            Location = trimmedLocation,
-            MessageArgs = messageArgs ?? Array.Empty<object?>()
+            Location = location,
+            MessageArgs = messageArgs ?? []
         };
-
-        // Creates a copy of the Location instance that does not capture a reference to Compilation.
-        static Location GetTrimmedLocation(Location location)
-            => Location.Create(location.SourceTree?.FilePath ?? "", location.SourceSpan, location.GetLineSpan().Span);
     }
 
     public Diagnostic CreateDiagnostic()

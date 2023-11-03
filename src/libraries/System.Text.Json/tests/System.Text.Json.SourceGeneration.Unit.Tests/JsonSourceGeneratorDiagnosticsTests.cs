@@ -629,5 +629,30 @@ namespace System.Text.Json.SourceGeneration.UnitTests
 
             CompilationHelper.AssertEqualDiagnosticMessages(expectedDiagnostics, result.Diagnostics);
         }
+
+        [Fact]
+        public void CanSuppressDiagnosticsInSource()
+        {
+            Compilation compilation = CompilationHelper.CreateCompilation("""
+                using System.Text.Json.Serialization;
+
+                namespace Application
+                {
+                    [JsonSerializable(typeof(MyEnum))]
+                    public partial class MyContext : JsonSerializerContext
+                    {
+                    }
+
+                #pragma warning disable SYSLIB1034
+                    [JsonConverter(typeof(JsonStringEnumConverter))]
+                #pragma warning restore SYSLIB1034
+                    public enum MyEnum { A, B, C }
+                }
+                """);
+
+            JsonSourceGeneratorResult result = CompilationHelper.RunJsonSourceGenerator(compilation, disableDiagnosticValidation: true);
+
+            Assert.Empty(result.Diagnostics);
+        }
     }
 }
