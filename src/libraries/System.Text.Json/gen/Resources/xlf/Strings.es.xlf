@@ -22,6 +22,16 @@
         <target state="translated">Tipo de propiedad de extensión de datos no válido.</target>
         <note />
       </trans-unit>
+      <trans-unit id="DefaultJsonSerializerContextNotAccessibleMessageFormat">
+        <source>The type '{0}' specified in '[assembly: DefaultJsonSerializerContext]' on assembly '{1}' is not accessible from the consuming assembly. The context type must be public.</source>
+        <target state="new">The type '{0}' specified in '[assembly: DefaultJsonSerializerContext]' on assembly '{1}' is not accessible from the consuming assembly. The context type must be public.</target>
+        <note />
+      </trans-unit>
+      <trans-unit id="DefaultJsonSerializerContextNotAccessibleTitle">
+        <source>Default JSON serializer context is not accessible.</source>
+        <target state="new">Default JSON serializer context is not accessible.</target>
+        <note />
+      </trans-unit>
       <trans-unit id="DerivedJsonConverterAttributesNotSupportedMessageFormat">
         <source>The custom attribute '{0}' deriving from JsonConverterAttribute is not supported by the source generator.</source>
         <target state="translated">El generador de origen no admite el atributo personalizado '{0}' derivado de JsonConverterAttribute.</target>

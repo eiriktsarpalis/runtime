@@ -22,6 +22,16 @@
         <target state="translated">데이터 확장 속성 형식이 잘못되었습니다.</target>
         <note />
       </trans-unit>
+      <trans-unit id="DefaultJsonSerializerContextNotAccessibleMessageFormat">
+        <source>The type '{0}' specified in '[assembly: DefaultJsonSerializerContext]' on assembly '{1}' is not accessible from the consuming assembly. The context type must be public.</source>
+        <target state="new">The type '{0}' specified in '[assembly: DefaultJsonSerializerContext]' on assembly '{1}' is not accessible from the consuming assembly. The context type must be public.</target>
+        <note />
+      </trans-unit>
+      <trans-unit id="DefaultJsonSerializerContextNotAccessibleTitle">
+        <source>Default JSON serializer context is not accessible.</source>
+        <target state="new">Default JSON serializer context is not accessible.</target>
+        <note />
+      </trans-unit>
       <trans-unit id="DerivedJsonConverterAttributesNotSupportedMessageFormat">
         <source>The custom attribute '{0}' deriving from JsonConverterAttribute is not supported by the source generator.</source>
         <target state="translated">JsonConverterAttribute에서 파생된 사용자 지정 속성 '{0}'은(는) 원본 생성기에서 지원되지 않습니다.</target>

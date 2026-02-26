@@ -97,6 +97,15 @@ namespace System.Text.Json.SourceGeneration
 
         public required string? ImmutableCollectionFactoryMethod { get; init; }
 
+        /// <summary>
+        /// When non-null, indicates that this type's metadata should be resolved from
+        /// the specified canonical context in a referenced assembly rather than generated locally.
+        /// The value is the fully qualified name of the canonical context type.
+        /// </summary>
+        public required string? DelegatedToExternalContext { get; init; }
+
+        public bool IsDelegatedToExternalContext => DelegatedToExternalContext is not null;
+
         public bool IsFastPathSupported()
         {
             if (IsPolymorphic)

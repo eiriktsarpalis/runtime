@@ -68,6 +68,8 @@ namespace System.Text.Json.SourceGeneration
 
         public required bool? AllowDuplicateProperties { get; init; }
 
+        public required bool? ForceFullTypeTraversal { get; init; }
+
         public JsonKnownNamingPolicy? GetEffectivePropertyNamingPolicy()
             => PropertyNamingPolicy ?? (Defaults is JsonSerializerDefaults.Web ? JsonKnownNamingPolicy.CamelCase : null);
     }

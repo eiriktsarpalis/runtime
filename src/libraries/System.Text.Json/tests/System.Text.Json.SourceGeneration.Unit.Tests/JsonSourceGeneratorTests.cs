@@ -1117,5 +1117,337 @@ namespace System.Text.Json.SourceGeneration.UnitTests
 
             Assert.Empty(compilationErrors);
         }
+
+        [Fact]
+        [SkipOnTargetFramework(TargetFrameworkMonikers.NetFramework)]
+        public void DefaultJsonSerializerContext_SkipsExternalTypes()
+        {
+            // Create a referenced assembly that has a canonical context
+            // and [assembly: DefaultJsonSerializerContext].
+            string referencedSource = """
+                using System.Text.Json.Serialization;
+
+                [assembly: DefaultJsonSerializerContext(typeof(ReferencedAssembly.LibContext))]
+
+                namespace ReferencedAssembly
+                {
+                    public class LibModel
+                    {
+                        public int Id { get; set; }
+                        public string Name { get; set; }
+                    }
+
+                    [JsonSerializable(typeof(LibModel))]
+                    public partial class LibContext : JsonSerializerContext
+                    {
+                    }
+                }
+                """;
+
+            Compilation referencedCompilation = CompilationHelper.CreateCompilation(referencedSource, assemblyName: "ReferencedLib");
+
+            // Run the source generator on the referenced compilation so it
+            // becomes a valid assembly with the context fully implemented.
+            JsonSourceGeneratorResult referencedResult = CompilationHelper.RunJsonSourceGenerator(referencedCompilation);
+            byte[] referencedImage = CompilationHelper.CreateAssemblyImage(referencedResult.NewCompilation);
+
+            // Create the consumer assembly that references the type from
+            // the assembly with a canonical context.
+            string consumerSource = """
+                using System.Text.Json.Serialization;
+                using ReferencedAssembly;
+
+                namespace ConsumerAssembly
+                {
+                    public class AppModel
+                    {
+                        public LibModel Lib { get; set; }
+                        public string AppName { get; set; }
+                    }
+
+                    [JsonSerializable(typeof(AppModel))]
+                    internal partial class AppContext : JsonSerializerContext
+                    {
+                    }
+                }
+                """;
+
+            MetadataReference[] additionalReferences = { MetadataReference.CreateFromImage(referencedImage) };
+            Compilation compilation = CompilationHelper.CreateCompilation(consumerSource, additionalReferences);
+            JsonSourceGeneratorResult result = CompilationHelper.RunJsonSourceGenerator(compilation, logger: logger);
+
+            // AppModel should be generated locally.
+            result.AssertContainsType("global::ConsumerAssembly.AppModel");
+
+            // LibModel should be marked as delegated to an external context
+            // rather than having codegen emitted for it locally.
+            TypeGenerationSpec libModelSpec = Assert.Single(
+                result.AllGeneratedTypes,
+                spec => spec.TypeRef.FullyQualifiedName == "global::ReferencedAssembly.LibModel");
+            Assert.True(libModelSpec.IsDelegatedToExternalContext);
+
+            // Verify the generated code compiles.
+            Assert.Empty(result.NewCompilation.GetDiagnostics()
+                .Where(d => d.Severity == DiagnosticSeverity.Error));
+        }
+
+        [Fact]
+        [SkipOnTargetFramework(TargetFrameworkMonikers.NetFramework)]
+        public void DefaultJsonSerializerContext_StillGeneratesLocalTypes()
+        {
+            // Referenced assembly WITHOUT a canonical context.
+            string referencedSource = """
+                namespace ReferencedAssembly
+                {
+                    public class ExternalModel
+                    {
+                        public int Value { get; set; }
+                    }
+                }
+                """;
+
+            Compilation referencedCompilation = CompilationHelper.CreateCompilation(referencedSource, assemblyName: "ReferencedLib");
+            byte[] referencedImage = CompilationHelper.CreateAssemblyImage(referencedCompilation);
+
+            string consumerSource = """
+                using System.Text.Json.Serialization;
+                using ReferencedAssembly;
+
+                namespace ConsumerAssembly
+                {
+                    public class AppModel
+                    {
+                        public ExternalModel External { get; set; }
+                    }
+
+                    [JsonSerializable(typeof(AppModel))]
+                    internal partial class AppContext : JsonSerializerContext
+                    {
+                    }
+                }
+                """;
+
+            MetadataReference[] additionalReferences = { MetadataReference.CreateFromImage(referencedImage) };
+            Compilation compilation = CompilationHelper.CreateCompilation(consumerSource, additionalReferences);
+            JsonSourceGeneratorResult result = CompilationHelper.RunJsonSourceGenerator(compilation, logger: logger);
+
+            // Both types should be generated since the referenced assembly
+            // has no canonical context.
+            result.AssertContainsType("global::ConsumerAssembly.AppModel");
+            result.AssertContainsType("global::ReferencedAssembly.ExternalModel");
+        }
+
+        [Fact]
+        [SkipOnTargetFramework(TargetFrameworkMonikers.NetFramework)]
+        public void DefaultJsonSerializerContext_GeneratesResolverDelegation()
+        {
+            // Create referenced assembly with canonical context.
+            string referencedSource = """
+                using System.Text.Json.Serialization;
+
+                [assembly: DefaultJsonSerializerContext(typeof(ReferencedAssembly.LibContext))]
+
+                namespace ReferencedAssembly
+                {
+                    public class LibModel
+                    {
+                        public int Id { get; set; }
+                    }
+
+                    [JsonSerializable(typeof(LibModel))]
+                    public partial class LibContext : JsonSerializerContext
+                    {
+                    }
+                }
+                """;
+
+            Compilation referencedCompilation = CompilationHelper.CreateCompilation(referencedSource, assemblyName: "ReferencedLib");
+            JsonSourceGeneratorResult referencedResult = CompilationHelper.RunJsonSourceGenerator(referencedCompilation);
+            byte[] referencedImage = CompilationHelper.CreateAssemblyImage(referencedResult.NewCompilation);
+
+            string consumerSource = """
+                using System.Text.Json.Serialization;
+                using ReferencedAssembly;
+
+                namespace ConsumerAssembly
+                {
+                    public class AppModel
+                    {
+                        public LibModel Lib { get; set; }
+                    }
+
+                    [JsonSerializable(typeof(AppModel))]
+                    internal partial class AppContext : JsonSerializerContext
+                    {
+                    }
+                }
+                """;
+
+            MetadataReference[] additionalReferences = { MetadataReference.CreateFromImage(referencedImage) };
+            Compilation compilation = CompilationHelper.CreateCompilation(consumerSource, additionalReferences);
+            JsonSourceGeneratorResult result = CompilationHelper.RunJsonSourceGenerator(compilation, logger: logger);
+
+            // The context should reference the canonical context.
+            ContextGenerationSpec contextSpec = Assert.Single(result.ContextGenerationSpecs);
+            Assert.Single(contextSpec.ReferencedDefaultContexts);
+            Assert.Contains(contextSpec.ReferencedDefaultContexts,
+                ctx => ctx.Contains("LibContext"));
+
+            // Generated code should contain catch-all chaining to the canonical context,
+            // not per-type typeof checks for delegated types.
+            SyntaxTree[] generatedTrees = result.NewCompilation.SyntaxTrees
+                .Except(compilation.SyntaxTrees)
+                .ToArray();
+
+            string allGeneratedCode = string.Join("\n", generatedTrees.Select(t => t.ToString()));
+
+            // Should contain catch-all resolver chaining pattern.
+            Assert.Contains("LibContext", allGeneratedCode);
+            Assert.Contains("GetTypeInfo(type,", allGeneratedCode);
+
+            // Generated code should compile.
+            Assert.Empty(result.NewCompilation.GetDiagnostics()
+                .Where(d => d.Severity == DiagnosticSeverity.Error));
+        }
+
+        [Fact]
+        [SkipOnTargetFramework(TargetFrameworkMonikers.NetFramework)]
+        public void DefaultJsonSerializerContext_SkipsTransitiveDepsOfDelegatedTypes()
+        {
+            // Create referenced assembly with canonical context and a type with transitive deps.
+            string referencedSource = """
+                using System.Text.Json.Serialization;
+
+                [assembly: DefaultJsonSerializerContext(typeof(ReferencedAssembly.LibContext))]
+
+                namespace ReferencedAssembly
+                {
+                    public class LibModel
+                    {
+                        public int Id { get; set; }
+                        public LibChild Child { get; set; }
+                    }
+
+                    public class LibChild
+                    {
+                        public string Value { get; set; }
+                    }
+
+                    [JsonSerializable(typeof(LibModel))]
+                    public partial class LibContext : JsonSerializerContext
+                    {
+                    }
+                }
+                """;
+
+            Compilation referencedCompilation = CompilationHelper.CreateCompilation(referencedSource, assemblyName: "ReferencedLib");
+            JsonSourceGeneratorResult referencedResult = CompilationHelper.RunJsonSourceGenerator(referencedCompilation);
+            byte[] referencedImage = CompilationHelper.CreateAssemblyImage(referencedResult.NewCompilation);
+
+            string consumerSource = """
+                using System.Text.Json.Serialization;
+                using ReferencedAssembly;
+
+                namespace ConsumerAssembly
+                {
+                    public class AppModel
+                    {
+                        public LibModel Lib { get; set; }
+                    }
+
+                    [JsonSerializable(typeof(AppModel))]
+                    internal partial class AppContext : JsonSerializerContext
+                    {
+                    }
+                }
+                """;
+
+            MetadataReference[] additionalReferences = { MetadataReference.CreateFromImage(referencedImage) };
+            Compilation compilation = CompilationHelper.CreateCompilation(consumerSource, additionalReferences);
+            JsonSourceGeneratorResult result = CompilationHelper.RunJsonSourceGenerator(compilation, logger: logger);
+
+            // AppModel generated locally, LibModel delegated.
+            result.AssertContainsType("global::ConsumerAssembly.AppModel");
+            TypeGenerationSpec libModelSpec = Assert.Single(
+                result.AllGeneratedTypes,
+                spec => spec.TypeRef.FullyQualifiedName == "global::ReferencedAssembly.LibModel");
+            Assert.True(libModelSpec.IsDelegatedToExternalContext);
+
+            // LibChild should NOT appear in generated types at all — BFS was cut off.
+            Assert.DoesNotContain(result.AllGeneratedTypes,
+                spec => spec.TypeRef.FullyQualifiedName == "global::ReferencedAssembly.LibChild");
+
+            Assert.Empty(result.NewCompilation.GetDiagnostics()
+                .Where(d => d.Severity == DiagnosticSeverity.Error));
+        }
+
+        // NOTE: The ForceFullTypeTraversal test requires rebuilding the System.Text.Json library
+        // to include the new property on JsonSourceGenerationOptionsAttribute. Skipping in prototype.
+        // The parsing logic is verified by the source generator unit tests' parser infrastructure.
+
+        [Fact]
+        [SkipOnTargetFramework(TargetFrameworkMonikers.NetFramework)]
+        public void DefaultJsonSerializerContext_WarnsOnInaccessibleContext()
+        {
+            // Create a referenced assembly with an INTERNAL canonical context.
+            string referencedSource = """
+                using System.Text.Json.Serialization;
+
+                [assembly: DefaultJsonSerializerContext(typeof(ReferencedAssembly.LibContext))]
+
+                namespace ReferencedAssembly
+                {
+                    public class LibModel
+                    {
+                        public int Id { get; set; }
+                    }
+
+                    [JsonSerializable(typeof(LibModel))]
+                    internal partial class LibContext : JsonSerializerContext
+                    {
+                    }
+                }
+                """;
+
+            Compilation referencedCompilation = CompilationHelper.CreateCompilation(referencedSource, assemblyName: "ReferencedLib");
+            JsonSourceGeneratorResult referencedResult = CompilationHelper.RunJsonSourceGenerator(referencedCompilation);
+            byte[] referencedImage = CompilationHelper.CreateAssemblyImage(referencedResult.NewCompilation);
+
+            string consumerSource = """
+                using System.Text.Json.Serialization;
+                using ReferencedAssembly;
+
+                namespace ConsumerAssembly
+                {
+                    public class AppModel
+                    {
+                        public LibModel Lib { get; set; }
+                    }
+
+                    [JsonSerializable(typeof(AppModel))]
+                    internal partial class AppContext : JsonSerializerContext
+                    {
+                    }
+                }
+                """;
+
+            MetadataReference[] additionalReferences = { MetadataReference.CreateFromImage(referencedImage) };
+            Compilation compilation = CompilationHelper.CreateCompilation(consumerSource, additionalReferences);
+            JsonSourceGeneratorResult result = CompilationHelper.RunJsonSourceGenerator(compilation, disableDiagnosticValidation: true, logger: logger);
+
+            // Should emit a SYSLIB1226 warning about inaccessible context.
+            Assert.Contains(result.Diagnostics,
+                d => d.Descriptor.Id == "SYSLIB1226");
+
+            // Should NOT have any referenced default contexts since the context is inaccessible.
+            ContextGenerationSpec contextSpec = Assert.Single(result.ContextGenerationSpecs);
+            Assert.Empty(contextSpec.ReferencedDefaultContexts);
+
+            // LibModel should NOT be marked as delegated since the context is inaccessible.
+            TypeGenerationSpec libModelSpec = Assert.Single(
+                result.AllGeneratedTypes,
+                spec => spec.TypeRef.FullyQualifiedName == "global::ReferencedAssembly.LibModel");
+            Assert.False(libModelSpec.IsDelegatedToExternalContext);
+        }
     }
 }

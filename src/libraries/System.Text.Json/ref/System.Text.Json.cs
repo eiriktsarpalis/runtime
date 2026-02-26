@@ -994,6 +994,11 @@ namespace System.Text.Json.Serialization
     {
         protected JsonAttribute() { }
     }
+    [System.AttributeUsageAttribute(System.AttributeTargets.Assembly, AllowMultiple=false)]
+    public sealed partial class DefaultJsonSerializerContextAttribute : System.Text.Json.Serialization.JsonAttribute
+    {
+        public DefaultJsonSerializerContextAttribute(System.Type contextType) { }
+    }
     [System.AttributeUsageAttribute(System.AttributeTargets.Constructor, AllowMultiple=false)]
     public sealed partial class JsonConstructorAttribute : System.Text.Json.Serialization.JsonAttribute
     {
@@ -1175,6 +1180,7 @@ namespace System.Text.Json.Serialization
         public int DefaultBufferSize { get { throw null; } set { } }
         public System.Text.Json.Serialization.JsonIgnoreCondition DefaultIgnoreCondition { get { throw null; } set { } }
         public System.Text.Json.Serialization.JsonKnownNamingPolicy DictionaryKeyPolicy { get { throw null; } set { } }
+        public bool ForceFullTypeTraversal { get { throw null; } set { } }
         public System.Text.Json.Serialization.JsonSourceGenerationMode GenerationMode { get { throw null; } set { } }
         public bool IgnoreReadOnlyFields { get { throw null; } set { } }
         public bool IgnoreReadOnlyProperties { get { throw null; } set { } }

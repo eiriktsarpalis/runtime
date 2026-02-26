@@ -193,6 +193,11 @@ namespace System.Text.Json.SourceGeneration
 
             private SourceText? GenerateTypeInfo(ContextGenerationSpec contextSpec, TypeGenerationSpec typeGenerationSpec)
             {
+                if (typeGenerationSpec.IsDelegatedToExternalContext)
+                {
+                    return null; // Type metadata is provided by a canonical context in a referenced assembly.
+                }
+
                 switch (typeGenerationSpec.ClassType)
                 {
                     case ClassType.BuiltInSupportType:
@@ -333,7 +338,7 @@ namespace System.Text.Json.SourceGeneration
 
                 CollectionType collectionType = typeGenerationSpec.CollectionType;
 
-                string? serializeMethodName = ShouldGenerateSerializationLogic(typeGenerationSpec)
+                string? serializeMethodName = ShouldGenerateSerializationLogic(typeGenerationSpec) && !HasDelegatedCollectionElementTypes(typeGenerationSpec)
                     ? $"{typeGenerationSpec.TypeInfoPropertyName}{SerializeHandlerPropName}"
                     : null;
 
@@ -530,7 +535,7 @@ namespace System.Text.Json.SourceGeneration
                     }
                 }
 
-                if (ShouldGenerateSerializationLogic(typeMetadata))
+                if (ShouldGenerateSerializationLogic(typeMetadata) && !HasDelegatedPropertyTypes(typeMetadata))
                 {
                     serializeMethodName = $"{typeFriendlyName}{SerializeHandlerPropName}";
                 }
@@ -1420,15 +1425,32 @@ namespace System.Text.Json.SourceGeneration
 
                 foreach (TypeGenerationSpec metadata in contextSpec.GeneratedTypes)
                 {
-                    if (metadata.ClassType != ClassType.TypeUnsupportedBySourceGen)
+                    if (metadata.ClassType is ClassType.TypeUnsupportedBySourceGen ||
+                        metadata.IsDelegatedToExternalContext)
                     {
-                        writer.WriteLine($$"""
-                            if (type == typeof({{metadata.TypeRef.FullyQualifiedName}}))
-                            {
-                                return {{CreateTypeInfoMethodName(metadata)}}({{OptionsLocalVariableName}});
-                            }
-                            """);
+                        continue;
                     }
+
+                    writer.WriteLine($$"""
+                        if (type == typeof({{metadata.TypeRef.FullyQualifiedName}}))
+                        {
+                            return {{CreateTypeInfoMethodName(metadata)}}({{OptionsLocalVariableName}});
+                        }
+                        """);
+                }
+
+                // Catch-all: chain to canonical contexts for types not generated locally.
+                foreach (string referencedContext in contextSpec.ReferencedDefaultContexts)
+                {
+                    writer.WriteLine($$"""
+                        {
+                            {{JsonTypeInfoTypeRef}}? typeInfo = (({{JsonTypeInfoResolverTypeRef}}){{referencedContext}}.Default).GetTypeInfo(type, {{OptionsLocalVariableName}});
+                            if (typeInfo is not null)
+                            {
+                                return typeInfo;
+                            }
+                        }
+                        """);
                 }
 
                 writer.WriteLine("return null;");
@@ -1531,6 +1553,39 @@ namespace System.Text.Json.SourceGeneration
 
             private static bool ShouldGenerateSerializationLogic(TypeGenerationSpec typeSpec)
                 => IsGenerationModeSpecified(typeSpec, JsonSourceGenerationMode.Serialization) && typeSpec.IsFastPathSupported();
+
+            private bool HasDelegatedPropertyTypes(TypeGenerationSpec typeSpec)
+            {
+                foreach (PropertyGenerationSpec property in typeSpec.PropertyGenSpecs)
+                {
+                    if (_typeIndex.TryGetValue(property.PropertyType, out TypeGenerationSpec? propTypeSpec) &&
+                        propTypeSpec.IsDelegatedToExternalContext)
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+
+            private bool HasDelegatedCollectionElementTypes(TypeGenerationSpec typeSpec)
+            {
+                if (typeSpec.CollectionValueType is TypeRef valueType &&
+                    _typeIndex.TryGetValue(valueType, out TypeGenerationSpec? valueTypeSpec) &&
+                    valueTypeSpec.IsDelegatedToExternalContext)
+                {
+                    return true;
+                }
+
+                if (typeSpec.CollectionKeyType is TypeRef keyType &&
+                    _typeIndex.TryGetValue(keyType, out TypeGenerationSpec? keyTypeSpec) &&
+                    keyTypeSpec.IsDelegatedToExternalContext)
+                {
+                    return true;
+                }
+
+                return false;
+            }
 
             private static bool IsGenerationModeSpecified(TypeGenerationSpec typeSpec, JsonSourceGenerationMode mode)
                 => typeSpec.GenerationMode == JsonSourceGenerationMode.Default || (mode & typeSpec.GenerationMode) != 0;

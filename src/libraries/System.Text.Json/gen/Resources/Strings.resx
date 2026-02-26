@@ -213,4 +213,10 @@
   <data name="TypeContainsRefLikeMemberFormat" xml:space="preserve">
     <value>The type '{0}' includes the ref like property, field or constructor parameter '{1}'. No source code will be generated for the property, field or constructor.</value>
   </data>
+  <data name="DefaultJsonSerializerContextNotAccessibleTitle" xml:space="preserve">
+    <value>Default JSON serializer context is not accessible.</value>
+  </data>
+  <data name="DefaultJsonSerializerContextNotAccessibleMessageFormat" xml:space="preserve">
+    <value>The type '{0}' specified in '[assembly: DefaultJsonSerializerContext]' on assembly '{1}' is not accessible from the consuming assembly. The context type must be public.</value>
+  </data>
 </root>

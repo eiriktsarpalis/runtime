@@ -45,7 +45,10 @@ namespace System.Text.Json.SourceGeneration
             private readonly Queue<TypeToGenerate> _typesToGenerate = new();
 #pragma warning disable RS1024 // Compare symbols correctly https://github.com/dotnet/roslyn-analyzers/issues/5804
             private readonly Dictionary<ITypeSymbol, TypeGenerationSpec> _generatedTypes = new(SymbolEqualityComparer.Default);
+            private readonly Dictionary<IAssemblySymbol, DefaultContextInfo> _assembliesWithDefaultContext = new(SymbolEqualityComparer.Default);
 #pragma warning restore
+            private List<string>? _referencedDefaultContexts;
+            private List<(string ContextTypeName, string AssemblyName)>? _inaccessibleDefaultContexts;
 
             public List<DiagnosticInfo> Diagnostics { get; } = new();
             private Location? _contextClassLocation;
@@ -73,6 +76,67 @@ namespace System.Text.Json.SourceGeneration
                     knownSymbols.JsonConverterType != null;
 
                 _builtInSupportTypes = (knownSymbols.BuiltInSupportTypes ??= CreateBuiltInSupportTypeSet(knownSymbols));
+                ScanReferencedAssembliesForDefaultContexts();
+            }
+
+            private void ScanReferencedAssembliesForDefaultContexts()
+            {
+                INamedTypeSymbol? defaultContextAttributeType = _knownSymbols.DefaultJsonSerializerContextAttributeType;
+                INamedTypeSymbol? jsonTypeInfoOfTType = _knownSymbols.JsonTypeInfoOfTType;
+                if (defaultContextAttributeType is null || jsonTypeInfoOfTType is null)
+                {
+                    return;
+                }
+
+                foreach (IModuleSymbol module in _knownSymbols.Compilation.Assembly.Modules)
+                {
+                    foreach (IAssemblySymbol referencedAssembly in module.ReferencedAssemblySymbols)
+                    {
+                        foreach (AttributeData attrData in referencedAssembly.GetAttributes())
+                        {
+                            if (SymbolEqualityComparer.Default.Equals(attrData.AttributeClass, defaultContextAttributeType) &&
+                                attrData.ConstructorArguments.Length == 1 &&
+                                attrData.ConstructorArguments[0].Value is INamedTypeSymbol contextType)
+                            {
+                                string contextFQN = contextType.GetFullyQualifiedName();
+                                if (_knownSymbols.Compilation.IsSymbolAccessibleWithin(contextType, _knownSymbols.Compilation.Assembly))
+                                {
+                                    HashSet<ITypeSymbol> coveredTypes = ScanContextProperties(contextType, jsonTypeInfoOfTType);
+                                    _assembliesWithDefaultContext.Add(referencedAssembly, new DefaultContextInfo
+                                    {
+                                        ContextFullyQualifiedName = contextFQN,
+                                        CoveredTypes = coveredTypes,
+                                    });
+                                    (_referencedDefaultContexts ??= new()).Add(contextFQN);
+                                }
+                                else
+                                {
+                                    (_inaccessibleDefaultContexts ??= new()).Add(
+                                        (contextType.ToDisplayString(), referencedAssembly.Name));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            private static HashSet<ITypeSymbol> ScanContextProperties(INamedTypeSymbol contextType, INamedTypeSymbol jsonTypeInfoOfTType)
+            {
+#pragma warning disable RS1024 // Compare symbols correctly https://github.com/dotnet/roslyn-analyzers/issues/5804
+                HashSet<ITypeSymbol> coveredTypes = new(SymbolEqualityComparer.Default);
+#pragma warning restore
+
+                foreach (ISymbol member in contextType.GetMembers())
+                {
+                    if (member is IPropertySymbol { Type: INamedTypeSymbol { IsGenericType: true } propertyType } &&
+                        SymbolEqualityComparer.Default.Equals(propertyType.ConstructedFrom, jsonTypeInfoOfTType))
+                    {
+                        // Property returns JsonTypeInfo<T> — extract T as a covered type.
+                        coveredTypes.Add(propertyType.TypeArguments[0]);
+                    }
+                }
+
+                return coveredTypes;
             }
 
             public ContextGenerationSpec? ParseContextGenerationSpec(ClassDeclarationSyntax contextClassDeclaration, SemanticModel semanticModel, CancellationToken cancellationToken)
@@ -114,6 +178,15 @@ namespace System.Text.Json.SourceGeneration
                     out List<TypeToGenerate>? rootSerializableTypes,
                     out SourceGenerationOptionsSpec? options);
 
+                // Report any inaccessible default context warnings discovered during scanning.
+                if (_inaccessibleDefaultContexts is not null)
+                {
+                    foreach ((string contextTypeName, string assemblyName) in _inaccessibleDefaultContexts)
+                    {
+                        ReportDiagnostic(DiagnosticDescriptors.DefaultJsonSerializerContextNotAccessible, _contextClassLocation, contextTypeName, assemblyName);
+                    }
+                }
+
                 if (rootSerializableTypes is null)
                 {
                     // No types were annotated with JsonSerializableAttribute.
@@ -145,6 +218,8 @@ namespace System.Text.Json.SourceGeneration
                     _typesToGenerate.Enqueue(rootSerializableType);
                 }
 
+                bool forceFullTypeTraversal = options?.ForceFullTypeTraversal is true;
+
                 // Walk the transitive type graph generating specs for every encountered type.
                 while (_typesToGenerate.Count > 0)
                 {
@@ -152,7 +227,10 @@ namespace System.Text.Json.SourceGeneration
                     TypeToGenerate typeToGenerate = _typesToGenerate.Dequeue();
                     if (!_generatedTypes.ContainsKey(typeToGenerate.Type))
                     {
-                        TypeGenerationSpec spec = ParseTypeGenerationSpec(typeToGenerate, contextTypeSymbol, options);
+                        string? defaultContext = !forceFullTypeTraversal ? GetDefaultContextForType(typeToGenerate.Type) : null;
+                        TypeGenerationSpec spec = defaultContext is not null
+                            ? CreateDelegatedTypeStub(typeToGenerate, defaultContext)
+                            : ParseTypeGenerationSpec(typeToGenerate, contextTypeSymbol, options);
                         _generatedTypes.Add(typeToGenerate.Type, spec);
                     }
                 }
@@ -163,6 +241,9 @@ namespace System.Text.Json.SourceGeneration
                 {
                     ContextType = new(contextTypeSymbol),
                     GeneratedTypes = _generatedTypes.Values.OrderBy(t => t.TypeRef.FullyQualifiedName).ToImmutableEquatableArray(),
+                    ReferencedDefaultContexts = !forceFullTypeTraversal
+                        ? _referencedDefaultContexts?.ToImmutableEquatableArray() ?? ImmutableEquatableArray<string>.Empty
+                        : ImmutableEquatableArray<string>.Empty,
                     Namespace = contextTypeSymbol.ContainingNamespace is { IsGlobalNamespace: false } ns ? ns.ToDisplayString() : null,
                     ContextClassDeclarations = classDeclarationList.ToImmutableEquatableArray(),
                     GeneratedOptionsSpec = options,
@@ -233,6 +314,65 @@ namespace System.Text.Json.SourceGeneration
                 });
 
                 return new TypeRef(type);
+            }
+
+            private string? GetDefaultContextForType(ITypeSymbol type)
+            {
+                if (_assembliesWithDefaultContext.Count == 0)
+                {
+                    return null;
+                }
+
+                IAssemblySymbol? containingAssembly = type.ContainingAssembly;
+                if (containingAssembly is not null &&
+                    _assembliesWithDefaultContext.TryGetValue(containingAssembly, out DefaultContextInfo contextInfo) &&
+                    contextInfo.CoveredTypes.Contains(type))
+                {
+                    return contextInfo.ContextFullyQualifiedName;
+                }
+
+                return null;
+            }
+
+            /// <summary>
+            /// Creates a minimal stub TypeGenerationSpec for a type whose metadata is delegated
+            /// to a canonical context. Does not parse properties or constructors, cutting off BFS traversal.
+            /// </summary>
+            private static TypeGenerationSpec CreateDelegatedTypeStub(in TypeToGenerate typeToGenerate, string defaultContextFQN)
+            {
+                ITypeSymbol type = typeToGenerate.Type;
+                string typeInfoPropertyName = typeToGenerate.TypeInfoPropertyName ?? GetTypeInfoPropertyName(type);
+
+                return new TypeGenerationSpec
+                {
+                    TypeRef = new TypeRef(type),
+                    TypeInfoPropertyName = typeInfoPropertyName,
+                    GenerationMode = JsonSourceGenerationMode.Default,
+                    PrimitiveTypeKind = null,
+                    ClassType = ClassType.Object,
+                    ImplementsIJsonOnSerialized = false,
+                    ImplementsIJsonOnSerializing = false,
+                    IsPolymorphic = false,
+                    IsValueTuple = false,
+                    NumberHandling = null,
+                    UnmappedMemberHandling = null,
+                    PreferredPropertyObjectCreationHandling = null,
+                    PropertyGenSpecs = ImmutableEquatableArray<PropertyGenerationSpec>.Empty,
+                    FastPathPropertyIndices = null,
+                    CtorParamGenSpecs = ImmutableEquatableArray<ParameterGenerationSpec>.Empty,
+                    PropertyInitializerSpecs = ImmutableEquatableArray<PropertyInitializerGenerationSpec>.Empty,
+                    CollectionType = CollectionType.NotApplicable,
+                    CollectionKeyType = null,
+                    CollectionValueType = null,
+                    ConstructionStrategy = ObjectConstructionStrategy.NotApplicable,
+                    ConstructorSetsRequiredParameters = false,
+                    NullableUnderlyingType = null,
+                    RuntimeTypeRef = null,
+                    HasExtensionDataPropertyType = false,
+                    ConverterType = null,
+                    ImmutableCollectionFactoryMethod = null,
+                    DelegatedToExternalContext = defaultContextFQN,
+                };
             }
 
             private void ParseJsonSerializerContextAttributes(
@@ -345,6 +485,7 @@ namespace System.Text.Json.SourceGeneration
                 char? indentCharacter = null;
                 int? indentSize = null;
                 bool? allowDuplicateProperties = null;
+                bool? forceFullTypeTraversal = null;
 
                 if (attributeData.ConstructorArguments.Length > 0)
                 {
@@ -474,6 +615,10 @@ namespace System.Text.Json.SourceGeneration
                             allowDuplicateProperties = (bool)namedArg.Value.Value!;
                             break;
 
+                        case nameof(JsonSourceGenerationOptionsAttribute.ForceFullTypeTraversal):
+                            forceFullTypeTraversal = (bool)namedArg.Value.Value!;
+                            break;
+
                         default:
                             throw new InvalidOperationException();
                     }
@@ -509,6 +654,7 @@ namespace System.Text.Json.SourceGeneration
                     IndentCharacter = indentCharacter,
                     IndentSize = indentSize,
                     AllowDuplicateProperties = allowDuplicateProperties,
+                    ForceFullTypeTraversal = forceFullTypeTraversal,
                 };
             }
 
@@ -739,6 +885,7 @@ namespace System.Text.Json.SourceGeneration
                     ImplementsIJsonOnSerialized = implementsIJsonOnSerialized,
                     ImplementsIJsonOnSerializing = implementsIJsonOnSerializing,
                     ImmutableCollectionFactoryMethod = DetermineImmutableCollectionFactoryMethod(immutableCollectionFactoryTypeFullName),
+                    DelegatedToExternalContext = null,
                 };
             }
 
@@ -1939,6 +2086,12 @@ namespace System.Text.Json.SourceGeneration
                         builtInSupportTypes.Add(type);
                     }
                 }
+            }
+
+            private readonly struct DefaultContextInfo
+            {
+                public required string ContextFullyQualifiedName { get; init; }
+                public required HashSet<ITypeSymbol> CoveredTypes { get; init; }
             }
 
             private readonly struct TypeToGenerate

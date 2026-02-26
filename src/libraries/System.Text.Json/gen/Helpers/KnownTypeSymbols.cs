@@ -234,6 +234,12 @@ namespace System.Text.Json.SourceGeneration
         public INamedTypeSymbol? JsonSourceGenerationOptionsAttributeType => GetOrResolveType("System.Text.Json.Serialization.JsonSourceGenerationOptionsAttribute", ref _JsonSourceGenerationOptionsAttributeType);
         private Option<INamedTypeSymbol?> _JsonSourceGenerationOptionsAttributeType;
 
+        public INamedTypeSymbol? JsonTypeInfoOfTType => GetOrResolveType("System.Text.Json.Serialization.Metadata.JsonTypeInfo`1", ref _JsonTypeInfoOfTType);
+        private Option<INamedTypeSymbol?> _JsonTypeInfoOfTType;
+
+        public INamedTypeSymbol? DefaultJsonSerializerContextAttributeType => GetOrResolveType("System.Text.Json.Serialization.DefaultJsonSerializerContextAttribute", ref _DefaultJsonSerializerContextAttributeType);
+        private Option<INamedTypeSymbol?> _DefaultJsonSerializerContextAttributeType;
+
         public INamedTypeSymbol? JsonUnmappedMemberHandlingAttributeType => GetOrResolveType("System.Text.Json.Serialization.JsonUnmappedMemberHandlingAttribute", ref _JsonUnmappedMemberHandlingAttributeType);
         private Option<INamedTypeSymbol?> _JsonUnmappedMemberHandlingAttributeType;
 

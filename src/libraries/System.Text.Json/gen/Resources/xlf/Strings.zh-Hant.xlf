@@ -22,6 +22,16 @@
         <target state="translated">資料延伸屬性類型無效。</target>
         <note />
       </trans-unit>
+      <trans-unit id="DefaultJsonSerializerContextNotAccessibleMessageFormat">
+        <source>The type '{0}' specified in '[assembly: DefaultJsonSerializerContext]' on assembly '{1}' is not accessible from the consuming assembly. The context type must be public.</source>
+        <target state="new">The type '{0}' specified in '[assembly: DefaultJsonSerializerContext]' on assembly '{1}' is not accessible from the consuming assembly. The context type must be public.</target>
+        <note />
+      </trans-unit>
+      <trans-unit id="DefaultJsonSerializerContextNotAccessibleTitle">
+        <source>Default JSON serializer context is not accessible.</source>
+        <target state="new">Default JSON serializer context is not accessible.</target>
+        <note />
+      </trans-unit>
       <trans-unit id="DerivedJsonConverterAttributesNotSupportedMessageFormat">
         <source>The custom attribute '{0}' deriving from JsonConverterAttribute is not supported by the source generator.</source>
         <target state="translated">來源產生器不支援衍生自 JsonConverterAttribute 的自訂屬性 '{0}'。</target>

@@ -182,5 +182,12 @@ namespace System.Text.Json.Serialization
         /// Specifies the default value of <see cref="JsonSerializerOptions.AllowDuplicateProperties"/> when set.
         /// </summary>
         public bool AllowDuplicateProperties { get; set; }
+
+        /// <summary>
+        /// When set to <see langword="true"/>, instructs the source generator to ignore any
+        /// <see cref="DefaultJsonSerializerContextAttribute"/> annotations on referenced assemblies
+        /// and traverse the full type graph as it would normally.
+        /// </summary>
+        public bool ForceFullTypeTraversal { get; set; }
     }
 }

@@ -31,6 +31,12 @@ namespace System.Text.Json.SourceGeneration
 
         public required ImmutableEquatableArray<TypeGenerationSpec> GeneratedTypes { get; init; }
 
+        /// <summary>
+        /// Fully qualified names of canonical contexts from referenced assemblies
+        /// whose types should be delegated to rather than re-generated.
+        /// </summary>
+        public required ImmutableEquatableArray<string> ReferencedDefaultContexts { get; init; }
+
         public required string? Namespace { get; init; }
 
         public required ImmutableEquatableArray<string> ContextClassDeclarations { get; init; }
