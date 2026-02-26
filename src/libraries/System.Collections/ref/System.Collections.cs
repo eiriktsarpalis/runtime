@@ -335,6 +335,20 @@ namespace System.Collections.Generic
         void System.Collections.IDictionary.Remove(object key) { }
         System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() { throw null; }
         public bool TryGetValue(TKey key, [System.Diagnostics.CodeAnalysis.MaybeNullWhenAttribute(false)] out TValue value) { throw null; }
+        public System.Collections.Generic.SortedDictionary<TKey, TValue>.AlternateLookup<TAlternateKey> GetAlternateLookup<TAlternateKey>() where TAlternateKey : allows ref struct { throw null; }
+        public bool TryGetAlternateLookup<TAlternateKey>(out System.Collections.Generic.SortedDictionary<TKey, TValue>.AlternateLookup<TAlternateKey> lookup) where TAlternateKey : allows ref struct { throw null; }
+        public readonly partial struct AlternateLookup<TAlternateKey> where TAlternateKey : allows ref struct
+        {
+            private readonly object _dummy;
+            private readonly int _dummyPrimitive;
+            public System.Collections.Generic.SortedDictionary<TKey, TValue> Dictionary { get { throw null; } }
+            public TValue this[TAlternateKey key] { get { throw null; } set { } }
+            public bool ContainsKey(TAlternateKey key) { throw null; }
+            public bool Remove(TAlternateKey key) { throw null; }
+            public bool Remove(TAlternateKey key, [System.Diagnostics.CodeAnalysis.MaybeNullWhenAttribute(false)] out TValue value) { throw null; }
+            public bool TryAdd(TAlternateKey key, TValue value) { throw null; }
+            public bool TryGetValue(TAlternateKey key, [System.Diagnostics.CodeAnalysis.MaybeNullWhenAttribute(false)] out TValue value) { throw null; }
+        }
         public partial struct Enumerator : System.Collections.Generic.IEnumerator<System.Collections.Generic.KeyValuePair<TKey, TValue>>, System.Collections.IDictionaryEnumerator, System.Collections.IEnumerator, System.IDisposable
         {
             private object _dummy;
@@ -454,6 +468,21 @@ namespace System.Collections.Generic
         System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() { throw null; }
         public void TrimExcess() { }
         public bool TryGetValue(TKey key, [System.Diagnostics.CodeAnalysis.MaybeNullWhenAttribute(false)] out TValue value) { throw null; }
+        public System.Collections.Generic.SortedList<TKey, TValue>.AlternateLookup<TAlternateKey> GetAlternateLookup<TAlternateKey>() where TAlternateKey : allows ref struct { throw null; }
+        public bool TryGetAlternateLookup<TAlternateKey>(out System.Collections.Generic.SortedList<TKey, TValue>.AlternateLookup<TAlternateKey> lookup) where TAlternateKey : allows ref struct { throw null; }
+        public readonly partial struct AlternateLookup<TAlternateKey> where TAlternateKey : allows ref struct
+        {
+            private readonly object _dummy;
+            private readonly int _dummyPrimitive;
+            public TValue this[TAlternateKey key] { get { throw null; } set { } }
+            public System.Collections.Generic.SortedList<TKey, TValue> List { get { throw null; } }
+            public bool ContainsKey(TAlternateKey key) { throw null; }
+            public int IndexOfKey(TAlternateKey key) { throw null; }
+            public bool Remove(TAlternateKey key) { throw null; }
+            public bool Remove(TAlternateKey key, [System.Diagnostics.CodeAnalysis.MaybeNullWhenAttribute(false)] out TValue value) { throw null; }
+            public bool TryAdd(TAlternateKey key, TValue value) { throw null; }
+            public bool TryGetValue(TAlternateKey key, [System.Diagnostics.CodeAnalysis.MaybeNullWhenAttribute(false)] out TValue value) { throw null; }
+        }
     }
     public partial class SortedSet<T> : System.Collections.Generic.ICollection<T>, System.Collections.Generic.IEnumerable<T>, System.Collections.Generic.IReadOnlyCollection<T>, System.Collections.Generic.ISet<T>, System.Collections.Generic.IReadOnlySet<T>, System.Collections.ICollection, System.Collections.IEnumerable, System.Runtime.Serialization.IDeserializationCallback, System.Runtime.Serialization.ISerializable
     {
@@ -503,6 +532,18 @@ namespace System.Collections.Generic
         void System.Runtime.Serialization.ISerializable.GetObjectData(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context) { }
         public bool TryGetValue(T equalValue, [System.Diagnostics.CodeAnalysis.MaybeNullWhenAttribute(false)] out T actualValue) { throw null; }
         public void UnionWith(System.Collections.Generic.IEnumerable<T> other) { }
+        public System.Collections.Generic.SortedSet<T>.AlternateLookup<TAlternate> GetAlternateLookup<TAlternate>() where TAlternate : allows ref struct { throw null; }
+        public bool TryGetAlternateLookup<TAlternate>(out System.Collections.Generic.SortedSet<T>.AlternateLookup<TAlternate> lookup) where TAlternate : allows ref struct { throw null; }
+        public readonly partial struct AlternateLookup<TAlternate> where TAlternate : allows ref struct
+        {
+            private readonly object _dummy;
+            private readonly int _dummyPrimitive;
+            public System.Collections.Generic.SortedSet<T> Set { get { throw null; } }
+            public bool Add(TAlternate item) { throw null; }
+            public bool Contains(TAlternate item) { throw null; }
+            public bool Remove(TAlternate item) { throw null; }
+            public bool TryGetValue(TAlternate equalValue, [System.Diagnostics.CodeAnalysis.MaybeNullWhenAttribute(false)] out T actualValue) { throw null; }
+        }
         public partial struct Enumerator : System.Collections.Generic.IEnumerator<T>, System.Collections.IEnumerator, System.IDisposable, System.Runtime.Serialization.IDeserializationCallback, System.Runtime.Serialization.ISerializable
         {
             private object _dummy;

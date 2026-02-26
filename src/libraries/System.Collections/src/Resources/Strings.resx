@@ -87,6 +87,9 @@
   <data name="InvalidOperation_EnumFailedVersion" xml:space="preserve">
     <value>Collection was modified after the enumerator was instantiated.</value>
   </data>
+  <data name="InvalidOperation_IncompatibleComparer" xml:space="preserve">
+    <value>The collection's comparer does not support the requested operation.</value>
+  </data>
   <data name="InvalidOperation_EmptyStack" xml:space="preserve">
     <value>Stack empty.</value>
   </data>

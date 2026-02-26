@@ -8300,6 +8300,11 @@ namespace System.Collections
 }
 namespace System.Collections.Generic
 {
+    public partial interface IAlternateComparer<in TAlternate, T> where TAlternate : allows ref struct where T : allows ref struct
+    {
+        int Compare(TAlternate alternate, T other);
+        T Create(TAlternate alternate);
+    }
     public partial interface IAlternateEqualityComparer<in TAlternate, T> where TAlternate : allows ref struct where T : allows ref struct
     {
         bool Equals(TAlternate alternate, T other);

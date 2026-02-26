@@ -55,6 +55,8 @@ namespace System.Collections.Generic
         private int count;
         private int version;
 
+        internal Node? Root => root;
+
         private SerializationInfo? siInfo; // A temporary variable which we need during deserialization.
 
         private const string ComparerName = "Comparer"; // Do not rename (binary serialization)

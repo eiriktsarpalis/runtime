@@ -34,6 +34,11 @@ namespace System.Collections
         internal static void ThrowVersionCheckFailed() =>
             throw new InvalidOperationException(SR.InvalidOperation_EnumFailedVersion);
 
+        /// <summary>Throws an exception when the collection's comparer is not compatible with the requested alternate key type.</summary>
+        [DoesNotReturn]
+        internal static void ThrowInvalidOperationException_IncompatibleComparer() =>
+            throw new InvalidOperationException(SR.InvalidOperation_IncompatibleComparer);
+
 #if !NET
         /// <summary>Throws an <see cref="ArgumentOutOfRangeException"/> if <paramref name="value"/> is negative.</summary>
         /// <param name="value">The argument to validate as non-negative.</param>

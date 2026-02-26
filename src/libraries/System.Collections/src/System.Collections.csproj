@@ -21,8 +21,17 @@
     <Compile Include="System\Collections\Generic\PriorityQueue.cs" />
     <Compile Include="System\Collections\Generic\PriorityQueueDebugView.cs" />
     <Compile Include="System\Collections\Generic\SortedDictionary.cs" />
+    <Compile Include="System\Collections\Generic\SortedDictionary.AlternateLookup.cs">
+      <ExcludeFromGenFacades>true</ExcludeFromGenFacades>
+    </Compile>
     <Compile Include="System\Collections\Generic\SortedList.cs" />
+    <Compile Include="System\Collections\Generic\SortedList.AlternateLookup.cs">
+      <ExcludeFromGenFacades>true</ExcludeFromGenFacades>
+    </Compile>
     <Compile Include="System\Collections\Generic\SortedSet.cs" />
+    <Compile Include="System\Collections\Generic\SortedSet.AlternateLookup.cs">
+      <ExcludeFromGenFacades>true</ExcludeFromGenFacades>
+    </Compile>
     <Compile Include="System\Collections\Generic\SortedSet.TreeSubSet.cs" />
     <Compile Include="System\Collections\Generic\SortedSetEqualityComparer.cs" />
     <Compile Include="System\Collections\Generic\Stack.cs" />

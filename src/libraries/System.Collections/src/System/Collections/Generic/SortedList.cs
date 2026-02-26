@@ -51,7 +51,7 @@ namespace System.Collections.Generic
     [DebuggerDisplay("Count = {Count}")]
     [Serializable]
     [System.Runtime.CompilerServices.TypeForwardedFrom("System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089")]
-    public class SortedList<TKey, TValue> :
+    public partial class SortedList<TKey, TValue> :
         IDictionary<TKey, TValue>, IDictionary, IReadOnlyDictionary<TKey, TValue> where TKey : notnull
     {
         private TKey[] keys; // Do not rename (binary serialization)

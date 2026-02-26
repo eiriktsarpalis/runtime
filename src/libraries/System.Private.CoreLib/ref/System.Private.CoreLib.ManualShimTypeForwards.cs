@@ -6,11 +6,13 @@
 
 namespace System
 {
-    public sealed partial class CultureAwareComparer : System.StringComparer, System.Collections.Generic.IAlternateEqualityComparer<System.ReadOnlySpan<char>, string?>, System.Runtime.Serialization.ISerializable
+    public sealed partial class CultureAwareComparer : System.StringComparer, System.Collections.Generic.IAlternateEqualityComparer<System.ReadOnlySpan<char>, string?>, System.Collections.Generic.IAlternateComparer<System.ReadOnlySpan<char>, string?>, System.Runtime.Serialization.ISerializable
     {
         internal CultureAwareComparer() { }
         public override int Compare(string? x, string? y) { throw null; }
         string System.Collections.Generic.IAlternateEqualityComparer<System.ReadOnlySpan<char>, string?>.Create(System.ReadOnlySpan<char> span) { throw null; }
+        int System.Collections.Generic.IAlternateComparer<System.ReadOnlySpan<char>, string?>.Compare(System.ReadOnlySpan<char> span, string? target) { throw null; }
+        string System.Collections.Generic.IAlternateComparer<System.ReadOnlySpan<char>, string?>.Create(System.ReadOnlySpan<char> span) { throw null; }
         public override bool Equals([System.Diagnostics.CodeAnalysis.NotNullWhenAttribute(true)] object? obj) { throw null; }
         public override bool Equals(string? x, string? y) { throw null; }
         bool System.Collections.Generic.IAlternateEqualityComparer<System.ReadOnlySpan<char>, string?>.Equals(System.ReadOnlySpan<char> span, string? target) { throw null; }
@@ -19,11 +21,13 @@ namespace System
         int System.Collections.Generic.IAlternateEqualityComparer<System.ReadOnlySpan<char>, string?>.GetHashCode(System.ReadOnlySpan<char> span) { throw null; }
         public void GetObjectData(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context) { }
     }
-    public partial class OrdinalComparer : System.StringComparer, System.Collections.Generic.IAlternateEqualityComparer<System.ReadOnlySpan<char>, string?>
+    public partial class OrdinalComparer : System.StringComparer, System.Collections.Generic.IAlternateEqualityComparer<System.ReadOnlySpan<char>, string?>, System.Collections.Generic.IAlternateComparer<System.ReadOnlySpan<char>, string?>
     {
         internal OrdinalComparer() { }
         public override int Compare(string? x, string? y) { throw null; }
         string System.Collections.Generic.IAlternateEqualityComparer<System.ReadOnlySpan<char>, string?>.Create(System.ReadOnlySpan<char> span) { throw null; }
+        int System.Collections.Generic.IAlternateComparer<System.ReadOnlySpan<char>, string?>.Compare(System.ReadOnlySpan<char> span, string? target) { throw null; }
+        string System.Collections.Generic.IAlternateComparer<System.ReadOnlySpan<char>, string?>.Create(System.ReadOnlySpan<char> span) { throw null; }
         public override bool Equals([System.Diagnostics.CodeAnalysis.NotNullWhenAttribute(true)] object? obj) { throw null; }
         public override bool Equals(string? x, string? y) { throw null; }
         bool System.Collections.Generic.IAlternateEqualityComparer<System.ReadOnlySpan<char>, string?>.Equals(System.ReadOnlySpan<char> span, string? target) { throw null; }
