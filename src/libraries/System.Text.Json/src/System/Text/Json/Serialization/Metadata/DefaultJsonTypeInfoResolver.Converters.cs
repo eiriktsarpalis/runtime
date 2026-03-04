@@ -33,6 +33,10 @@ namespace System.Text.Json.Serialization.Metadata
                 new IAsyncEnumerableConverterFactory(),
                 // IEnumerable should always be second to last since they can convert any IEnumerable.
                 new IEnumerableConverterFactory(),
+#if NET11_0_OR_GREATER
+                // Union converter should be before Object since it converts [Union] types.
+                new JsonUnionConverterFactory(),
+#endif
                 // Object should always be last since it converts any type.
                 new ObjectConverterFactory()
             ];

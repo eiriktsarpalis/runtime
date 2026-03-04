@@ -13615,6 +13615,17 @@ namespace System.Runtime.CompilerServices
         public System.Type BuilderType { get { throw null; } }
         public string MethodName { get { throw null; } }
     }
+    [System.AttributeUsageAttribute(System.AttributeTargets.Class | System.AttributeTargets.Enum, AllowMultiple=false, Inherited=false)]
+    public sealed partial class ClosedAttribute : System.Attribute
+    {
+        public ClosedAttribute() { }
+    }
+    [System.AttributeUsageAttribute(System.AttributeTargets.Class, AllowMultiple=true, Inherited=false)]
+    public sealed partial class ClosedSubtypeAttribute : System.Attribute
+    {
+        public ClosedSubtypeAttribute(System.Type subtypeType) { }
+        public System.Type SubtypeType { get { throw null; } }
+    }
     [System.FlagsAttribute]
     public enum CompilationRelaxations
     {
@@ -14021,6 +14032,10 @@ namespace System.Runtime.CompilerServices
         object? this[int index] { get; }
         int Length { get; }
     }
+    public partial interface IUnion
+    {
+        object? Value { get; }
+    }
     public enum LoadHint
     {
         Default = 0,
@@ -14331,6 +14346,11 @@ namespace System.Runtime.CompilerServices
     {
         public TypeForwardedToAttribute(System.Type destination) { }
         public System.Type Destination { get { throw null; } }
+    }
+    [System.AttributeUsageAttribute(System.AttributeTargets.Class | System.AttributeTargets.Struct, AllowMultiple=false, Inherited=false)]
+    public sealed partial class UnionAttribute : System.Attribute
+    {
+        public UnionAttribute() { }
     }
     public static partial class Unsafe
     {

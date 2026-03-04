@@ -63,6 +63,9 @@ namespace System.Text.Json.Serialization.Metadata
             }
 
             typeInfo.PopulatePolymorphismMetadata();
+#if NET11_0_OR_GREATER
+            typeInfo.PopulateUnionMetadata();
+#endif
             typeInfo.MapInterfaceTypesToCallbacks();
 
             Func<object>? createObject = DetermineCreateObjectDelegate(type, converter);

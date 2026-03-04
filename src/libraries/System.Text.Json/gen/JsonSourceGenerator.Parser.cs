@@ -798,6 +798,169 @@ namespace System.Text.Json.SourceGeneration
                         isPolymorphic = true;
                     }
                 }
+
+                // InferDerivedTypes: when [JsonPolymorphic(InferDerivedTypes = true)] is present,
+                // discover derived types at compile time and enqueue them for metadata generation.
+                if (HasInferDerivedTypes(typeToGenerate.Type))
+                {
+                    EnqueueInferredDerivedTypes(typeToGenerate);
+                    isPolymorphic = true;
+                }
+
+                // Union types: when [Union] + IUnion are present, enqueue all case types
+                // (constructor parameter types) for metadata generation.
+                if (IsUnionType(typeToGenerate.Type))
+                {
+                    EnqueueUnionCaseTypes(typeToGenerate);
+                }
+            }
+
+            /// <summary>
+            /// Checks whether the type has [JsonPolymorphic(InferDerivedTypes = true)].
+            /// </summary>
+            private bool HasInferDerivedTypes(ITypeSymbol type)
+            {
+                INamedTypeSymbol? jsonPolymorphicType = _knownSymbols.JsonPolymorphicAttributeType;
+                if (jsonPolymorphicType is null)
+                {
+                    return false;
+                }
+
+                foreach (AttributeData attr in type.GetAttributes())
+                {
+                    if (SymbolEqualityComparer.Default.Equals(attr.AttributeClass, jsonPolymorphicType))
+                    {
+                        foreach (KeyValuePair<string, TypedConstant> namedArg in attr.NamedArguments)
+                        {
+                            if (namedArg.Key == "InferDerivedTypes" && namedArg.Value.Value is true)
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                }
+
+                return false;
+            }
+
+            /// <summary>
+            /// Discovers derived types at compile time from [ClosedSubtype] attributes
+            /// or by scanning the compilation for direct subtypes.
+            /// </summary>
+            private void EnqueueInferredDerivedTypes(in TypeToGenerate typeToGenerate)
+            {
+                ITypeSymbol type = typeToGenerate.Type;
+                bool foundClosedSubtypes = false;
+
+                // Fast path: [ClosedSubtype(typeof(...))] attributes.
+                INamedTypeSymbol? closedSubtypeType = _knownSymbols.ClosedSubtypeAttributeType;
+                if (closedSubtypeType is not null)
+                {
+                    foreach (AttributeData attr in type.GetAttributes())
+                    {
+                        if (SymbolEqualityComparer.Default.Equals(attr.AttributeClass, closedSubtypeType)
+                            && attr.ConstructorArguments.Length > 0
+                            && attr.ConstructorArguments[0].Value is ITypeSymbol subtypeSymbol)
+                        {
+                            EnqueueType(subtypeSymbol, typeToGenerate.Mode);
+                            foundClosedSubtypes = true;
+                        }
+                    }
+                }
+
+                if (foundClosedSubtypes)
+                {
+                    return;
+                }
+
+                // Slow path: scan the compilation for direct subtypes.
+                ScanCompilationForDerivedTypes(type, typeToGenerate.Mode);
+            }
+
+            /// <summary>
+            /// Scans all types in the compilation for direct subtypes of the given base type.
+            /// This is the compile-time equivalent of Assembly.GetTypes() scanning.
+            /// </summary>
+            private void ScanCompilationForDerivedTypes(ITypeSymbol baseType, JsonSourceGenerationMode? mode)
+            {
+                foreach (IModuleSymbol module in _knownSymbols.Compilation.Assembly.Modules)
+                {
+                    ScanNamespaceForDerivedTypes(module.GlobalNamespace, baseType, mode);
+                }
+            }
+
+            private void ScanNamespaceForDerivedTypes(INamespaceSymbol ns, ITypeSymbol baseType, JsonSourceGenerationMode? mode)
+            {
+                foreach (INamedTypeSymbol type in ns.GetTypeMembers())
+                {
+                    if (type.BaseType is not null && SymbolEqualityComparer.Default.Equals(type.BaseType, baseType))
+                    {
+                        EnqueueType(type, mode);
+                    }
+                }
+
+                foreach (INamespaceSymbol childNs in ns.GetNamespaceMembers())
+                {
+                    ScanNamespaceForDerivedTypes(childNs, baseType, mode);
+                }
+            }
+
+            /// <summary>
+            /// Checks whether the type has [Union] and implements IUnion.
+            /// </summary>
+            private bool IsUnionType(ITypeSymbol type)
+            {
+                INamedTypeSymbol? unionAttrType = _knownSymbols.UnionAttributeType;
+                INamedTypeSymbol? iUnionType = _knownSymbols.IUnionType;
+
+                if (unionAttrType is null || iUnionType is null)
+                {
+                    return false;
+                }
+
+                bool hasUnionAttr = false;
+                foreach (AttributeData attr in type.GetAttributes())
+                {
+                    if (SymbolEqualityComparer.Default.Equals(attr.AttributeClass, unionAttrType))
+                    {
+                        hasUnionAttr = true;
+                        break;
+                    }
+                }
+
+                if (!hasUnionAttr)
+                {
+                    return false;
+                }
+
+                return type.AllInterfaces.Any(i => SymbolEqualityComparer.Default.Equals(i, iUnionType));
+            }
+
+            /// <summary>
+            /// Enqueues all case types from a union's single-parameter constructors.
+            /// </summary>
+            private void EnqueueUnionCaseTypes(in TypeToGenerate typeToGenerate)
+            {
+                if (typeToGenerate.Type is not INamedTypeSymbol namedType)
+                {
+                    return;
+                }
+
+                foreach (IMethodSymbol ctor in namedType.InstanceConstructors)
+                {
+                    if (ctor.Parameters.Length == 1 && ctor.DeclaredAccessibility == Accessibility.Public)
+                    {
+                        ITypeSymbol caseType = ctor.Parameters[0].Type;
+
+                        // Unwrap Nullable<T>.
+                        if (caseType is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullableType)
+                        {
+                            caseType = nullableType.TypeArguments[0];
+                        }
+
+                        EnqueueType(caseType, typeToGenerate.Mode);
+                    }
+                }
             }
 
             private bool TryResolveCollectionType(

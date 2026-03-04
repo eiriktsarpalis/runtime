@@ -348,6 +348,149 @@ namespace System.Text.Json.Serialization.Metadata
 
         private protected JsonPolymorphismOptions? _polymorphismOptions;
 
+        /// <summary>
+        /// Gets the list of union case type metadata for this type.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// This property is only meaningful when <see cref="Kind"/> is <see cref="JsonTypeInfoKind.Union"/>.
+        /// The list is mutable during configuration and frozen at finalization time.
+        /// </para>
+        /// <para>
+        /// For types discovered via convention (e.g., <see cref="JsonUnionAttribute"/>),
+        /// the list is automatically populated. For Level 3 contract customization,
+        /// users can populate this list manually.
+        /// </para>
+        /// </remarks>
+        public IList<JsonUnionCaseInfo>? UnionCases
+        {
+            get => _unionCases;
+            set
+            {
+                VerifyMutable();
+                if (value is null or UnionCaseList)
+                {
+                    _unionCases = value;
+                }
+                else
+                {
+                    // Wrap user-supplied lists in a UnionCaseList for freeze support.
+                    _unionCases = new UnionCaseList(this, value);
+                }
+            }
+        }
+
+        private IList<JsonUnionCaseInfo>? _unionCases;
+
+        private sealed class UnionCaseList : ConfigurationList<JsonUnionCaseInfo>
+        {
+            private readonly JsonTypeInfo _parent;
+
+            public UnionCaseList(JsonTypeInfo parent, IEnumerable<JsonUnionCaseInfo>? source = null) : base(source)
+            {
+                _parent = parent;
+            }
+
+            public override bool IsReadOnly => _parent.IsReadOnly;
+            protected override void OnCollectionModifying() => _parent.VerifyMutable();
+        }
+
+        /// <summary>
+        /// Gets or sets the delegate that classifies JSON payloads to determine the target type
+        /// during deserialization.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// This is the shared classification property for both polymorphic types and union types.
+        /// </para>
+        /// <para>
+        /// For <strong>polymorphic types</strong>: when set, bypasses the standard discriminator-based
+        /// type resolution (scanning for a <c>$type</c> property). When <see langword="null"/>
+        /// (default), the existing discriminator-based approach is used unchanged.
+        /// </para>
+        /// <para>
+        /// For <strong>union types</strong>: determines which case type matches the JSON payload.
+        /// Auto-configured with structural matching by default. When set by the user (Level 2
+        /// customization), replaces the default structural matching.
+        /// </para>
+        /// </remarks>
+        public JsonTypeClassifier? TypeClassifier
+        {
+            get => _typeClassifier;
+            set
+            {
+                VerifyMutable();
+                _typeClassifier = value;
+            }
+        }
+
+        private JsonTypeClassifier? _typeClassifier;
+
+        /// <summary>
+        /// Gets or sets the weakly-typed delegate that deconstructs a union instance into
+        /// its case type and case value.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The delegate combines object classification and value extraction in a single call,
+        /// returning a tuple of <c>(Type CaseType, object? CaseValue)</c>.
+        /// </para>
+        /// <para>
+        /// Prefer setting the strongly-typed <see cref="JsonTypeInfo{T}.UnionDeconstructor"/>
+        /// on <see cref="JsonTypeInfo{T}"/> to avoid boxing when the union type is a value type.
+        /// </para>
+        /// </remarks>
+        public Func<object, (Type CaseType, object? CaseValue)>? UnionDeconstructor
+        {
+            get => _unionDeconstructor;
+            set
+            {
+                VerifyMutable();
+                SetUnionDeconstructor(value);
+            }
+        }
+
+        private protected virtual void SetUnionDeconstructor(Delegate? deconstructor)
+        {
+            Debug.Assert(deconstructor is null or Func<object, (Type, object?)>);
+            _unionDeconstructor = (Func<object, (Type, object?)>?)deconstructor;
+        }
+
+        private protected Func<object, (Type, object?)>? _unionDeconstructor;
+
+        /// <summary>
+        /// Gets or sets the weakly-typed delegate that constructs a union instance from
+        /// a case type and case value.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The delegate takes a <see cref="Type"/> parameter for case type disambiguation
+        /// (e.g., when overlapping case types exist like <c>Labrador : Dog</c>) and an
+        /// <c>object?</c> case value, returning the constructed union instance.
+        /// </para>
+        /// <para>
+        /// Prefer setting the strongly-typed <see cref="JsonTypeInfo{T}.UnionConstructor"/>
+        /// on <see cref="JsonTypeInfo{T}"/> to avoid boxing when the union type is a value type.
+        /// </para>
+        /// </remarks>
+        public Func<Type, object?, object>? UnionConstructor
+        {
+            get => _unionConstructor;
+            set
+            {
+                VerifyMutable();
+                SetUnionConstructor(value);
+            }
+        }
+
+        private protected virtual void SetUnionConstructor(Delegate? constructor)
+        {
+            Debug.Assert(constructor is null or Func<Type, object?, object>);
+            _unionConstructor = (Func<Type, object?, object>?)constructor;
+        }
+
+        private protected Func<Type, object?, object>? _unionConstructor;
+
         internal object? CreateObjectWithArgs { get; set; }
 
         // Add method delegate for non-generic Stack and Queue; and types that derive from them.
@@ -467,7 +610,7 @@ namespace System.Text.Json.Serialization.Metadata
         /// User-defined custom converters (specified either via <see cref="JsonConverterAttribute"/> or <see cref="JsonSerializerOptions.Converters"/>)
         /// are metadata-agnostic and thus always resolve to <see cref="JsonTypeInfoKind.None"/>.
         /// </remarks>
-        public JsonTypeInfoKind Kind { get; }
+        public JsonTypeInfoKind Kind { get; private set; }
 
         /// <summary>
         /// Dummy <see cref="JsonPropertyInfo"/> instance corresponding to the declaring type of this <see cref="JsonTypeInfo"/>.
@@ -751,6 +894,12 @@ namespace System.Text.Json.Serialization.Metadata
                 // This needs to be done before ConfigureProperties() is called
                 // JsonPropertyInfo.Configure() must have this value available in order to detect Polymoprhic + cyclic class case
                 PolymorphicTypeResolver = new PolymorphicTypeResolver(Options, PolymorphismOptions, Type, Converter.CanHaveMetadata);
+
+                // If the user set TypeClassifier via contract customization, propagate it to the resolver.
+                if (_typeClassifier is not null)
+                {
+                    PolymorphicTypeResolver.TypeClassifier = _typeClassifier;
+                }
             }
 
             if (Kind == JsonTypeInfoKind.Object)
@@ -1247,6 +1396,34 @@ namespace System.Text.Json.Serialization.Metadata
                 _polymorphismOptions = options;
             }
         }
+
+#if NET11_0_OR_GREATER
+        [RequiresUnreferencedCode(JsonSerializer.SerializationUnreferencedCodeMessage)]
+        [RequiresDynamicCode(JsonSerializer.SerializationRequiresDynamicCodeMessage)]
+        internal void PopulateUnionMetadata()
+        {
+            Debug.Assert(!IsReadOnly);
+
+            if (UnionCases is not null && UnionCases.Count > 0)
+            {
+                return;
+            }
+
+            Type type = Type;
+
+            if (type.GetCustomAttribute<UnionAttribute>() is not null
+                && typeof(IUnion).IsAssignableFrom(type))
+            {
+                Converters.JsonUnionConverterFactory.ConfigureIUnionDefaults(this);
+                Kind = JsonTypeInfoKind.Union;
+            }
+            else if (type.GetCustomAttribute<JsonUnionAttribute>() is not null)
+            {
+                Converters.JsonUnionConverterFactory.ConfigureConventionUnion(this);
+                Kind = JsonTypeInfoKind.Union;
+            }
+        }
+#endif
 
         internal void MapInterfaceTypesToCallbacks()
         {

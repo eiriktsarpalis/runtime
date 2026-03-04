@@ -1181,6 +1181,61 @@ namespace System.Text.Json.Schema.Tests
             yield return new TestData<Hashtable>(
                 Value: new() { ["one"] = 1, ["two"] = "two", ["three"] = 3.14 },
                 ExpectedJsonSchema: """{"type":["object","null"]}""");
+
+#if NET11_0_OR_GREATER
+            // Union type with object cases (Cat + Dog) — structural matching
+            yield return new TestData<UnionOfDogOrCat>(
+                Value: new UnionOfDogOrCat(new UnionDog { Name = "Rex", Breed = "Lab" }),
+                AdditionalValues: [new UnionOfDogOrCat(new UnionCat { Name = "Whiskers", Lives = 9 })],
+                ExpectedJsonSchema: """
+                    {
+                        "type": ["object","null"],
+                        "anyOf": [
+                            {
+                                "properties": {
+                                    "Name": {"type":["string","null"]},
+                                    "Breed": {"type":["string","null"]}
+                                }
+                            },
+                            {
+                                "properties": {
+                                    "Name": {"type":["string","null"]},
+                                    "Lives": {"type":"integer"}
+                                }
+                            }
+                        ]
+                    }
+                """);
+
+            // Union type nested as a property in another object
+            yield return new TestData<PocoWithUnionProperty>(
+                Value: new PocoWithUnionProperty { Owner = "Alice", Pet = new UnionOfDogOrCat(new UnionDog { Name = "Rex", Breed = "Lab" }) },
+                ExpectedJsonSchema: """
+                    {
+                        "type": ["object","null"],
+                        "properties": {
+                            "Owner": {"type":["string","null"]},
+                            "Pet": {
+                                "type": ["object","null"],
+                                "anyOf": [
+                                    {
+                                        "properties": {
+                                            "Name": {"type":["string","null"]},
+                                            "Breed": {"type":["string","null"]}
+                                        }
+                                    },
+                                    {
+                                        "properties": {
+                                            "Name": {"type":["string","null"]},
+                                            "Lives": {"type":"integer"}
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                """);
+#endif
         }
 
         public enum IntEnum { A, B, C };
@@ -1632,6 +1687,43 @@ namespace System.Text.Json.Schema.Tests
                     => writer.WriteNullValue();
             }
         }
+
+#if NET11_0_OR_GREATER
+        public class UnionDog
+        {
+            public string? Name { get; set; }
+            public string? Breed { get; set; }
+        }
+
+        public class UnionCat
+        {
+            public string? Name { get; set; }
+            public int Lives { get; set; }
+        }
+
+        [JsonUnion]
+        public struct UnionOfDogOrCat
+        {
+            public UnionOfDogOrCat(UnionDog value) { _value = value; _caseType = typeof(UnionDog); }
+            public UnionOfDogOrCat(UnionCat value) { _value = value; _caseType = typeof(UnionCat); }
+
+            private readonly object? _value;
+            private readonly Type? _caseType;
+
+            public static implicit operator UnionOfDogOrCat(UnionDog value) => new(value);
+            public static implicit operator UnionOfDogOrCat(UnionCat value) => new(value);
+            public static explicit operator UnionDog(UnionOfDogOrCat union) =>
+                union._caseType == typeof(UnionDog) ? (UnionDog)union._value! : throw new InvalidCastException();
+            public static explicit operator UnionCat(UnionOfDogOrCat union) =>
+                union._caseType == typeof(UnionCat) ? (UnionCat)union._value! : throw new InvalidCastException();
+        }
+
+        public class PocoWithUnionProperty
+        {
+            public string? Owner { get; set; }
+            public UnionOfDogOrCat Pet { get; set; }
+        }
+#endif
 
         private static TAttribute? GetCustomAttribute<TAttribute>(ICustomAttributeProvider? provider, bool inherit = false) where TAttribute : Attribute
             => provider?.GetCustomAttributes(typeof(TAttribute), inherit).FirstOrDefault() as TAttribute;

@@ -225,6 +225,18 @@ namespace System.Text.Json.SourceGeneration
         public INamedTypeSymbol? JsonDerivedTypeAttributeType => GetOrResolveType("System.Text.Json.Serialization.JsonDerivedTypeAttribute", ref _JsonDerivedTypeAttributeType);
         private Option<INamedTypeSymbol?> _JsonDerivedTypeAttributeType;
 
+        public INamedTypeSymbol? JsonPolymorphicAttributeType => GetOrResolveType("System.Text.Json.Serialization.JsonPolymorphicAttribute", ref _JsonPolymorphicAttributeType);
+        private Option<INamedTypeSymbol?> _JsonPolymorphicAttributeType;
+
+        public INamedTypeSymbol? ClosedSubtypeAttributeType => GetOrResolveType("System.Runtime.CompilerServices.ClosedSubtypeAttribute", ref _ClosedSubtypeAttributeType);
+        private Option<INamedTypeSymbol?> _ClosedSubtypeAttributeType;
+
+        public INamedTypeSymbol? UnionAttributeType => GetOrResolveType("System.Runtime.CompilerServices.UnionAttribute", ref _UnionAttributeType);
+        private Option<INamedTypeSymbol?> _UnionAttributeType;
+
+        public INamedTypeSymbol? IUnionType => GetOrResolveType("System.Runtime.CompilerServices.IUnion", ref _IUnionType);
+        private Option<INamedTypeSymbol?> _IUnionType;
+
         public INamedTypeSymbol? JsonNumberHandlingAttributeType => GetOrResolveType("System.Text.Json.Serialization.JsonNumberHandlingAttribute", ref _JsonNumberHandlingAttributeType);
         private Option<INamedTypeSymbol?> _JsonNumberHandlingAttributeType;
 

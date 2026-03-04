@@ -222,6 +222,8 @@
     <Compile Include="Serialization\OptionsTests.cs" />
     <Compile Include="Serialization\PolymorphicTests.cs" />
     <Compile Include="Serialization\PolymorphicTests.CustomTypeHierarchies.cs" />
+    <Compile Include="Serialization\PolymorphicTests.TypeClassifier.cs" />
+    <Compile Include="Serialization\InferDerivedTypesTests.cs" Condition="'$(TargetFramework)' == '$(NetCoreAppCurrent)'" />
     <Compile Include="Serialization\PropertyNameTests.cs" />
     <Compile Include="Serialization\PropertyOrderTests.cs" />
     <Compile Include="Serialization\PropertyVisibilityTests.cs" />

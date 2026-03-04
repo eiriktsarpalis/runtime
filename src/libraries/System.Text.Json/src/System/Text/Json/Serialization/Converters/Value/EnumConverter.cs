@@ -21,6 +21,9 @@ namespace System.Text.Json.Serialization.Converters
         // Odd type codes are conveniently signed types (for enum backing types).
         private static readonly bool s_isSignedEnum = ((int)s_enumTypeCode % 2) == 1;
         private static readonly bool s_isFlagsEnum = typeof(T).IsDefined(typeof(FlagsAttribute), inherit: false);
+#if NET11_0_OR_GREATER
+        private static readonly bool s_isClosedEnum = typeof(T).IsDefined(typeof(System.Runtime.CompilerServices.ClosedAttribute), inherit: false);
+#endif
 
         private readonly EnumConverterOptions _converterOptions; // Do not rename (legacy schema generation)
         private readonly JsonNamingPolicy? _namingPolicy; // Do not rename (legacy schema generation)
@@ -111,17 +114,34 @@ namespace System.Text.Json.Serialization.Converters
                     break;
 
                 case JsonTokenType.Number when (_converterOptions & EnumConverterOptions.AllowNumbers) != 0:
+                    T numericResult;
+                    bool numericParsed = true;
                     switch (s_enumTypeCode)
                     {
-                        case TypeCode.Int32 when reader.TryGetInt32(out int int32): return (T)(object)int32;
-                        case TypeCode.UInt32 when reader.TryGetUInt32(out uint uint32): return (T)(object)uint32;
-                        case TypeCode.Int64 when reader.TryGetInt64(out long int64): return (T)(object)int64;
-                        case TypeCode.UInt64 when reader.TryGetUInt64(out ulong uint64): return (T)(object)uint64;
-                        case TypeCode.Byte when reader.TryGetByte(out byte ubyte8): return (T)(object)ubyte8;
-                        case TypeCode.SByte when reader.TryGetSByte(out sbyte byte8): return (T)(object)byte8;
-                        case TypeCode.Int16 when reader.TryGetInt16(out short int16): return (T)(object)int16;
-                        case TypeCode.UInt16 when reader.TryGetUInt16(out ushort uint16): return (T)(object)uint16;
+                        case TypeCode.Int32 when reader.TryGetInt32(out int int32): numericResult = (T)(object)int32; break;
+                        case TypeCode.UInt32 when reader.TryGetUInt32(out uint uint32): numericResult = (T)(object)uint32; break;
+                        case TypeCode.Int64 when reader.TryGetInt64(out long int64): numericResult = (T)(object)int64; break;
+                        case TypeCode.UInt64 when reader.TryGetUInt64(out ulong uint64): numericResult = (T)(object)uint64; break;
+                        case TypeCode.Byte when reader.TryGetByte(out byte ubyte8): numericResult = (T)(object)ubyte8; break;
+                        case TypeCode.SByte when reader.TryGetSByte(out sbyte byte8): numericResult = (T)(object)byte8; break;
+                        case TypeCode.Int16 when reader.TryGetInt16(out short int16): numericResult = (T)(object)int16; break;
+                        case TypeCode.UInt16 when reader.TryGetUInt16(out ushort uint16): numericResult = (T)(object)uint16; break;
+                        default: numericResult = default; numericParsed = false; break;
                     }
+
+                    if (numericParsed)
+                    {
+#if NET11_0_OR_GREATER
+                        if (s_isClosedEnum && !Enum.IsDefined(numericResult))
+                        {
+                            ThrowHelper.ThrowJsonException();
+                            return default;
+                        }
+#endif
+
+                        return numericResult;
+                    }
+
                     break;
             }
 

@@ -350,6 +350,15 @@ The System.Text.Json library is built-in as part of the shared framework in .NET
     <Compile Include="System\ThrowHelper.cs" />
 
     <Compile Include="$(CoreLibSharedDir)System\Marvin.cs" Link="Common\System\Marvin.cs" />
+
+    <!-- Union/classifier types available on all TFMs -->
+    <Compile Include="System\Text\Json\Serialization\JsonDiscriminatorClassifier.cs" />
+    <Compile Include="System\Text\Json\Serialization\JsonTypeClassifier.cs" />
+    <Compile Include="System\Text\Json\Serialization\JsonTypeClassifierContext.cs" />
+    <Compile Include="System\Text\Json\Serialization\JsonTypeClassifierFactory.cs" />
+    <Compile Include="System\Text\Json\Serialization\Attributes\JsonUnionAttribute.cs" />
+    <Compile Include="System\Text\Json\Serialization\Metadata\JsonUnionCaseInfo.cs" />
+    <Compile Include="System\Text\Json\Serialization\Converters\Union\JsonStructuralClassifierFactory.cs" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFrameworkIdentifier)' != '.NETCoreApp'">
@@ -391,6 +400,8 @@ The System.Text.Json library is built-in as part of the shared framework in .NET
     <Compile Include="System\Text\Json\Serialization\Converters\Value\UInt128Converter.cs" />
     <Compile Include="System\Text\Json\Serialization\JsonSerializerOptionsUpdateHandler.cs" />
     <Compile Include="System\Text\Json\Serialization\Converters\Collection\IReadOnlySetOfTConverter.cs" />
+    <Compile Include="System\Text\Json\Serialization\Converters\Union\JsonUnionConverter.cs" />
+    <Compile Include="System\Text\Json\Serialization\Converters\Union\JsonUnionConverterFactory.cs" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFrameworkIdentifier)' != '.NETCoreApp'">

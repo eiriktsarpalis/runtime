@@ -49,5 +49,18 @@ namespace System.Text.Json
         /// <param name="name">The name to convert.</param>
         /// <returns>The converted name.</returns>
         public abstract string ConvertName(string name);
+
+#if !BUILDING_SOURCE_GENERATOR
+        internal static JsonNamingPolicy? GetNamingPolicy(Serialization.JsonKnownNamingPolicy namingPolicy) =>
+            namingPolicy switch
+            {
+                Serialization.JsonKnownNamingPolicy.CamelCase => CamelCase,
+                Serialization.JsonKnownNamingPolicy.SnakeCaseLower => SnakeCaseLower,
+                Serialization.JsonKnownNamingPolicy.SnakeCaseUpper => SnakeCaseUpper,
+                Serialization.JsonKnownNamingPolicy.KebabCaseLower => KebabCaseLower,
+                Serialization.JsonKnownNamingPolicy.KebabCaseUpper => KebabCaseUpper,
+                _ => null,
+            };
+#endif
     }
 }
