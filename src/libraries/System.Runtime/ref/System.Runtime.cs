@@ -563,6 +563,7 @@ namespace System
         public object? GetValue(int index1, int index2) { throw null; }
         public object? GetValue(int index1, int index2, int index3) { throw null; }
         public object? GetValue(params int[] indices) { throw null; }
+        public object? GetValue(params System.ReadOnlySpan<int> indices) { throw null; }
         public object? GetValue(long index) { throw null; }
         public object? GetValue(long index1, long index2) { throw null; }
         public object? GetValue(long index1, long index2, long index3) { throw null; }
@@ -589,6 +590,7 @@ namespace System
         public void SetValue(object? value, int index1, int index2) { }
         public void SetValue(object? value, int index1, int index2, int index3) { }
         public void SetValue(object? value, params int[] indices) { }
+        public void SetValue(object? value, params System.ReadOnlySpan<int> indices) { }
         public void SetValue(object? value, long index) { }
         public void SetValue(object? value, long index1, long index2) { }
         public void SetValue(object? value, long index1, long index2, long index3) { }

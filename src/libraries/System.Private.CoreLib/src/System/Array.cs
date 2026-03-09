@@ -821,6 +821,14 @@ namespace System
             return InternalGetValue(GetFlattenedIndex(indices));
         }
 
+        public object? GetValue(params ReadOnlySpan<int> indices)
+        {
+            if (Rank != indices.Length)
+                ThrowHelper.ThrowArgumentException(ExceptionResource.Arg_RankIndices);
+
+            return InternalGetValue(GetFlattenedIndex(indices));
+        }
+
         public object? GetValue(int index)
         {
             if (Rank != 1)
@@ -873,6 +881,14 @@ namespace System
         {
             if (indices == null)
                 ThrowHelper.ThrowArgumentNullException(ExceptionArgument.indices);
+            if (Rank != indices.Length)
+                ThrowHelper.ThrowArgumentException(ExceptionResource.Arg_RankIndices);
+
+            InternalSetValue(value, GetFlattenedIndex(indices));
+        }
+
+        public void SetValue(object? value, params ReadOnlySpan<int> indices)
+        {
             if (Rank != indices.Length)
                 ThrowHelper.ThrowArgumentException(ExceptionResource.Arg_RankIndices);
 

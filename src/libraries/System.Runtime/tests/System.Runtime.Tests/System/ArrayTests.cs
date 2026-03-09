@@ -815,6 +815,130 @@ namespace System.Tests
             AssertExtensions.Throws<ArgumentNullException>("indices", () => new int[10].SetValue(1, (long[])null));
         }
 
+        [Fact]
+        public static void GetValue_SetValue_ReadOnlySpanIndices_RankOne()
+        {
+            var intArray = new int[] { 7, 8, 9 };
+            Array array = intArray;
+
+            Assert.Equal(7, array.GetValue((ReadOnlySpan<int>)[0]));
+            Assert.Equal(8, array.GetValue((ReadOnlySpan<int>)[1]));
+            Assert.Equal(9, array.GetValue((ReadOnlySpan<int>)[2]));
+
+            array.SetValue(41, (ReadOnlySpan<int>)[0]);
+            Assert.Equal(41, intArray[0]);
+            array.SetValue(42, (ReadOnlySpan<int>)[1]);
+            Assert.Equal(42, intArray[1]);
+        }
+
+        [Fact]
+        public static void GetValue_SetValue_ReadOnlySpanIndices_RankTwo()
+        {
+            int[,] array = new int[,] { { 1, 2, 3 }, { 4, 5, 6 } };
+            Assert.Equal(1, array.GetValue((ReadOnlySpan<int>)[0, 0]));
+            Assert.Equal(6, array.GetValue((ReadOnlySpan<int>)[1, 2]));
+            array.SetValue(42, (ReadOnlySpan<int>)[1, 2]);
+            Assert.Equal(42, array.GetValue((ReadOnlySpan<int>)[1, 2]));
+        }
+
+        [Fact]
+        public static void GetValue_SetValue_ReadOnlySpanIndices_RankThree()
+        {
+            Array array = Array.CreateInstance(typeof(int), 2, 3, 4);
+            array.SetValue(42, (ReadOnlySpan<int>)[1, 2, 3]);
+            Assert.Equal(42, array.GetValue((ReadOnlySpan<int>)[1, 2, 3]));
+        }
+
+        [Fact]
+        public static void GetValue_SetValue_ReadOnlySpanIndices_RankFour()
+        {
+            Array array = Array.CreateInstance(typeof(int), 2, 3, 4, 5);
+            array.SetValue(42, (ReadOnlySpan<int>)[1, 2, 3, 4]);
+            Assert.Equal(42, array.GetValue((ReadOnlySpan<int>)[1, 2, 3, 4]));
+        }
+
+        [Fact]
+        public static void GetValue_SetValue_ReadOnlySpanIndices_ReferenceType()
+        {
+            string[,] array = new string[,] { { "a", "b" }, { "c", "d" } };
+            Assert.Equal("a", array.GetValue((ReadOnlySpan<int>)[0, 0]));
+            Assert.Equal("d", array.GetValue((ReadOnlySpan<int>)[1, 1]));
+            array.SetValue("z", (ReadOnlySpan<int>)[1, 1]);
+            Assert.Equal("z", array.GetValue((ReadOnlySpan<int>)[1, 1]));
+        }
+
+        [Fact]
+        public static void GetValue_SetValue_ReadOnlySpanIndices_ReusableSpan()
+        {
+            Array array = Array.CreateInstance(typeof(int), 3, 4);
+            int[] indicesArray = new int[2];
+            Span<int> indices = indicesArray.AsSpan();
+
+            for (int i = 0; i < 3; i++)
+            {
+                for (int j = 0; j < 4; j++)
+                {
+                    indices[0] = i;
+                    indices[1] = j;
+                    array.SetValue(i * 4 + j, (ReadOnlySpan<int>)indices);
+                }
+            }
+
+            indices[0] = 2;
+            indices[1] = 3;
+            Assert.Equal(11, array.GetValue((ReadOnlySpan<int>)indices));
+        }
+
+        [Theory]
+        [InlineData(-1)]
+        [InlineData(10)]
+        public void GetValue_ReadOnlySpanIndices_OutOfRange_ThrowsIndexOutOfRangeException(int index)
+        {
+            Assert.Throws<IndexOutOfRangeException>(() => new int[10].GetValue((ReadOnlySpan<int>)[index]));
+            Assert.Throws<IndexOutOfRangeException>(() => new int[10, 10].GetValue((ReadOnlySpan<int>)[index, 0]));
+            Assert.Throws<IndexOutOfRangeException>(() => new int[10, 10, 10].GetValue((ReadOnlySpan<int>)[index, 0, 0]));
+        }
+
+        [Theory]
+        [InlineData(-1)]
+        [InlineData(10)]
+        public void SetValue_ReadOnlySpanIndices_OutOfRange_ThrowsIndexOutOfRangeException(int index)
+        {
+            Assert.Throws<IndexOutOfRangeException>(() => new int[10].SetValue(1, (ReadOnlySpan<int>)[index]));
+            Assert.Throws<IndexOutOfRangeException>(() => new int[10, 10].SetValue(1, (ReadOnlySpan<int>)[index, 0]));
+            Assert.Throws<IndexOutOfRangeException>(() => new int[10, 10, 10].SetValue(1, (ReadOnlySpan<int>)[index, 0, 0]));
+        }
+
+        [Fact]
+        public void GetValue_ReadOnlySpanIndices_InvalidRank_ThrowsArgumentException()
+        {
+            AssertExtensions.Throws<ArgumentException>(null, () => new int[10].GetValue(ReadOnlySpan<int>.Empty));
+            AssertExtensions.Throws<ArgumentException>(null, () => new int[10].GetValue((ReadOnlySpan<int>)[0, 1]));
+            AssertExtensions.Throws<ArgumentException>(null, () => new int[10].GetValue((ReadOnlySpan<int>)[0, 1, 2]));
+            AssertExtensions.Throws<ArgumentException>(null, () => new int[10, 10].GetValue((ReadOnlySpan<int>)[0]));
+            AssertExtensions.Throws<ArgumentException>(null, () => new int[10, 10].GetValue((ReadOnlySpan<int>)[0, 1, 2]));
+        }
+
+        [Fact]
+        public void SetValue_ReadOnlySpanIndices_InvalidRank_ThrowsArgumentException()
+        {
+            AssertExtensions.Throws<ArgumentException>(null, () => new int[10].SetValue(1, ReadOnlySpan<int>.Empty));
+            AssertExtensions.Throws<ArgumentException>(null, () => new int[10].SetValue(1, (ReadOnlySpan<int>)[0, 1]));
+            AssertExtensions.Throws<ArgumentException>(null, () => new int[10].SetValue(1, (ReadOnlySpan<int>)[0, 1, 2]));
+            AssertExtensions.Throws<ArgumentException>(null, () => new int[10, 10].SetValue(1, (ReadOnlySpan<int>)[0]));
+            AssertExtensions.Throws<ArgumentException>(null, () => new int[10, 10].SetValue(1, (ReadOnlySpan<int>)[0, 1, 2]));
+        }
+
+        [Fact]
+        public static void GetValue_SetValue_ReadOnlySpanIndices_NonZeroLowerBound()
+        {
+            Array array = Array.CreateInstance(typeof(int), [3, 4], [1, 2]);
+            array.SetValue(99, (ReadOnlySpan<int>)[1, 2]);
+            Assert.Equal(99, array.GetValue((ReadOnlySpan<int>)[1, 2]));
+            array.SetValue(77, (ReadOnlySpan<int>)[3, 5]);
+            Assert.Equal(77, array.GetValue((ReadOnlySpan<int>)[3, 5]));
+        }
+
         [Theory]
         [InlineData(new int[] { 7, 8, 9 }, 0, 3, new int[] { 0, 0, 0 })]
         [InlineData(new int[] { 0x1234567, 0x789abcde, 0x22334455, 0x66778899, 0x11335577, 0x22446688 }, 0, 6, new int[] { 0, 0, 0, 0, 0, 0 })]
