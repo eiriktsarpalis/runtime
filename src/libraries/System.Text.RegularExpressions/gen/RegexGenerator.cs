@@ -46,9 +46,9 @@ namespace System.Text.RegularExpressions.Generator
         {
             // Produces one entry per generated regex.  This may be:
             // - DiagnosticData in the case of a failure that should end the compilation
-            // - (RegexMethod regexMethod, string runnerFactoryImplementation, Dictionary<string, string[]> requiredHelpers) in the case of valid regex
-            // - (RegexMethod regexMethod, string reason, DiagnosticData diagnostic) in the case of a limited-support regex
-            IncrementalValueProvider<ImmutableArray<object>> results =
+            // - (RegexMethod regexMethod, string runnerFactoryImplementation, Dictionary<string, string[]> requiredHelpers, CompilationData compilationData) in the case of valid regex
+            // - (RegexMethod regexMethod, string reason, DiagnosticData diagnostic, CompilationData compilationData) in the case of a limited-support regex
+            var perItem =
                 context.SyntaxProvider
 
                 // Find all MethodDeclarationSyntax nodes attributed with GeneratedRegex and gather the required information.
@@ -113,32 +113,51 @@ namespace System.Text.RegularExpressions.Generator
                     EmitRegexDerivedTypeRunnerFactory(writer, regexMethod, requiredHelpers, regexMethod.CompilationData.CheckOverflow);
                     writer.Indent -= 2;
                     return (regexMethod, sw.ToString(), requiredHelpers, regexMethod.CompilationData);
+                });
+
+            // Report diagnostics from individual items separately, so that diagnostic objects (which lack value equality)
+            // don't interfere with incremental caching of the collected code generation results.
+            context.RegisterSourceOutput(perItem, static (context, result) =>
+            {
+                if (result is DiagnosticData d)
+                {
+                    context.ReportDiagnostic(d.ToDiagnostic());
+                }
+                else if (result is ValueTuple<RegexMethod, string, DiagnosticData, CompilationData> limitedResult)
+                {
+                    context.ReportDiagnostic(limitedResult.Item3.ToDiagnostic());
+                }
+            });
+
+            // Combine all of the generated text outputs into a single batch. We then generate a single source output from that batch.
+            var collected = perItem.Collect();
+
+            // Filter all Diagnostic values from the collected results for incremental caching:
+            // remove plain DiagnosticData entries entirely, and strip the DiagnosticData element from limited-support tuples.
+            IncrementalValueProvider<ImmutableArray<object>> results = collected
+                .Select(static (results, _) =>
+                {
+                    var builder = ImmutableArray.CreateBuilder<object>(results.Length);
+                    foreach (object? result in results)
+                    {
+                        if (result is DiagnosticData)
+                        {
+                            continue;
+                        }
+
+                        builder.Add(result is ValueTuple<RegexMethod, string, DiagnosticData, CompilationData> limited
+                            ? (limited.Item1, limited.Item2, limited.Item4)
+                            : result!);
+                    }
+
+                    return builder.ToImmutable();
                 })
-
-                // Combine all of the generated text outputs into a single batch. We then generate a single source output from that batch.
-                .Collect()
-
-                // Apply sequence equality comparison on the result array for incremental caching.
                 .WithComparer(new ObjectImmutableArraySequenceEqualityComparer());
 
-            // When there something to output, take all the generated strings and concatenate them to output,
-            // and raise all of the created diagnostics.
+            // When there something to output, take all the generated strings and concatenate them to output.
             context.RegisterSourceOutput(results, static (context, results) =>
             {
-                // Report any top-level diagnostics.
-                bool allFailures = true;
-                foreach (object result in results)
-                {
-                    if (result is DiagnosticData d)
-                    {
-                        context.ReportDiagnostic(d.ToDiagnostic());
-                    }
-                    else
-                    {
-                        allFailures = false;
-                    }
-                }
-                if (allFailures)
+                if (results.IsEmpty)
                 {
                     return;
                 }
@@ -168,17 +187,16 @@ namespace System.Text.RegularExpressions.Generator
                 // pair is the implementation used for the key.
                 var emittedExpressions = new Dictionary<(string Pattern, RegexOptions Options, int? Timeout), RegexMethod>();
 
-                // If we have any (RegexMethod regexMethod, string generatedName, string reason, DiagnosticData diagnostic), these are regexes for which we have
-                // limited support and need to simply output boilerplate.  We need to emit their diagnostics.
-                // If we have any (RegexMethod regexMethod, string generatedName, string runnerFactoryImplementation, Dictionary<string, string[]> requiredHelpers),
+                // If we have any (RegexMethod regexMethod, string reason, CompilationData compilationData), these are regexes for which we have
+                // limited support and need to simply output boilerplate.
+                // If we have any (RegexMethod regexMethod, string runnerFactoryImplementation, Dictionary<string, string[]> requiredHelpers, CompilationData compilationData),
                 // those are generated implementations to be emitted.  We need to gather up their required helpers.
                 Dictionary<string, string[]> requiredHelpers = new();
                 foreach (object? result in results)
                 {
                     RegexMethod? regexMethod = null;
-                    if (result is ValueTuple<RegexMethod, string, DiagnosticData, CompilationData> limitedSupportResult)
+                    if (result is ValueTuple<RegexMethod, string, CompilationData> limitedSupportResult)
                     {
-                        context.ReportDiagnostic(limitedSupportResult.Item3.ToDiagnostic());
                         regexMethod = limitedSupportResult.Item1;
                     }
                     else if (result is ValueTuple<RegexMethod, string, Dictionary<string, string[]>, CompilationData> regexImpl)
@@ -238,11 +256,11 @@ namespace System.Text.RegularExpressions.Generator
                 writer.Indent++;
                 foreach (object? result in results)
                 {
-                    if (result is ValueTuple<RegexMethod, string, DiagnosticData, CompilationData> limitedSupportResult)
+                    if (result is ValueTuple<RegexMethod, string, CompilationData> limitedSupportResult)
                     {
                         if (!limitedSupportResult.Item1.IsDuplicate)
                         {
-                            EmitRegexLimitedBoilerplate(writer, limitedSupportResult.Item1, limitedSupportResult.Item2, limitedSupportResult.Item4.LanguageVersion);
+                            EmitRegexLimitedBoilerplate(writer, limitedSupportResult.Item1, limitedSupportResult.Item2, limitedSupportResult.Item3.LanguageVersion);
                             writer.WriteLine();
                         }
                     }
