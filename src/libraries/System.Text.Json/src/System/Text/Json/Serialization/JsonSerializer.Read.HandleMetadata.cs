@@ -480,6 +480,80 @@ namespace System.Text.Json
             return refMetadataFound;
         }
 
+        internal static bool TryHandleReferenceFromNaturalObject(
+            ref Utf8JsonReader reader,
+            scoped ref ReadStack state,
+            object? naturalObject,
+            [NotNullWhen(true)] out object? referenceValue)
+        {
+            bool refMetadataFound = false;
+            referenceValue = default;
+
+            if (naturalObject is Dictionary<string, object?> dict)
+            {
+                int propertyCount = 0;
+                foreach (KeyValuePair<string, object?> property in dict)
+                {
+                    propertyCount++;
+                    if (refMetadataFound)
+                    {
+                        ThrowHelper.ThrowJsonException_MetadataReferenceObjectCannotContainOtherProperties();
+                    }
+                    else if (property.Key == "$id")
+                    {
+                        if (state.ReferenceId is not null)
+                        {
+                            ThrowHelper.ThrowNotSupportedException_ObjectWithParameterizedCtorRefMetadataNotSupported(s_refPropertyName, ref reader, ref state);
+                        }
+
+                        if (property.Value is not string referenceId)
+                        {
+                            ThrowHelper.ThrowJsonException_MetadataValueWasNotString(GetJsonValueKind(property.Value));
+                            return false;
+                        }
+
+                        state.ReferenceResolver.AddReference(referenceId, naturalObject);
+                        referenceValue = naturalObject;
+                        return true;
+                    }
+                    else if (property.Key == "$ref")
+                    {
+                        if (state.ReferenceId is not null)
+                        {
+                            ThrowHelper.ThrowNotSupportedException_ObjectWithParameterizedCtorRefMetadataNotSupported(s_refPropertyName, ref reader, ref state);
+                        }
+
+                        if (propertyCount > 1)
+                        {
+                            ThrowHelper.ThrowJsonException_MetadataReferenceObjectCannotContainOtherProperties();
+                        }
+
+                        if (property.Value is not string referenceId)
+                        {
+                            ThrowHelper.ThrowJsonException_MetadataValueWasNotString(GetJsonValueKind(property.Value));
+                            return false;
+                        }
+
+                        referenceValue = state.ReferenceResolver.ResolveReference(referenceId);
+                        refMetadataFound = true;
+                    }
+                }
+            }
+
+            return refMetadataFound;
+
+            static JsonValueKind GetJsonValueKind(object? value) => value switch
+            {
+                null => JsonValueKind.Null,
+                bool b => b ? JsonValueKind.True : JsonValueKind.False,
+                string => JsonValueKind.String,
+                int or long or double or decimal => JsonValueKind.Number,
+                object?[] => JsonValueKind.Array,
+                Dictionary<string, object?> => JsonValueKind.Object,
+                _ => JsonValueKind.Undefined,
+            };
+        }
+
         internal static void ValidateMetadataForObjectConverter(ref ReadStack state)
         {
             if ((state.Current.MetadataPropertyNames & MetadataPropertyName.Values) != 0)

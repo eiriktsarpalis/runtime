@@ -1227,6 +1227,7 @@ namespace System.Text.Json.Serialization
     {
         JsonElement = 0,
         JsonNode = 1,
+        Natural = 2,
     }
     public enum JsonUnmappedMemberHandling
     {

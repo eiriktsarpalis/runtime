@@ -1736,6 +1736,7 @@ namespace System.Text.Json.Serialization.Tests
         [Theory]
         [InlineData(JsonUnknownTypeHandling.JsonElement)]
         [InlineData(JsonUnknownTypeHandling.JsonNode)]
+        [InlineData(JsonUnknownTypeHandling.Natural)]
         public async Task ObjectConverter_ShouldHandleReferenceMetadata(JsonUnknownTypeHandling typehandling)
         {
             var options = new JsonSerializerOptions { ReferenceHandler = ReferenceHandler.Preserve, UnknownTypeHandling = typehandling };
@@ -1747,8 +1748,10 @@ namespace System.Text.Json.Serialization.Tests
         [Theory]
         [InlineData("""{ "$id"  : 42 }""", JsonUnknownTypeHandling.JsonElement)]
         [InlineData("""{ "$id"  : 42 }""", JsonUnknownTypeHandling.JsonNode)]
+        [InlineData("""{ "$id"  : 42 }""", JsonUnknownTypeHandling.Natural)]
         [InlineData("""{ "$ref" : 42 }""", JsonUnknownTypeHandling.JsonElement)]
         [InlineData("""{ "$ref" : 42 }""", JsonUnknownTypeHandling.JsonNode)]
+        [InlineData("""{ "$ref" : 42 }""", JsonUnknownTypeHandling.Natural)]
         public async Task ObjectConverter_InvalidMetadataPropertyType_ShouldThrowJsonException(string json, JsonUnknownTypeHandling typehandling)
         {
             var options = new JsonSerializerOptions { ReferenceHandler = ReferenceHandler.Preserve, UnknownTypeHandling = typehandling };
@@ -1758,6 +1761,7 @@ namespace System.Text.Json.Serialization.Tests
         [Theory]
         [InlineData(JsonUnknownTypeHandling.JsonElement)]
         [InlineData(JsonUnknownTypeHandling.JsonNode)]
+        [InlineData(JsonUnknownTypeHandling.Natural)]
         public async Task ObjectConverter_PropertyTrailingRefMetadata_ShouldThrowJsonException(JsonUnknownTypeHandling typehandling)
         {
             var options = new JsonSerializerOptions { ReferenceHandler = ReferenceHandler.Preserve, UnknownTypeHandling = typehandling };

@@ -96,52 +96,78 @@ namespace System.Text.Json.Serialization.Converters
 
         public override object? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            if (options.UnknownTypeHandling == JsonUnknownTypeHandling.JsonElement)
+            switch (options.UnknownTypeHandling)
             {
-                return JsonElement.ParseValue(ref reader, options.AllowDuplicateProperties);
+                case JsonUnknownTypeHandling.JsonElement:
+                    return JsonElement.ParseValue(ref reader, options.AllowDuplicateProperties);
+                case JsonUnknownTypeHandling.Natural:
+                    return NaturalObjectConverter.Read(ref reader, options);
+                default:
+                    Debug.Assert(options.UnknownTypeHandling == JsonUnknownTypeHandling.JsonNode);
+                    return JsonNodeConverter.Instance.Read(ref reader, typeToConvert, options);
             }
-
-            Debug.Assert(options.UnknownTypeHandling == JsonUnknownTypeHandling.JsonNode);
-            return JsonNodeConverter.Instance.Read(ref reader, typeToConvert, options);
         }
 
         internal override bool OnTryRead(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options, scoped ref ReadStack state, out object? value)
         {
             object? referenceValue;
 
-            if (options.UnknownTypeHandling == JsonUnknownTypeHandling.JsonElement)
+            switch (options.UnknownTypeHandling)
             {
-                JsonElement element = JsonElement.ParseValue(ref reader, options.AllowDuplicateProperties);
-
-                // Edge case where we want to lookup for a reference when parsing into typeof(object)
-                if (options.ReferenceHandlingStrategy == JsonKnownReferenceHandler.Preserve &&
-                    JsonSerializer.TryHandleReferenceFromJsonElement(ref reader, ref state, element, out referenceValue))
+                case JsonUnknownTypeHandling.JsonElement:
                 {
-                    value = referenceValue;
+                    JsonElement element = JsonElement.ParseValue(ref reader, options.AllowDuplicateProperties);
+
+                    // Edge case where we want to lookup for a reference when parsing into typeof(object)
+                    if (options.ReferenceHandlingStrategy == JsonKnownReferenceHandler.Preserve &&
+                        JsonSerializer.TryHandleReferenceFromJsonElement(ref reader, ref state, element, out referenceValue))
+                    {
+                        value = referenceValue;
+                    }
+                    else
+                    {
+                        value = element;
+                    }
+
+                    return true;
                 }
-                else
+
+                case JsonUnknownTypeHandling.Natural:
                 {
-                    value = element;
+                    object? result = NaturalObjectConverter.Read(ref reader, options);
+
+                    if (options.ReferenceHandlingStrategy == JsonKnownReferenceHandler.Preserve &&
+                        JsonSerializer.TryHandleReferenceFromNaturalObject(ref reader, ref state, result, out referenceValue))
+                    {
+                        value = referenceValue;
+                    }
+                    else
+                    {
+                        value = result;
+                    }
+
+                    return true;
                 }
 
-                return true;
+                default:
+                {
+                    Debug.Assert(options.UnknownTypeHandling == JsonUnknownTypeHandling.JsonNode);
+
+                    JsonNode? node = JsonNodeConverter.Instance.Read(ref reader, typeToConvert, options);
+
+                    if (options.ReferenceHandlingStrategy == JsonKnownReferenceHandler.Preserve &&
+                        JsonSerializer.TryHandleReferenceFromJsonNode(ref reader, ref state, node, out referenceValue))
+                    {
+                        value = referenceValue;
+                    }
+                    else
+                    {
+                        value = node;
+                    }
+
+                    return true;
+                }
             }
-
-            Debug.Assert(options.UnknownTypeHandling == JsonUnknownTypeHandling.JsonNode);
-
-            JsonNode? node = JsonNodeConverter.Instance.Read(ref reader, typeToConvert, options);
-
-            if (options.ReferenceHandlingStrategy == JsonKnownReferenceHandler.Preserve &&
-                JsonSerializer.TryHandleReferenceFromJsonNode(ref reader, ref state, node, out referenceValue))
-            {
-                value = referenceValue;
-            }
-            else
-            {
-                value = node;
-            }
-
-            return true;
         }
 
         internal override JsonSchema? GetSchema(JsonNumberHandling _) => JsonSchema.CreateTrueSchema();

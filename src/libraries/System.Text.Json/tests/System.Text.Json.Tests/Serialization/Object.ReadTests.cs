@@ -671,6 +671,7 @@ namespace System.Text.Json.Serialization.Tests
         [Theory]
         [InlineData(JsonUnknownTypeHandling.JsonElement, typeof(JsonElement))]
         [InlineData(JsonUnknownTypeHandling.JsonNode, typeof(JsonNode))]
+        [InlineData(JsonUnknownTypeHandling.Natural, typeof(Dictionary<string, object>))]
         public static void ReadObjectWithNumberHandling(JsonUnknownTypeHandling unknownTypeHandling, Type expectedType)
         {
             var options = new JsonSerializerOptions
@@ -681,6 +682,229 @@ namespace System.Text.Json.Serialization.Tests
 
             object result = JsonSerializer.Deserialize<object>("""{ "key" : "42" }""", options);
             Assert.IsAssignableFrom(expectedType, result);
+        }
+
+        [Fact]
+        public static void NaturalTypeHandling_Null()
+        {
+            var options = new JsonSerializerOptions { UnknownTypeHandling = JsonUnknownTypeHandling.Natural };
+            object result = JsonSerializer.Deserialize<object>("null", options);
+            Assert.Null(result);
+        }
+
+        [Theory]
+        [InlineData("true", true)]
+        [InlineData("false", false)]
+        public static void NaturalTypeHandling_Boolean(string json, bool expected)
+        {
+            var options = new JsonSerializerOptions { UnknownTypeHandling = JsonUnknownTypeHandling.Natural };
+            object result = JsonSerializer.Deserialize<object>(json, options);
+            Assert.Equal(expected, result);
+        }
+
+        [Theory]
+        [InlineData("0", 0)]
+        [InlineData("42", 42)]
+        [InlineData("-1", -1)]
+        [InlineData("2147483647", int.MaxValue)]
+        [InlineData("-2147483648", int.MinValue)]
+        public static void NaturalTypeHandling_Integer(string json, int expected)
+        {
+            var options = new JsonSerializerOptions { UnknownTypeHandling = JsonUnknownTypeHandling.Natural };
+            object result = JsonSerializer.Deserialize<object>(json, options);
+            Assert.IsType<int>(result);
+            Assert.Equal(expected, result);
+        }
+
+        [Theory]
+        [InlineData("2147483648", 2147483648L)]
+        [InlineData("-2147483649", -2147483649L)]
+        [InlineData("9223372036854775807", long.MaxValue)]
+        public static void NaturalTypeHandling_Long(string json, long expected)
+        {
+            var options = new JsonSerializerOptions { UnknownTypeHandling = JsonUnknownTypeHandling.Natural };
+            object result = JsonSerializer.Deserialize<object>(json, options);
+            Assert.IsType<long>(result);
+            Assert.Equal(expected, result);
+        }
+
+        [Theory]
+        [InlineData("1.5", 1.5)]
+        [InlineData("0.0", 0.0)]
+        [InlineData("-3.14", -3.14)]
+        [InlineData("1e10", 1e10)]
+        public static void NaturalTypeHandling_Double(string json, double expected)
+        {
+            var options = new JsonSerializerOptions { UnknownTypeHandling = JsonUnknownTypeHandling.Natural };
+            object result = JsonSerializer.Deserialize<object>(json, options);
+            Assert.IsType<double>(result);
+            Assert.Equal(expected, result);
+        }
+
+        [Fact]
+        public static void NaturalTypeHandling_Decimal_HighPrecision()
+        {
+            // This number has more significant digits than double can represent precisely.
+            string json = "1234567890.1234567890";
+            var options = new JsonSerializerOptions { UnknownTypeHandling = JsonUnknownTypeHandling.Natural };
+            object result = JsonSerializer.Deserialize<object>(json, options);
+            Assert.IsType<decimal>(result);
+            Assert.Equal(1234567890.1234567890m, result);
+        }
+
+        [Fact]
+        public static void NaturalTypeHandling_String()
+        {
+            var options = new JsonSerializerOptions { UnknownTypeHandling = JsonUnknownTypeHandling.Natural };
+            object result = JsonSerializer.Deserialize<object>("""  "hello world"  """, options);
+            Assert.Equal("hello world", result);
+        }
+
+        [Fact]
+        public static void NaturalTypeHandling_String_DateTimeOffset()
+        {
+            var options = new JsonSerializerOptions { UnknownTypeHandling = JsonUnknownTypeHandling.Natural };
+            object result = JsonSerializer.Deserialize<object>(""" "2024-06-15T12:30:00+02:00" """, options);
+            Assert.IsType<DateTimeOffset>(result);
+            Assert.Equal(new DateTimeOffset(2024, 6, 15, 12, 30, 0, TimeSpan.FromHours(2)), result);
+        }
+
+        [Fact]
+        public static void NaturalTypeHandling_String_Guid()
+        {
+            Guid expected = Guid.Parse("12345678-1234-1234-1234-123456789abc");
+            var options = new JsonSerializerOptions { UnknownTypeHandling = JsonUnknownTypeHandling.Natural };
+            object result = JsonSerializer.Deserialize<object>($""" "{expected}" """, options);
+            Assert.IsType<Guid>(result);
+            Assert.Equal(expected, result);
+        }
+
+        [Theory]
+        [InlineData(""" "plain string" """)]
+        [InlineData(""" "not-a-date-or-guid" """)]
+        [InlineData(""" "" """)]
+        public static void NaturalTypeHandling_String_FallsBackToString(string json)
+        {
+            var options = new JsonSerializerOptions { UnknownTypeHandling = JsonUnknownTypeHandling.Natural };
+            object result = JsonSerializer.Deserialize<object>(json, options);
+            Assert.IsType<string>(result);
+        }
+
+        [Fact]
+        public static void NaturalTypeHandling_Array()
+        {
+            var options = new JsonSerializerOptions { UnknownTypeHandling = JsonUnknownTypeHandling.Natural };
+            object result = JsonSerializer.Deserialize<object>("[1, true, null, \"hello\"]", options);
+            Assert.IsType<object[]>(result);
+            object[] array = (object[])result;
+            Assert.Equal(4, array.Length);
+            Assert.Equal(1, array[0]);
+            Assert.Equal(true, array[1]);
+            Assert.Null(array[2]);
+            Assert.Equal("hello", array[3]);
+        }
+
+        [Fact]
+        public static void NaturalTypeHandling_EmptyArray()
+        {
+            var options = new JsonSerializerOptions { UnknownTypeHandling = JsonUnknownTypeHandling.Natural };
+            object result = JsonSerializer.Deserialize<object>("[]", options);
+            Assert.IsType<object[]>(result);
+            Assert.Empty((object[])result);
+        }
+
+        [Fact]
+        public static void NaturalTypeHandling_Object()
+        {
+            var options = new JsonSerializerOptions { UnknownTypeHandling = JsonUnknownTypeHandling.Natural };
+            object result = JsonSerializer.Deserialize<object>("""{"name":"Alice","age":30}""", options);
+            Assert.IsType<Dictionary<string, object>>(result);
+            var dict = (Dictionary<string, object?>)result;
+            Assert.Equal("Alice", dict["name"]);
+            Assert.Equal(30, dict["age"]);
+        }
+
+        [Fact]
+        public static void NaturalTypeHandling_EmptyObject()
+        {
+            var options = new JsonSerializerOptions { UnknownTypeHandling = JsonUnknownTypeHandling.Natural };
+            object result = JsonSerializer.Deserialize<object>("{}", options);
+            Assert.IsType<Dictionary<string, object>>(result);
+            Assert.Empty((Dictionary<string, object?>)result);
+        }
+
+        [Fact]
+        public static void NaturalTypeHandling_Nested()
+        {
+            string json = """
+            {
+                "name": "root",
+                "children": [
+                    { "id": 1 },
+                    { "id": 2, "value": 3.14 }
+                ],
+                "active": true
+            }
+            """;
+            var options = new JsonSerializerOptions { UnknownTypeHandling = JsonUnknownTypeHandling.Natural };
+            object result = JsonSerializer.Deserialize<object>(json, options);
+            Assert.IsType<Dictionary<string, object>>(result);
+
+            var root = (Dictionary<string, object?>)result;
+            Assert.Equal("root", root["name"]);
+            Assert.Equal(true, root["active"]);
+
+            object[] children = Assert.IsType<object[]>(root["children"]);
+            Assert.Equal(2, children.Length);
+
+            var child1 = Assert.IsType<Dictionary<string, object?>>(children[0]);
+            Assert.Equal(1, child1["id"]);
+
+            var child2 = Assert.IsType<Dictionary<string, object?>>(children[1]);
+            Assert.Equal(2, child2["id"]);
+            Assert.Equal(3.14, child2["value"]);
+        }
+
+        [Fact]
+        public static void NaturalTypeHandling_PropertyDeclaredAsObject()
+        {
+            string json = """{"Value": 42}""";
+            var options = new JsonSerializerOptions { UnknownTypeHandling = JsonUnknownTypeHandling.Natural };
+            var result = JsonSerializer.Deserialize<NaturalPropertyTestClass>(json, options);
+            Assert.IsType<int>(result.Value);
+            Assert.Equal(42, result.Value);
+        }
+
+        private sealed class NaturalPropertyTestClass
+        {
+            public object? Value { get; set; }
+        }
+
+        [Fact]
+        public static void NaturalTypeHandling_DuplicateProperties_DisallowedThrows()
+        {
+            string json = """{"a": 1, "a": 2}""";
+            var options = new JsonSerializerOptions
+            {
+                UnknownTypeHandling = JsonUnknownTypeHandling.Natural,
+                AllowDuplicateProperties = false,
+            };
+            Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<object>(json, options));
+        }
+
+        [Fact]
+        public static void NaturalTypeHandling_DuplicateProperties_AllowedLastWins()
+        {
+            string json = """{"a": 1, "a": 2}""";
+            var options = new JsonSerializerOptions
+            {
+                UnknownTypeHandling = JsonUnknownTypeHandling.Natural,
+                AllowDuplicateProperties = true,
+            };
+            var result = JsonSerializer.Deserialize<object>(json, options);
+            var dict = Assert.IsType<Dictionary<string, object?>>(result);
+            Assert.Single(dict);
+            Assert.Equal(2, dict["a"]);
         }
 
         [Theory]
