@@ -548,7 +548,7 @@ namespace System.Text.Json
                 bool b => b ? JsonValueKind.True : JsonValueKind.False,
                 string => JsonValueKind.String,
                 int or long or double or decimal => JsonValueKind.Number,
-                object?[] => JsonValueKind.Array,
+                List<object?> => JsonValueKind.Array,
                 Dictionary<string, object?> => JsonValueKind.Object,
                 _ => JsonValueKind.Undefined,
             };

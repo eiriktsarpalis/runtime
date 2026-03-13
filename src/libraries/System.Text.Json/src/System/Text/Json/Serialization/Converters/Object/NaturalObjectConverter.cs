@@ -83,14 +83,14 @@ namespace System.Text.Json.Serialization.Converters
             return reader.GetString()!;
         }
 
-        private static object?[] ReadArray(ref Utf8JsonReader reader, JsonSerializerOptions options)
+        private static List<object?> ReadArray(ref Utf8JsonReader reader, JsonSerializerOptions options)
         {
             var list = new List<object?>();
             while (reader.Read())
             {
                 if (reader.TokenType == JsonTokenType.EndArray)
                 {
-                    return list.ToArray();
+                    return list;
                 }
 
                 list.Add(Read(ref reader, options));

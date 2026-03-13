@@ -795,9 +795,9 @@ namespace System.Text.Json.Serialization.Tests
         {
             var options = new JsonSerializerOptions { UnknownTypeHandling = JsonUnknownTypeHandling.Natural };
             object result = JsonSerializer.Deserialize<object>("[1, true, null, \"hello\"]", options);
-            Assert.IsType<object[]>(result);
-            object[] array = (object[])result;
-            Assert.Equal(4, array.Length);
+            Assert.IsType<List<object?>>(result);
+            List<object?> array = (List<object?>)result;
+            Assert.Equal(4, array.Count);
             Assert.Equal(1, array[0]);
             Assert.Equal(true, array[1]);
             Assert.Null(array[2]);
@@ -809,8 +809,8 @@ namespace System.Text.Json.Serialization.Tests
         {
             var options = new JsonSerializerOptions { UnknownTypeHandling = JsonUnknownTypeHandling.Natural };
             object result = JsonSerializer.Deserialize<object>("[]", options);
-            Assert.IsType<object[]>(result);
-            Assert.Empty((object[])result);
+            Assert.IsType<List<object?>>(result);
+            Assert.Empty((List<object?>)result);
         }
 
         [Fact]
@@ -854,8 +854,8 @@ namespace System.Text.Json.Serialization.Tests
             Assert.Equal("root", root["name"]);
             Assert.Equal(true, root["active"]);
 
-            object[] children = Assert.IsType<object[]>(root["children"]);
-            Assert.Equal(2, children.Length);
+            List<object?> children = Assert.IsType<List<object?>>(root["children"]);
+            Assert.Equal(2, children.Count);
 
             var child1 = Assert.IsType<Dictionary<string, object?>>(children[0]);
             Assert.Equal(1, child1["id"]);
