@@ -92,6 +92,20 @@ namespace System.Text.Json.Nodes
         public static implicit operator JsonNode?(decimal? value) => JsonValue.Create(value);
 
         /// <summary>
+        ///   Defines an implicit conversion of a given <see cref="JsonNumber"/> to a <see cref="JsonNode"/>.
+        /// </summary>
+        /// <param name="value">A <see cref="JsonNumber"/> to implicitly convert.</param>
+        /// <returns>A <see cref="JsonNode"/> instance converted from the <paramref name="value"/> parameter.</returns>
+        public static implicit operator JsonNode(JsonNumber value) => JsonValue.Create(value);
+
+        /// <summary>
+        ///   Defines an implicit conversion of a given <see cref="JsonNumber"/> to a <see cref="JsonNode"/>.
+        /// </summary>
+        /// <param name="value">A <see cref="JsonNumber"/> to implicitly convert.</param>
+        /// <returns>A <see cref="JsonNode"/> instance converted from the <paramref name="value"/> parameter.</returns>
+        public static implicit operator JsonNode?(JsonNumber? value) => JsonValue.Create(value);
+
+        /// <summary>
         ///   Defines an implicit conversion of a given <see cref="double"/> to a <see cref="JsonNode"/>.
         /// </summary>
         /// <param name="value">A <see cref="double"/> to implicitly convert.</param>
@@ -330,6 +344,20 @@ namespace System.Text.Json.Nodes
         /// <param name="value">A <see cref="decimal"/> to explicitly convert.</param>
         /// <returns>A value converted from the <see cref="JsonNode"/> instance.</returns>
         public static explicit operator decimal?(JsonNode? value) => value?.GetValue<decimal>();
+
+        /// <summary>
+        ///   Defines an explicit conversion of a given <see cref="JsonNode"/> to a <see cref="JsonNumber"/>.
+        /// </summary>
+        /// <param name="value">A <see cref="JsonNode"/> to explicitly convert.</param>
+        /// <returns>A value converted from the <see cref="JsonNode"/> instance.</returns>
+        public static explicit operator JsonNumber(JsonNode value) => value.GetValue<JsonNumber>();
+
+        /// <summary>
+        ///   Defines an explicit conversion of a given <see cref="JsonNode"/> to a <see cref="JsonNumber"/>.
+        /// </summary>
+        /// <param name="value">A <see cref="JsonNode"/> to explicitly convert.</param>
+        /// <returns>A value converted from the <see cref="JsonNode"/> instance.</returns>
+        public static explicit operator JsonNumber?(JsonNode? value) => value?.GetValue<JsonNumber>();
 
         /// <summary>
         ///   Defines an explicit conversion of a given <see cref="double"/> to a <see cref="JsonNode"/>.

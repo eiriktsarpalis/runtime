@@ -104,6 +104,10 @@ namespace System.Text.Json.Nodes
                 return JsonValueKind.Number;
             }
 #endif
+            if (type == typeof(JsonNumber))
+            {
+                return JsonValueKind.Number;
+            }
             return Type.GetTypeCode(type) switch
             {
                 TypeCode.Boolean => JsonValueKind.Undefined, // Can vary dependending on value.

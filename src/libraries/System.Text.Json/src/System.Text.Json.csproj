@@ -73,6 +73,12 @@ The System.Text.Json library is built-in as part of the shared framework in .NET
     <Compile Include="System\Text\Json\JsonHelpers.cs" />
     <Compile Include="System\Text\Json\JsonHelpers.Date.cs" />
     <Compile Include="System\Text\Json\JsonHelpers.Escaping.cs" />
+    <Compile Include="System\Text\Json\JsonNumber.cs" />
+    <Compile Include="System\Text\Json\JsonNumber.BigArithmetic.cs" />
+    <Compile Include="System\Text\Json\JsonNumber.Conversions.cs" />
+    <Compile Include="System\Text\Json\JsonNumber.Equality.cs" />
+    <Compile Include="System\Text\Json\JsonNumber.Formatting.cs" />
+    <Compile Include="System\Text\Json\JsonNumber.Parsing.cs" />
     <Compile Include="System\Text\Json\JsonTokenType.cs" />
     <Compile Include="System\Text\Json\Nodes\JsonArray.cs" />
     <Compile Include="System\Text\Json\Nodes\JsonArray.IList.cs" />
@@ -224,6 +230,7 @@ The System.Text.Json library is built-in as part of the shared framework in .NET
     <Compile Include="System\Text\Json\Serialization\Converters\Value\DateTimeConverter.cs" />
     <Compile Include="System\Text\Json\Serialization\Converters\Value\DateTimeOffsetConverter.cs" />
     <Compile Include="System\Text\Json\Serialization\Converters\Value\DecimalConverter.cs" />
+    <Compile Include="System\Text\Json\Serialization\Converters\Value\JsonNumberConverter.cs" />
     <Compile Include="System\Text\Json\Serialization\Converters\Value\DoubleConverter.cs" />
     <Compile Include="System\Text\Json\Serialization\Converters\Value\EnumConverter.cs" />
     <Compile Include="System\Text\Json\Serialization\Converters\Value\EnumConverterFactory.cs" />
@@ -344,6 +351,7 @@ The System.Text.Json library is built-in as part of the shared framework in .NET
     <Compile Include="System\Text\Json\Writer\Utf8JsonWriter.WriteValues.Raw.cs" />
     <Compile Include="System\Text\Json\Writer\Utf8JsonWriter.WriteValues.SignedNumber.cs" />
     <Compile Include="System\Text\Json\Writer\Utf8JsonWriter.WriteValues.String.cs" />
+    <Compile Include="System\Text\Json\Writer\Utf8JsonWriter.WriteValues.JsonNumber.cs" />
     <Compile Include="System\Text\Json\Writer\Utf8JsonWriter.WriteValues.UnsignedNumber.cs" />
     <Compile Include="System\ReflectionExtensions.cs" />
     <Compile Include="$(CommonPath)System\Obsoletions.cs" Link="Common\System\Obsoletions.cs" />

@@ -1356,5 +1356,55 @@ namespace System.Text.Json
 
             return JsonReaderHelper.TryGetValue(span, ValueIsEscaped, out value);
         }
+
+        /// <summary>
+        /// Parses the current JSON token value from the source as a <see cref="JsonNumber"/>.
+        /// Returns the value if the entire UTF-8 encoded token value can be successfully parsed.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">
+        /// Thrown if trying to get the value of a JSON token that is not a <see cref="JsonTokenType.Number"/>.
+        /// <seealso cref="TokenType" />
+        /// </exception>
+        /// <exception cref="FormatException">
+        /// Thrown if the JSON token value cannot be parsed as a <see cref="JsonNumber"/>.
+        /// </exception>
+        public JsonNumber GetJsonNumber()
+        {
+            if (!TryGetJsonNumber(out JsonNumber value))
+            {
+                ThrowHelper.ThrowFormatException_BadJsonNumber();
+            }
+
+            return value;
+        }
+
+        /// <summary>
+        /// Tries to parse the current JSON token value from the source as a <see cref="JsonNumber"/>.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">
+        /// Thrown if trying to get the value of a JSON token that is not a <see cref="JsonTokenType.Number"/>.
+        /// <seealso cref="TokenType" />
+        /// </exception>
+        public bool TryGetJsonNumber(out JsonNumber value)
+        {
+            if (TokenType != JsonTokenType.Number)
+            {
+                ThrowHelper.ThrowInvalidOperationException_ExpectedNumber(TokenType);
+            }
+
+            ReadOnlySpan<byte> span = HasValueSequence ? ValueSequence.ToArray() : ValueSpan;
+            return JsonNumber.TryParse(span, out value);
+        }
+
+        internal JsonNumber GetJsonNumberWithQuotes()
+        {
+            ReadOnlySpan<byte> span = GetUnescapedSpan();
+            if (!JsonNumber.TryParse(span, out JsonNumber value))
+            {
+                ThrowHelper.ThrowFormatException_BadJsonNumber();
+            }
+
+            return value;
+        }
     }
 }

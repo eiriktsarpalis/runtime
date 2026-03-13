@@ -709,9 +709,11 @@ namespace System.Text.Json.Nodes.Tests
             // Number
             typeof(byte), typeof(sbyte), typeof(short), typeof(ushort), typeof(int), typeof(uint),
             typeof(long), typeof(ulong), typeof(float), typeof(double), typeof(decimal),
+            typeof(Half), typeof(Int128), typeof(UInt128),
 
             typeof(byte?), typeof(sbyte?), typeof(short?), typeof(ushort?), typeof(int?), typeof(uint?),
             typeof(long?), typeof(ulong?), typeof(float?), typeof(double?), typeof(decimal?),
+            typeof(Half?), typeof(Int128?), typeof(UInt128?),
 
             // String
             typeof(char), typeof(char?),

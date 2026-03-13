@@ -88,6 +88,13 @@ namespace System.Text.Json.Serialization.Metadata
         private static JsonConverter<Guid>? s_guidConverter;
 
         /// <summary>
+        /// Returns a <see cref="JsonConverter{T}"/> instance that converts <see cref="JsonNumber"/> values.
+        /// </summary>
+        /// <remarks>This API is for use by the output of the System.Text.Json source generator and should not be called directly.</remarks>
+        public static JsonConverter<JsonNumber> JsonNumberConverter => s_jsonNumberConverter ??= new JsonNumberConverter();
+        private static JsonConverter<JsonNumber>? s_jsonNumberConverter;
+
+        /// <summary>
         /// Returns a <see cref="JsonConverter{T}"/> instance that converts <see cref="short"/> values.
         /// </summary>
         /// <remarks>This API is for use by the output of the System.Text.Json source generator and should not be called directly.</remarks>

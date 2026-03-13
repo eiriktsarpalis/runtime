@@ -110,6 +110,22 @@ namespace System.Text.Json.Nodes
         /// <param name="value">The underlying value of the new <see cref="JsonValue"/> instance.</param>
         /// <param name="options">Options to control the behavior.</param>
         /// <returns>The new instance of the <see cref="JsonValue"/> class that contains the specified value.</returns>
+        public static JsonValue Create(JsonNumber value, JsonNodeOptions? options = null) => new JsonValuePrimitive<JsonNumber>(value, JsonMetadataServices.JsonNumberConverter, options);
+
+        /// <summary>
+        ///   Initializes a new instance of the <see cref="JsonValue"/> class that contains the specified value.
+        /// </summary>
+        /// <param name="value">The underlying value of the new <see cref="JsonValue"/> instance.</param>
+        /// <param name="options">Options to control the behavior.</param>
+        /// <returns>The new instance of the <see cref="JsonValue"/> class that contains the specified value.</returns>
+        public static JsonValue? Create(JsonNumber? value, JsonNodeOptions? options = null) => value.HasValue ? new JsonValuePrimitive<JsonNumber>(value.Value, JsonMetadataServices.JsonNumberConverter, options) : null;
+
+        /// <summary>
+        ///   Initializes a new instance of the <see cref="JsonValue"/> class that contains the specified value.
+        /// </summary>
+        /// <param name="value">The underlying value of the new <see cref="JsonValue"/> instance.</param>
+        /// <param name="options">Options to control the behavior.</param>
+        /// <returns>The new instance of the <see cref="JsonValue"/> class that contains the specified value.</returns>
         public static JsonValue Create(double value, JsonNodeOptions? options = null) => new JsonValuePrimitive<double>(value, JsonMetadataServices.DoubleConverter, options);
 
         /// <summary>

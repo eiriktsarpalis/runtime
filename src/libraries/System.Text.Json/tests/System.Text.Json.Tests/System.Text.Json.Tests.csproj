@@ -134,6 +134,7 @@
     <Compile Include="JsonNode\ParseTests.cs" />
     <Compile Include="JsonNode\ParentPathRootTests.cs" />
     <Compile Include="JsonNode\ToStringTests.cs" />
+    <Compile Include="JsonNumberTests.cs" />
     <Compile Include="JsonPropertyTests.cs" />
     <Compile Include="JsonReaderStateAndOptionsTests.cs" />
     <Compile Include="JsonTestHelper.cs" />

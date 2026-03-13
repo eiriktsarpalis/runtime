@@ -153,6 +153,111 @@ namespace System.Text.Json
         public override int GetHashCode() { throw null; }
         public override string ToString() { throw null; }
     }
+    public readonly partial struct JsonNumber : System.IEquatable<System.Text.Json.JsonNumber>, System.IComparable<System.Text.Json.JsonNumber>,
+#if NET
+        System.ISpanFormattable, System.ISpanParsable<System.Text.Json.JsonNumber>, System.IUtf8SpanFormattable, System.IUtf8SpanParsable<System.Text.Json.JsonNumber>
+#else
+        System.IFormattable
+#endif
+    {
+        private readonly decimal _dummyPrimitive;
+        private readonly object _dummy;
+        public static System.Text.Json.JsonNumber Zero { get { throw null; } }
+        public bool IsZero { get { throw null; } }
+        public bool IsNegative { get { throw null; } }
+        public bool IsInteger { get { throw null; } }
+        public static System.Text.Json.JsonNumber Parse(System.ReadOnlySpan<byte> utf8Text) { throw null; }
+        public static bool TryParse(System.ReadOnlySpan<byte> utf8Text, out System.Text.Json.JsonNumber result) { throw null; }
+        public static System.Text.Json.JsonNumber Parse(string text) { throw null; }
+        public static System.Text.Json.JsonNumber Parse(System.ReadOnlySpan<char> text) { throw null; }
+        public static bool TryParse([System.Diagnostics.CodeAnalysis.NotNullWhenAttribute(true)] string? text, out System.Text.Json.JsonNumber result) { throw null; }
+        public static bool TryParse(System.ReadOnlySpan<char> text, out System.Text.Json.JsonNumber result) { throw null; }
+        public override string ToString() { throw null; }
+        public string ToString(string? format, System.IFormatProvider? formatProvider) { throw null; }
+#if NET
+        public bool TryFormat(System.Span<char> destination, out int charsWritten, System.ReadOnlySpan<char> format = default, System.IFormatProvider? provider = null) { throw null; }
+        public bool TryFormat(System.Span<byte> utf8Destination, out int bytesWritten, System.ReadOnlySpan<char> format = default, System.IFormatProvider? provider = null) { throw null; }
+        static System.Text.Json.JsonNumber System.ISpanParsable<System.Text.Json.JsonNumber>.Parse(System.ReadOnlySpan<char> s, System.IFormatProvider? provider) { throw null; }
+        static bool System.ISpanParsable<System.Text.Json.JsonNumber>.TryParse(System.ReadOnlySpan<char> s, System.IFormatProvider? provider, out System.Text.Json.JsonNumber result) { throw null; }
+        static System.Text.Json.JsonNumber System.IParsable<System.Text.Json.JsonNumber>.Parse(string s, System.IFormatProvider? provider) { throw null; }
+        static bool System.IParsable<System.Text.Json.JsonNumber>.TryParse(string? s, System.IFormatProvider? provider, out System.Text.Json.JsonNumber result) { throw null; }
+        static System.Text.Json.JsonNumber System.IUtf8SpanParsable<System.Text.Json.JsonNumber>.Parse(System.ReadOnlySpan<byte> utf8Text, System.IFormatProvider? provider) { throw null; }
+        static bool System.IUtf8SpanParsable<System.Text.Json.JsonNumber>.TryParse(System.ReadOnlySpan<byte> utf8Text, System.IFormatProvider? provider, out System.Text.Json.JsonNumber result) { throw null; }
+#endif
+        public bool Equals(System.Text.Json.JsonNumber other) { throw null; }
+        public override bool Equals(object? obj) { throw null; }
+        public override int GetHashCode() { throw null; }
+        public int CompareTo(System.Text.Json.JsonNumber other) { throw null; }
+        public static bool operator ==(System.Text.Json.JsonNumber left, System.Text.Json.JsonNumber right) { throw null; }
+        public static bool operator !=(System.Text.Json.JsonNumber left, System.Text.Json.JsonNumber right) { throw null; }
+        public static bool operator <(System.Text.Json.JsonNumber left, System.Text.Json.JsonNumber right) { throw null; }
+        public static bool operator <=(System.Text.Json.JsonNumber left, System.Text.Json.JsonNumber right) { throw null; }
+        public static bool operator >(System.Text.Json.JsonNumber left, System.Text.Json.JsonNumber right) { throw null; }
+        public static bool operator >=(System.Text.Json.JsonNumber left, System.Text.Json.JsonNumber right) { throw null; }
+        public static implicit operator System.Text.Json.JsonNumber (byte value) { throw null; }
+        [System.CLSCompliantAttribute(false)]
+        public static implicit operator System.Text.Json.JsonNumber (sbyte value) { throw null; }
+        public static implicit operator System.Text.Json.JsonNumber (short value) { throw null; }
+        [System.CLSCompliantAttribute(false)]
+        public static implicit operator System.Text.Json.JsonNumber (ushort value) { throw null; }
+        public static implicit operator System.Text.Json.JsonNumber (int value) { throw null; }
+        [System.CLSCompliantAttribute(false)]
+        public static implicit operator System.Text.Json.JsonNumber (uint value) { throw null; }
+        public static implicit operator System.Text.Json.JsonNumber (long value) { throw null; }
+        [System.CLSCompliantAttribute(false)]
+        public static implicit operator System.Text.Json.JsonNumber (ulong value) { throw null; }
+        public static implicit operator System.Text.Json.JsonNumber (decimal value) { throw null; }
+        public static explicit operator System.Text.Json.JsonNumber (float value) { throw null; }
+        public static explicit operator System.Text.Json.JsonNumber (double value) { throw null; }
+#if NET
+        public static explicit operator System.Text.Json.JsonNumber (System.Half value) { throw null; }
+        public static implicit operator System.Text.Json.JsonNumber (System.Int128 value) { throw null; }
+        [System.CLSCompliantAttribute(false)]
+        public static implicit operator System.Text.Json.JsonNumber (System.UInt128 value) { throw null; }
+#endif
+        public static explicit operator byte (System.Text.Json.JsonNumber value) { throw null; }
+        [System.CLSCompliantAttribute(false)]
+        public static explicit operator sbyte (System.Text.Json.JsonNumber value) { throw null; }
+        public static explicit operator short (System.Text.Json.JsonNumber value) { throw null; }
+        [System.CLSCompliantAttribute(false)]
+        public static explicit operator ushort (System.Text.Json.JsonNumber value) { throw null; }
+        public static explicit operator int (System.Text.Json.JsonNumber value) { throw null; }
+        [System.CLSCompliantAttribute(false)]
+        public static explicit operator uint (System.Text.Json.JsonNumber value) { throw null; }
+        public static explicit operator long (System.Text.Json.JsonNumber value) { throw null; }
+        [System.CLSCompliantAttribute(false)]
+        public static explicit operator ulong (System.Text.Json.JsonNumber value) { throw null; }
+        public static explicit operator float (System.Text.Json.JsonNumber value) { throw null; }
+        public static explicit operator double (System.Text.Json.JsonNumber value) { throw null; }
+        public static explicit operator decimal (System.Text.Json.JsonNumber value) { throw null; }
+#if NET
+        public static explicit operator System.Half (System.Text.Json.JsonNumber value) { throw null; }
+        public static explicit operator System.Int128 (System.Text.Json.JsonNumber value) { throw null; }
+        [System.CLSCompliantAttribute(false)]
+        public static explicit operator System.UInt128 (System.Text.Json.JsonNumber value) { throw null; }
+#endif
+        public bool TryGetByte(out byte value) { throw null; }
+        [System.CLSCompliantAttribute(false)]
+        public bool TryGetSByte(out sbyte value) { throw null; }
+        public bool TryGetInt16(out short value) { throw null; }
+        [System.CLSCompliantAttribute(false)]
+        public bool TryGetUInt16(out ushort value) { throw null; }
+        public bool TryGetInt32(out int value) { throw null; }
+        [System.CLSCompliantAttribute(false)]
+        public bool TryGetUInt32(out uint value) { throw null; }
+        public bool TryGetInt64(out long value) { throw null; }
+        [System.CLSCompliantAttribute(false)]
+        public bool TryGetUInt64(out ulong value) { throw null; }
+        public bool TryGetSingle(out float value) { throw null; }
+        public bool TryGetDouble(out double value) { throw null; }
+        public bool TryGetDecimal(out decimal value) { throw null; }
+#if NET
+        public bool TryGetHalf(out System.Half value) { throw null; }
+        public bool TryGetInt128(out System.Int128 value) { throw null; }
+        [System.CLSCompliantAttribute(false)]
+        public bool TryGetUInt128(out System.UInt128 value) { throw null; }
+#endif
+    }
     public partial class JsonException : System.Exception
     {
         public JsonException() { }
@@ -536,6 +641,7 @@ namespace System.Text.Json
         public short GetInt16() { throw null; }
         public int GetInt32() { throw null; }
         public long GetInt64() { throw null; }
+        public System.Text.Json.JsonNumber GetJsonNumber() { throw null; }
         [System.CLSCompliantAttribute(false)]
         public sbyte GetSByte() { throw null; }
         public float GetSingle() { throw null; }
@@ -558,6 +664,7 @@ namespace System.Text.Json
         public bool TryGetInt16(out short value) { throw null; }
         public bool TryGetInt32(out int value) { throw null; }
         public bool TryGetInt64(out long value) { throw null; }
+        public bool TryGetJsonNumber(out System.Text.Json.JsonNumber value) { throw null; }
         [System.CLSCompliantAttribute(false)]
         public bool TryGetSByte(out sbyte value) { throw null; }
         public bool TryGetSingle(out float value) { throw null; }
@@ -607,6 +714,7 @@ namespace System.Text.Json
         public void WriteNull(string propertyName) { }
         public void WriteNull(System.Text.Json.JsonEncodedText propertyName) { }
         public void WriteNullValue() { }
+        public void WriteNumber(System.ReadOnlySpan<byte> utf8PropertyName, System.Text.Json.JsonNumber value) { }
         public void WriteNumber(System.ReadOnlySpan<byte> utf8PropertyName, decimal value) { }
         public void WriteNumber(System.ReadOnlySpan<byte> utf8PropertyName, double value) { }
         public void WriteNumber(System.ReadOnlySpan<byte> utf8PropertyName, int value) { }
@@ -616,6 +724,7 @@ namespace System.Text.Json
         public void WriteNumber(System.ReadOnlySpan<byte> utf8PropertyName, uint value) { }
         [System.CLSCompliantAttribute(false)]
         public void WriteNumber(System.ReadOnlySpan<byte> utf8PropertyName, ulong value) { }
+        public void WriteNumber(System.ReadOnlySpan<char> propertyName, System.Text.Json.JsonNumber value) { }
         public void WriteNumber(System.ReadOnlySpan<char> propertyName, decimal value) { }
         public void WriteNumber(System.ReadOnlySpan<char> propertyName, double value) { }
         public void WriteNumber(System.ReadOnlySpan<char> propertyName, int value) { }
@@ -625,6 +734,7 @@ namespace System.Text.Json
         public void WriteNumber(System.ReadOnlySpan<char> propertyName, uint value) { }
         [System.CLSCompliantAttribute(false)]
         public void WriteNumber(System.ReadOnlySpan<char> propertyName, ulong value) { }
+        public void WriteNumber(string propertyName, System.Text.Json.JsonNumber value) { }
         public void WriteNumber(string propertyName, decimal value) { }
         public void WriteNumber(string propertyName, double value) { }
         public void WriteNumber(string propertyName, int value) { }
@@ -634,6 +744,7 @@ namespace System.Text.Json
         public void WriteNumber(string propertyName, uint value) { }
         [System.CLSCompliantAttribute(false)]
         public void WriteNumber(string propertyName, ulong value) { }
+        public void WriteNumber(System.Text.Json.JsonEncodedText propertyName, System.Text.Json.JsonNumber value) { }
         public void WriteNumber(System.Text.Json.JsonEncodedText propertyName, decimal value) { }
         public void WriteNumber(System.Text.Json.JsonEncodedText propertyName, double value) { }
         public void WriteNumber(System.Text.Json.JsonEncodedText propertyName, int value) { }
@@ -643,6 +754,7 @@ namespace System.Text.Json
         public void WriteNumber(System.Text.Json.JsonEncodedText propertyName, uint value) { }
         [System.CLSCompliantAttribute(false)]
         public void WriteNumber(System.Text.Json.JsonEncodedText propertyName, ulong value) { }
+        public void WriteNumberValue(System.Text.Json.JsonNumber value) { }
         public void WriteNumberValue(decimal value) { }
         public void WriteNumberValue(double value) { }
         public void WriteNumberValue(int value) { }
@@ -768,6 +880,7 @@ namespace System.Text.Json.Nodes
         public static explicit operator System.Guid (System.Text.Json.Nodes.JsonNode value) { throw null; }
         public static explicit operator short (System.Text.Json.Nodes.JsonNode value) { throw null; }
         public static explicit operator int (System.Text.Json.Nodes.JsonNode value) { throw null; }
+        public static explicit operator System.Text.Json.JsonNumber (System.Text.Json.Nodes.JsonNode value) { throw null; }
         public static explicit operator long (System.Text.Json.Nodes.JsonNode value) { throw null; }
         public static explicit operator bool? (System.Text.Json.Nodes.JsonNode? value) { throw null; }
         public static explicit operator byte? (System.Text.Json.Nodes.JsonNode? value) { throw null; }
@@ -779,6 +892,7 @@ namespace System.Text.Json.Nodes
         public static explicit operator System.Guid? (System.Text.Json.Nodes.JsonNode? value) { throw null; }
         public static explicit operator short? (System.Text.Json.Nodes.JsonNode? value) { throw null; }
         public static explicit operator int? (System.Text.Json.Nodes.JsonNode? value) { throw null; }
+        public static explicit operator System.Text.Json.JsonNumber? (System.Text.Json.Nodes.JsonNode? value) { throw null; }
         public static explicit operator long? (System.Text.Json.Nodes.JsonNode? value) { throw null; }
         [System.CLSCompliantAttribute(false)]
         public static explicit operator sbyte? (System.Text.Json.Nodes.JsonNode? value) { throw null; }
@@ -807,6 +921,7 @@ namespace System.Text.Json.Nodes
         public static implicit operator System.Text.Json.Nodes.JsonNode (decimal value) { throw null; }
         public static implicit operator System.Text.Json.Nodes.JsonNode (double value) { throw null; }
         public static implicit operator System.Text.Json.Nodes.JsonNode (System.Guid value) { throw null; }
+        public static implicit operator System.Text.Json.Nodes.JsonNode (System.Text.Json.JsonNumber value) { throw null; }
         public static implicit operator System.Text.Json.Nodes.JsonNode (short value) { throw null; }
         public static implicit operator System.Text.Json.Nodes.JsonNode (int value) { throw null; }
         public static implicit operator System.Text.Json.Nodes.JsonNode (long value) { throw null; }
@@ -818,6 +933,7 @@ namespace System.Text.Json.Nodes
         public static implicit operator System.Text.Json.Nodes.JsonNode? (decimal? value) { throw null; }
         public static implicit operator System.Text.Json.Nodes.JsonNode? (double? value) { throw null; }
         public static implicit operator System.Text.Json.Nodes.JsonNode? (System.Guid? value) { throw null; }
+        public static implicit operator System.Text.Json.Nodes.JsonNode? (System.Text.Json.JsonNumber? value) { throw null; }
         public static implicit operator System.Text.Json.Nodes.JsonNode? (short? value) { throw null; }
         public static implicit operator System.Text.Json.Nodes.JsonNode? (int? value) { throw null; }
         public static implicit operator System.Text.Json.Nodes.JsonNode? (long? value) { throw null; }
@@ -907,6 +1023,7 @@ namespace System.Text.Json.Nodes
         public static System.Text.Json.Nodes.JsonValue Create(System.Guid value, System.Text.Json.Nodes.JsonNodeOptions? options = default(System.Text.Json.Nodes.JsonNodeOptions?)) { throw null; }
         public static System.Text.Json.Nodes.JsonValue Create(short value, System.Text.Json.Nodes.JsonNodeOptions? options = default(System.Text.Json.Nodes.JsonNodeOptions?)) { throw null; }
         public static System.Text.Json.Nodes.JsonValue Create(int value, System.Text.Json.Nodes.JsonNodeOptions? options = default(System.Text.Json.Nodes.JsonNodeOptions?)) { throw null; }
+        public static System.Text.Json.Nodes.JsonValue Create(System.Text.Json.JsonNumber value, System.Text.Json.Nodes.JsonNodeOptions? options = default(System.Text.Json.Nodes.JsonNodeOptions?)) { throw null; }
         public static System.Text.Json.Nodes.JsonValue Create(long value, System.Text.Json.Nodes.JsonNodeOptions? options = default(System.Text.Json.Nodes.JsonNodeOptions?)) { throw null; }
         public static System.Text.Json.Nodes.JsonValue? Create(bool? value, System.Text.Json.Nodes.JsonNodeOptions? options = default(System.Text.Json.Nodes.JsonNodeOptions?)) { throw null; }
         public static System.Text.Json.Nodes.JsonValue? Create(byte? value, System.Text.Json.Nodes.JsonNodeOptions? options = default(System.Text.Json.Nodes.JsonNodeOptions?)) { throw null; }
@@ -918,6 +1035,7 @@ namespace System.Text.Json.Nodes
         public static System.Text.Json.Nodes.JsonValue? Create(System.Guid? value, System.Text.Json.Nodes.JsonNodeOptions? options = default(System.Text.Json.Nodes.JsonNodeOptions?)) { throw null; }
         public static System.Text.Json.Nodes.JsonValue? Create(short? value, System.Text.Json.Nodes.JsonNodeOptions? options = default(System.Text.Json.Nodes.JsonNodeOptions?)) { throw null; }
         public static System.Text.Json.Nodes.JsonValue? Create(int? value, System.Text.Json.Nodes.JsonNodeOptions? options = default(System.Text.Json.Nodes.JsonNodeOptions?)) { throw null; }
+        public static System.Text.Json.Nodes.JsonValue? Create(System.Text.Json.JsonNumber? value, System.Text.Json.Nodes.JsonNodeOptions? options = default(System.Text.Json.Nodes.JsonNodeOptions?)) { throw null; }
         public static System.Text.Json.Nodes.JsonValue? Create(long? value, System.Text.Json.Nodes.JsonNodeOptions? options = default(System.Text.Json.Nodes.JsonNodeOptions?)) { throw null; }
         [System.CLSCompliantAttribute(false)]
         public static System.Text.Json.Nodes.JsonValue? Create(sbyte? value, System.Text.Json.Nodes.JsonNodeOptions? options = default(System.Text.Json.Nodes.JsonNodeOptions?)) { throw null; }
@@ -1312,6 +1430,7 @@ namespace System.Text.Json.Serialization.Metadata
         public static System.Text.Json.Serialization.JsonConverter<System.Text.Json.JsonDocument?> JsonDocumentConverter { get { throw null; } }
         public static System.Text.Json.Serialization.JsonConverter<System.Text.Json.JsonElement> JsonElementConverter { get { throw null; } }
         public static System.Text.Json.Serialization.JsonConverter<System.Text.Json.Nodes.JsonNode?> JsonNodeConverter { get { throw null; } }
+        public static System.Text.Json.Serialization.JsonConverter<System.Text.Json.JsonNumber> JsonNumberConverter { get { throw null; } }
         public static System.Text.Json.Serialization.JsonConverter<System.Text.Json.Nodes.JsonObject?> JsonObjectConverter { get { throw null; } }
         public static System.Text.Json.Serialization.JsonConverter<System.Text.Json.Nodes.JsonValue?> JsonValueConverter { get { throw null; } }
         public static System.Text.Json.Serialization.JsonConverter<System.Memory<byte>> MemoryByteConverter { get { throw null; } }

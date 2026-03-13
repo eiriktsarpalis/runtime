@@ -136,6 +136,13 @@ namespace System.Text.Json.Nodes
                         value = (TypeToConvert)(object)result;
                         return success;
                     }
+
+                    if (typeof(TypeToConvert) == typeof(JsonNumber) || typeof(TypeToConvert) == typeof(JsonNumber?))
+                    {
+                        success = JsonNumber.TryParse(Value.GetRawValue().Span, out JsonNumber result);
+                        value = (TypeToConvert)(object)result;
+                        return success;
+                    }
                     break;
 
                 case JsonValueKind.String:

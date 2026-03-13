@@ -24,6 +24,10 @@ namespace System.Text.Json.Nodes
                     return new JsonValueOfJsonString(utf8String, options);
                 case JsonTokenType.Number:
                     byte[] numberValue = reader.HasValueSequence ? reader.ValueSequence.ToArray() : reader.ValueSpan.ToArray();
+                    if (JsonNumber.TryParse(numberValue, out JsonNumber jn))
+                    {
+                        return JsonValue.Create(jn, options);
+                    }
                     return new JsonValueOfJsonNumber(numberValue, options);
                 default:
                     Debug.Fail("Only primitives allowed.");
@@ -300,6 +304,13 @@ namespace System.Text.Json.Nodes
                 success = Utf8Parser.TryParse(_value, out sbyte result, out int consumed) &&
                             consumed == _value.Length;
 
+                value = (T)(object)result;
+                return success;
+            }
+
+            if (typeof(T) == typeof(JsonNumber) || typeof(T) == typeof(JsonNumber?))
+            {
+                success = JsonNumber.TryParse(_value, out JsonNumber result);
                 value = (T)(object)result;
                 return success;
             }

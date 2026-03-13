@@ -125,6 +125,18 @@ namespace System.Text.Json
         }
 
         [DoesNotReturn]
+        public static void ThrowArgumentException_ValueNotSupported(string paramName)
+        {
+            throw new ArgumentException(SR.SpecialNumberValuesNotSupported, paramName);
+        }
+
+        [DoesNotReturn]
+        public static void ThrowFormatException_BadJsonNumber()
+        {
+            throw new FormatException(SR.FormatJsonNumber);
+        }
+
+        [DoesNotReturn]
         public static void ThrowInvalidOperationException_NeedLargerSpan()
         {
             throw GetInvalidOperationException(SR.FailedToGetLargerSpan);

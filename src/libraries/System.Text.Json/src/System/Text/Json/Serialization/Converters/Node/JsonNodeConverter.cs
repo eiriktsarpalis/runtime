@@ -91,6 +91,20 @@ namespace System.Text.Json.Serialization.Converters
                 case JsonValueKind.Array:
                     node = new JsonArray(element, options);
                     break;
+                case JsonValueKind.Number:
+                    // Normalize number elements to JsonValuePrimitive<JsonNumber>
+                    // so that all number-bearing nodes use the same internal representation.
+                    // Fall back to JsonValueOfElement for extreme numbers that JsonNumber can't represent
+                    // (e.g., exponents exceeding int range).
+                    if (JsonNumber.TryParse(element.GetRawValue().Span, out JsonNumber jn))
+                    {
+                        node = JsonValue.Create(jn, options);
+                    }
+                    else
+                    {
+                        node = new JsonValueOfElement(element, options);
+                    }
+                    break;
                 default:
                     node = new JsonValueOfElement(element, options);
                     break;

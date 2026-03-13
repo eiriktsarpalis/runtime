@@ -151,6 +151,9 @@ namespace System.Text.Json.SourceGeneration
         public INamedTypeSymbol? HalfType => GetOrResolveType("System.Half", ref _HalfType);
         private Option<INamedTypeSymbol?> _HalfType;
 
+        public INamedTypeSymbol? JsonNumberType => GetOrResolveType("System.Text.Json.JsonNumber", ref _JsonNumberType);
+        private Option<INamedTypeSymbol?> _JsonNumberType;
+
         public IArrayTypeSymbol? ByteArrayType => _ByteArrayType.HasValue
             ? _ByteArrayType.Value
             : (_ByteArrayType = new(Compilation.CreateArrayTypeSymbol(Compilation.GetSpecialType(SpecialType.System_Byte), rank: 1))).Value;

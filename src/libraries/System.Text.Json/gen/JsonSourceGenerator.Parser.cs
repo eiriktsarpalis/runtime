@@ -1919,6 +1919,7 @@ namespace System.Text.Json.SourceGeneration
                 AddTypeIfNotNull(knownSymbols.Int128Type);
                 AddTypeIfNotNull(knownSymbols.UInt128Type);
                 AddTypeIfNotNull(knownSymbols.HalfType);
+                AddTypeIfNotNull(knownSymbols.JsonNumberType);
                 AddTypeIfNotNull(knownSymbols.GuidType);
                 AddTypeIfNotNull(knownSymbols.UriType);
                 AddTypeIfNotNull(knownSymbols.VersionType);

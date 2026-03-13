@@ -839,4 +839,7 @@
   <data name="PipeReaderCanceled" xml:space="preserve">
     <value>PipeReader.ReadAsync was canceled.</value>
   </data>
+  <data name="FormatJsonNumber" xml:space="preserve">
+    <value>The value is not a valid JSON number.</value>
+  </data>
 </root>
