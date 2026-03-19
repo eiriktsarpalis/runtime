@@ -57,6 +57,10 @@ namespace System.Text.Json
         // Holds any entered polymorphic JsonTypeInfo metadata.
         public JsonTypeInfo? PolymorphicJsonTypeInfo;
 
+        // Preserved type discriminator value for binding to a property
+        // marked with [JsonTypeDiscriminator].
+        public object? TypeDiscriminatorValue;
+
         // Gets the initial JsonTypeInfo metadata used when deserializing the current value.
         public JsonTypeInfo BaseJsonTypeInfo
             => PolymorphicSerializationState == PolymorphicSerializationState.PolymorphicReEntryStarted

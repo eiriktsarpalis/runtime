@@ -26,5 +26,16 @@ namespace System.Text.Json.Serialization
         /// Otherwise, it will fail the deserialization.
         /// </summary>
         public bool IgnoreUnrecognizedTypeDiscriminators { get; set; }
+
+        /// <summary>
+        /// Gets or sets a fallback type to be used when deserializing objects
+        /// with unrecognized type discriminators.
+        /// </summary>
+        /// <remarks>
+        /// When set, unrecognized type discriminator values will cause the deserializer
+        /// to use this type instead of throwing or reverting to the base type contract.
+        /// The fallback type must derive from or implement the polymorphic base type.
+        /// </remarks>
+        public Type? FallbackType { get; set; }
     }
 }

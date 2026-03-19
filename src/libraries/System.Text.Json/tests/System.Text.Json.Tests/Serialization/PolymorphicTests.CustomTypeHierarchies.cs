@@ -2969,5 +2969,362 @@ namespace System.Text.Json.Serialization.Tests
             }
         }
         #endregion
+
+        #region Type Discriminator Binding and Fallback Type
+
+        [Fact]
+        public async Task TypeDiscriminatorBinding_RecognizedType_BindsDiscriminator()
+        {
+            var value = new DiscriminatorBindingDerived { Name = "test" };
+            string json = await Serializer.SerializeWrapper<DiscriminatorBindingBase>(value);
+
+            // Serialization: discriminator-bound property should be skipped
+            Assert.DoesNotContain("\"Kind\"", json);
+            Assert.Contains("\"$type\"", json);
+
+            var result = await Serializer.DeserializeWrapper<DiscriminatorBindingBase>(json);
+            Assert.IsType<DiscriminatorBindingDerived>(result);
+            var derived = (DiscriminatorBindingDerived)result;
+            Assert.Equal("derived", derived.Kind);
+            Assert.Equal("test", derived.Name);
+        }
+
+        [Fact]
+        public async Task TypeDiscriminatorBinding_FallbackType_BindsUnrecognizedDiscriminator()
+        {
+            string json = """{"$type":"unknown_value","Data":"hello"}""";
+            var result = await Serializer.DeserializeWrapper<FallbackBase>(json);
+
+            Assert.IsType<FallbackUnknown>(result);
+            var unknown = (FallbackUnknown)result;
+            Assert.Equal("unknown_value", unknown.TypeId);
+            Assert.Equal("hello", unknown.Data);
+        }
+
+        [Fact]
+        public async Task FallbackType_RecognizedDiscriminator_UsesCorrectDerivedType()
+        {
+            string json = """{"$type":"known","Data":"hello"}""";
+            var result = await Serializer.DeserializeWrapper<FallbackBase>(json);
+
+            Assert.IsType<FallbackKnown>(result);
+            var known = (FallbackKnown)result;
+            Assert.Equal("hello", known.Data);
+        }
+
+        [Fact]
+        public async Task FallbackType_Serialization_RoundtripsWithExtensionData()
+        {
+            // Full roundtrip scenario: unknown discriminator + extension data on base type
+            string json = """{"$type":"new_type","Known":"value","Extra":"data"}""";
+            var result = await Serializer.DeserializeWrapper<FallbackWithExtensionDataBase>(json);
+
+            Assert.IsType<FallbackWithExtensionDataUnknown>(result);
+            var unknown = (FallbackWithExtensionDataUnknown)result;
+            Assert.Equal("new_type", unknown.TypeId);
+            Assert.Equal("value", unknown.Known);
+            Assert.NotNull(unknown.ExtensionData);
+            Assert.True(unknown.ExtensionData!.ContainsKey("Extra"));
+        }
+
+        [Fact]
+        public async Task FallbackType_WithIgnoreUnrecognizedFalse_StillUsesFallback()
+        {
+            // FallbackType takes precedence over IgnoreUnrecognizedTypeDiscriminators=false
+            string json = """{"$type":"not_declared","Value":42}""";
+            var result = await Serializer.DeserializeWrapper<FallbackIgnoreInteractionBase>(json);
+
+            Assert.IsType<FallbackIgnoreInteractionUnknown>(result);
+            var unknown = (FallbackIgnoreInteractionUnknown)result;
+            Assert.Equal("not_declared", unknown.Kind);
+            Assert.Equal(42, unknown.Value);
+        }
+
+        [Fact]
+        public async Task FallbackType_WithIgnoreUnrecognizedTrue_UsesFallback()
+        {
+            string json = """{"$type":"not_declared","Value":42}""";
+            var result = await Serializer.DeserializeWrapper<FallbackIgnoreInteractionTrueBase>(json);
+
+            Assert.IsType<FallbackIgnoreInteractionUnknown2>(result);
+            var unknown = (FallbackIgnoreInteractionUnknown2)result;
+            Assert.Equal("not_declared", unknown.Kind);
+            Assert.Equal(42, unknown.Value);
+        }
+
+        [Fact]
+        public async Task IgnoreUnrecognizedDiscriminators_WithoutFallbackType_FallsBackToBaseType()
+        {
+            // Existing behavior preserved: no fallback type + IgnoreUnrecognized=true → base type
+            string json = """{"$type":"not_declared","Data":"hello"}""";
+            var result = await Serializer.DeserializeWrapper<IgnoreUnrecognizedNoFallbackBase>(json);
+
+            Assert.IsType<IgnoreUnrecognizedNoFallbackBase>(result);
+            Assert.Equal("hello", result.Data);
+        }
+
+        [Fact]
+        public async Task TypeDiscriminatorBinding_IgnoreUnrecognized_BaseTypeGetsDiscriminator()
+        {
+            // IgnoreUnrecognized=true, no fallback, base type has binding → binds discriminator
+            string json = """{"$type":"not_declared","Data":"hello"}""";
+            var result = await Serializer.DeserializeWrapper<IgnoreUnrecognizedWithBindingBase>(json);
+
+            Assert.IsType<IgnoreUnrecognizedWithBindingBase>(result);
+            Assert.Equal("not_declared", result.DiscriminatorValue);
+            Assert.Equal("hello", result.Data);
+        }
+
+        [Fact]
+        public async Task FallbackType_WithExtensionData_AccumulatesUnmappedProperties()
+        {
+            string json = """{"$type":"new_type","Known":"value","Extra":"data"}""";
+            var result = await Serializer.DeserializeWrapper<FallbackWithExtensionDataBase>(json);
+
+            Assert.IsType<FallbackWithExtensionDataUnknown>(result);
+            var unknown = (FallbackWithExtensionDataUnknown)result;
+            Assert.Equal("new_type", unknown.TypeId);
+            Assert.Equal("value", unknown.Known);
+            Assert.NotNull(unknown.ExtensionData);
+            Assert.True(unknown.ExtensionData!.ContainsKey("Extra"));
+        }
+
+        [Fact]
+        public async Task FallbackType_ContractModel_WorksWithProgrammaticConfig()
+        {
+            var options = new JsonSerializerOptions
+            {
+                TypeInfoResolver = new DefaultJsonTypeInfoResolver
+                {
+                    Modifiers =
+                    {
+                        static typeInfo =>
+                        {
+                            if (typeInfo.Type == typeof(ContractModelBase))
+                            {
+                                typeInfo.PolymorphismOptions = new JsonPolymorphismOptions
+                                {
+                                    FallbackType = typeof(ContractModelUnknown),
+                                };
+                                typeInfo.PolymorphismOptions.DerivedTypes.Add(new JsonDerivedType(typeof(ContractModelKnown), "known"));
+                            }
+                            else if (typeInfo.Type == typeof(ContractModelUnknown))
+                            {
+                                foreach (var prop in typeInfo.Properties)
+                                {
+                                    if (prop.Name == "TypeId")
+                                    {
+                                        prop.IsTypeDiscriminatorBinding = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+
+            string json = """{"$type":"unrecognized","Value":99}""";
+            var result = await Serializer.DeserializeWrapper<ContractModelBase>(json, options);
+
+            Assert.IsType<ContractModelUnknown>(result);
+            var unknown = (ContractModelUnknown)result;
+            Assert.Equal("unrecognized", unknown.TypeId);
+            Assert.Equal(99, unknown.Value);
+        }
+
+        [Fact]
+        public async Task TypeDiscriminatorBinding_Roundtrip_UnrecognizedDiscriminator()
+        {
+            // Deserialize with unknown discriminator → fallback type with discriminator bound
+            string json = """{"$type":"unknown_type","Data":"hello"}""";
+            var result = await Serializer.DeserializeWrapper<FallbackBase>(json);
+
+            Assert.IsType<FallbackUnknown>(result);
+            var unknown = (FallbackUnknown)result;
+            Assert.Equal("unknown_type", unknown.TypeId);
+
+            // Serialize back: discriminator-bound property value overrides type-level mapping
+            string roundtripped = await Serializer.SerializeWrapper<FallbackBase>(unknown);
+            Assert.Contains("\"$type\":\"unknown_type\"", roundtripped);
+            Assert.Contains("\"Data\":\"hello\"", roundtripped);
+        }
+
+        [Fact]
+        public async Task TypeDiscriminatorBinding_NullValue_OmitsDiscriminator()
+        {
+            // When the bound property is null, discriminator is determined by type-level mapping
+            var unknown = new FallbackUnknown { TypeId = null, Data = "hello" };
+            string json = await Serializer.SerializeWrapper<FallbackBase>(unknown);
+
+            // FallbackUnknown has no type-level mapping and TypeId is null, so no $type is emitted
+            Assert.DoesNotContain("$type", json);
+            Assert.Contains("Data", json);
+        }
+
+        [Fact]
+        public async Task TypeDiscriminatorBinding_OverridesTypeLevelMapping()
+        {
+            // DiscriminatorBindingDerived has a type-level mapping of "derived", but the
+            // bound property value should override it
+            var value = new DiscriminatorBindingDerived { Kind = "custom_override", Name = "test" };
+            string json = await Serializer.SerializeWrapper<DiscriminatorBindingBase>(value);
+
+            Assert.Contains("\"$type\":\"custom_override\"", json);
+        }
+
+        [Theory]
+        [InlineData("""{"$type":"known","Data":"hello"}""", typeof(FallbackBase), typeof(FallbackKnown))]
+        [InlineData("""{"$type":"unknown_val","Data":"hello"}""", typeof(FallbackBase), typeof(FallbackUnknown))]
+        public async Task FallbackType_MultipleDiscriminators_ResolvesCorrectly(string json, Type baseType, Type expectedType)
+        {
+            var result = await Serializer.DeserializeWrapper(json, baseType);
+            Assert.IsType(expectedType, result);
+        }
+
+        [Fact]
+        public async Task TypeDiscriminatorBinding_ConstructorParameter_BindsDiscriminator()
+        {
+            string json = """{"$type":"unknown_ctor","Name":"test","Value":42}""";
+            var result = await Serializer.DeserializeWrapper<CtorParamBindingBase>(json);
+
+            Assert.IsType<CtorParamBindingFallback>(result);
+            var fallback = (CtorParamBindingFallback)result;
+            Assert.Equal("unknown_ctor", fallback.TypeId);
+            Assert.Equal("test", fallback.Name);
+            Assert.Equal(42, fallback.Value);
+        }
+
+        #region Test Type Hierarchies for Discriminator Binding
+
+        [JsonPolymorphic]
+        [JsonDerivedType(typeof(DiscriminatorBindingDerived), "derived")]
+        public class DiscriminatorBindingBase
+        {
+            public string? Data { get; set; }
+        }
+
+        public class DiscriminatorBindingDerived : DiscriminatorBindingBase
+        {
+            [JsonTypeDiscriminator]
+            public string? Kind { get; set; }
+
+            public string? Name { get; set; }
+        }
+
+        [JsonPolymorphic(FallbackType = typeof(FallbackUnknown), UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+        [JsonDerivedType(typeof(FallbackKnown), "known")]
+        public class FallbackBase
+        {
+            public string? Data { get; set; }
+        }
+
+        public class FallbackKnown : FallbackBase { }
+
+        public class FallbackUnknown : FallbackBase
+        {
+            [JsonTypeDiscriminator]
+            public string? TypeId { get; set; }
+        }
+
+        [JsonPolymorphic(FallbackType = typeof(FallbackIgnoreInteractionUnknown), IgnoreUnrecognizedTypeDiscriminators = false)]
+        [JsonDerivedType(typeof(FallbackIgnoreInteractionKnown), "known")]
+        public class FallbackIgnoreInteractionBase
+        {
+            public int Value { get; set; }
+        }
+
+        public class FallbackIgnoreInteractionKnown : FallbackIgnoreInteractionBase { }
+
+        public class FallbackIgnoreInteractionUnknown : FallbackIgnoreInteractionBase
+        {
+            [JsonTypeDiscriminator]
+            public string? Kind { get; set; }
+        }
+
+        [JsonPolymorphic(FallbackType = typeof(FallbackIgnoreInteractionUnknown2), IgnoreUnrecognizedTypeDiscriminators = true)]
+        [JsonDerivedType(typeof(FallbackIgnoreInteractionKnown2), "known")]
+        public class FallbackIgnoreInteractionTrueBase
+        {
+            public int Value { get; set; }
+        }
+
+        public class FallbackIgnoreInteractionKnown2 : FallbackIgnoreInteractionTrueBase { }
+
+        public class FallbackIgnoreInteractionUnknown2 : FallbackIgnoreInteractionTrueBase
+        {
+            [JsonTypeDiscriminator]
+            public string? Kind { get; set; }
+        }
+
+        [JsonPolymorphic(IgnoreUnrecognizedTypeDiscriminators = true)]
+        [JsonDerivedType(typeof(IgnoreUnrecognizedNoFallbackDerived), "known")]
+        public class IgnoreUnrecognizedNoFallbackBase
+        {
+            public string? Data { get; set; }
+        }
+
+        public class IgnoreUnrecognizedNoFallbackDerived : IgnoreUnrecognizedNoFallbackBase { }
+
+        [JsonPolymorphic(IgnoreUnrecognizedTypeDiscriminators = true)]
+        [JsonDerivedType(typeof(IgnoreUnrecognizedWithBindingDerived), "known")]
+        public class IgnoreUnrecognizedWithBindingBase
+        {
+            [JsonTypeDiscriminator]
+            public string? DiscriminatorValue { get; set; }
+
+            public string? Data { get; set; }
+        }
+
+        public class IgnoreUnrecognizedWithBindingDerived : IgnoreUnrecognizedWithBindingBase { }
+
+        [JsonPolymorphic(FallbackType = typeof(FallbackWithExtensionDataUnknown), UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+        [JsonDerivedType(typeof(FallbackWithExtensionDataKnown), "known")]
+        public class FallbackWithExtensionDataBase
+        {
+            public string? Known { get; set; }
+        }
+
+        public class FallbackWithExtensionDataKnown : FallbackWithExtensionDataBase { }
+
+        public class FallbackWithExtensionDataUnknown : FallbackWithExtensionDataBase
+        {
+            [JsonTypeDiscriminator]
+            public string? TypeId { get; set; }
+
+            [JsonExtensionData]
+            public Dictionary<string, object?>? ExtensionData { get; set; }
+        }
+
+        public class ContractModelBase
+        {
+            public int Value { get; set; }
+        }
+
+        public class ContractModelKnown : ContractModelBase { }
+
+        public class ContractModelUnknown : ContractModelBase
+        {
+            public string? TypeId { get; set; }
+        }
+
+        [JsonPolymorphic(FallbackType = typeof(CtorParamBindingFallback))]
+        [JsonDerivedType(typeof(CtorParamBindingKnown), "known")]
+        public class CtorParamBindingBase
+        {
+            public string? Name { get; set; }
+            public int Value { get; set; }
+        }
+
+        public class CtorParamBindingKnown : CtorParamBindingBase { }
+
+        public class CtorParamBindingFallback : CtorParamBindingBase
+        {
+            [JsonTypeDiscriminator]
+            public string? TypeId { get; set; }
+        }
+
+        #endregion
+
+        #endregion
     }
 }

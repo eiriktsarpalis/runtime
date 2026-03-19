@@ -139,6 +139,7 @@
     <Compile Include="Serialization\NodeInteropTests.cs" />
     <Compile Include="Serialization\NullableAnnotationsTests.cs" />
     <Compile Include="Serialization\NumberHandlingTests.cs" />
+    <Compile Include="Serialization\PolymorphicTests.cs" />
     <Compile Include="Serialization\PropertyNameTests.cs" />
     <Compile Include="Serialization\PropertyVisibilityTests.cs" />
     <Compile Include="Serialization\UnmappedMemberHandlingTests.cs" />

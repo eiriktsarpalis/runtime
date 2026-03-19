@@ -16,6 +16,7 @@ namespace System.Text.Json.Serialization.Metadata
         private bool _ignoreUnrecognizedTypeDiscriminators;
         private JsonUnknownDerivedTypeHandling _unknownDerivedTypeHandling;
         private string? _typeDiscriminatorPropertyName;
+        private Type? _fallbackType;
 
         /// <summary>
         /// Creates an empty <see cref="JsonPolymorphismOptions"/> instance.
@@ -81,6 +82,28 @@ namespace System.Text.Json.Serialization.Metadata
             }
         }
 
+        /// <summary>
+        /// Gets or sets a fallback type to be used when deserializing objects
+        /// with unrecognized type discriminators.
+        /// </summary>
+        /// <remarks>
+        /// When set, unrecognized type discriminator values will cause the deserializer
+        /// to use this type instead of throwing or reverting to the base type contract.
+        /// The fallback type must derive from or implement the polymorphic base type.
+        /// </remarks>
+        /// <exception cref="InvalidOperationException">
+        /// The parent <see cref="JsonTypeInfo"/> instance has been locked for further modification.
+        /// </exception>
+        public Type? FallbackType
+        {
+            get => _fallbackType;
+            set
+            {
+                VerifyMutable();
+                _fallbackType = value;
+            }
+        }
+
         private void VerifyMutable() => DeclaringTypeInfo?.VerifyMutable();
 
         internal JsonTypeInfo? DeclaringTypeInfo { get; set; }
@@ -109,6 +132,7 @@ namespace System.Text.Json.Serialization.Metadata
                     IgnoreUnrecognizedTypeDiscriminators = polymorphicAttribute.IgnoreUnrecognizedTypeDiscriminators,
                     UnknownDerivedTypeHandling = polymorphicAttribute.UnknownDerivedTypeHandling,
                     TypeDiscriminatorPropertyName = polymorphicAttribute.TypeDiscriminatorPropertyName,
+                    FallbackType = polymorphicAttribute.FallbackType,
                 };
             }
 

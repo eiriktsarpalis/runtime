@@ -355,6 +355,8 @@ namespace System.Text.Json.Serialization.Metadata
 
         internal JsonPropertyInfo? ExtensionDataProperty { get; private set; }
 
+        internal JsonPropertyInfo? TypeDiscriminatorProperty { get; private set; }
+
         internal PolymorphicTypeResolver? PolymorphicTypeResolver { get; private set; }
 
         // Indicates that SerializeHandler is populated.
@@ -1100,6 +1102,16 @@ namespace System.Text.Json.Serialization.Metadata
                 }
                 else
                 {
+                    if (property.IsTypeDiscriminatorBinding)
+                    {
+                        if (TypeDiscriminatorProperty is not null)
+                        {
+                            ThrowHelper.ThrowInvalidOperationException_SerializationDuplicateTypeAttribute(Type, typeof(JsonTypeDiscriminatorAttribute));
+                        }
+
+                        TypeDiscriminatorProperty = property;
+                    }
+
                     property.PropertyIndex = i;
 
                     if (property.IsRequired)

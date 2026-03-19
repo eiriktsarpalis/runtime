@@ -69,6 +69,11 @@ namespace System.Text.Json.Serialization.Metadata
         public bool IsExtensionData { get; init; }
 
         /// <summary>
+        /// Whether the property was annotated with <see cref="JsonTypeDiscriminatorAttribute"/>.
+        /// </summary>
+        public bool IsTypeDiscriminatorBinding { get; init; }
+
+        /// <summary>
         /// If the property or field is a number, specifies how it should processed when serializing and deserializing.
         /// </summary>
         public JsonNumberHandling? NumberHandling { get; init; }

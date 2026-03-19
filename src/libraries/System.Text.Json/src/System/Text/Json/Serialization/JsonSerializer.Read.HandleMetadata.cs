@@ -533,5 +533,32 @@ namespace System.Text.Json
                 return default!;
             }
         }
+
+        /// <summary>
+        /// Binds the preserved type discriminator value to a property
+        /// marked with <see cref="Serialization.JsonTypeDiscriminatorAttribute"/>.
+        /// </summary>
+        internal static void BindTypeDiscriminatorValue(object obj, ref ReadStack state)
+        {
+            object? discriminatorValue = state.Current.TypeDiscriminatorValue;
+            if (discriminatorValue is null)
+            {
+                return;
+            }
+
+            // Look up the TypeDiscriminatorProperty on the resolved type info.
+            // During polymorphic re-entry, Current.JsonTypeInfo is the derived type.
+            JsonTypeInfo resolvedTypeInfo = state.Current.JsonTypeInfo;
+            JsonPropertyInfo? discriminatorProperty = resolvedTypeInfo.TypeDiscriminatorProperty;
+
+            if (discriminatorProperty?.Set is not null)
+            {
+                // The bound property is string-only; convert int discriminators to string.
+                string stringValue = discriminatorValue is string s ? s : discriminatorValue.ToString()!;
+                discriminatorProperty.Set(obj, stringValue);
+            }
+
+            state.Current.TypeDiscriminatorValue = null;
+        }
     }
 }

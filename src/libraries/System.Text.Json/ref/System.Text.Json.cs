@@ -1120,6 +1120,7 @@ namespace System.Text.Json.Serialization
     public sealed partial class JsonPolymorphicAttribute : System.Text.Json.Serialization.JsonAttribute
     {
         public JsonPolymorphicAttribute() { }
+        public System.Type? FallbackType { get { throw null; } set { } }
         public bool IgnoreUnrecognizedTypeDiscriminators { get { throw null; } set { } }
         public string? TypeDiscriminatorPropertyName { get { throw null; } set { } }
         public System.Text.Json.Serialization.JsonUnknownDerivedTypeHandling UnknownDerivedTypeHandling { get { throw null; } set { } }
@@ -1140,6 +1141,11 @@ namespace System.Text.Json.Serialization
     public sealed partial class JsonRequiredAttribute : System.Text.Json.Serialization.JsonAttribute
     {
         public JsonRequiredAttribute() { }
+    }
+    [System.AttributeUsageAttribute(System.AttributeTargets.Field | System.AttributeTargets.Parameter | System.AttributeTargets.Property, AllowMultiple=false)]
+    public sealed partial class JsonTypeDiscriminatorAttribute : System.Text.Json.Serialization.JsonAttribute
+    {
+        public JsonTypeDiscriminatorAttribute() { }
     }
     [System.AttributeUsageAttribute(System.AttributeTargets.Class, AllowMultiple=true)]
     public sealed partial class JsonSerializableAttribute : System.Text.Json.Serialization.JsonAttribute
@@ -1407,6 +1413,7 @@ namespace System.Text.Json.Serialization.Metadata
     {
         public JsonPolymorphismOptions() { }
         public System.Collections.Generic.IList<System.Text.Json.Serialization.Metadata.JsonDerivedType> DerivedTypes { get { throw null; } }
+        public System.Type? FallbackType { get { throw null; } set { } }
         public bool IgnoreUnrecognizedTypeDiscriminators { get { throw null; } set { } }
         [System.Diagnostics.CodeAnalysis.AllowNullAttribute]
         public string TypeDiscriminatorPropertyName { get { throw null; } set { } }
@@ -1424,6 +1431,7 @@ namespace System.Text.Json.Serialization.Metadata
         public bool IsGetNullable { get { throw null; } set { } }
         public bool IsRequired { get { throw null; } set { } }
         public bool IsSetNullable { get { throw null; } set { } }
+        public bool IsTypeDiscriminatorBinding { get { throw null; } set { } }
         public string Name { get { throw null; } set { } }
         public System.Text.Json.Serialization.JsonNumberHandling? NumberHandling { get { throw null; } set { } }
         public System.Text.Json.Serialization.JsonObjectCreationHandling? ObjectCreationHandling { get { throw null; } set { } }
@@ -1446,6 +1454,7 @@ namespace System.Text.Json.Serialization.Metadata
         public bool IsExtensionData { get { throw null; } init { } }
         public bool IsProperty { get { throw null; } init { } }
         public bool IsPublic { get { throw null; } init { } }
+        public bool IsTypeDiscriminatorBinding { get { throw null; } init { } }
         public bool IsVirtual { get { throw null; } init { } }
         public string? JsonPropertyName { get { throw null; } init { } }
         public System.Text.Json.Serialization.JsonNumberHandling? NumberHandling { get { throw null; } init { } }

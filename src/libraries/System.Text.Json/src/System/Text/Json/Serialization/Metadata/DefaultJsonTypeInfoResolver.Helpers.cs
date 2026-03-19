@@ -359,6 +359,7 @@ namespace System.Text.Json.Serialization.Metadata
 
             jsonPropertyInfo.IgnoreCondition = ignoreCondition;
             jsonPropertyInfo.IsExtensionData = memberInfo.GetCustomAttribute<JsonExtensionDataAttribute>(inherit: false) != null;
+            jsonPropertyInfo.IsTypeDiscriminatorBinding = memberInfo.GetCustomAttribute<JsonTypeDiscriminatorAttribute>(inherit: false) != null;
         }
 
         private static void DeterminePropertyPolicies(JsonPropertyInfo propertyInfo, MemberInfo memberInfo)

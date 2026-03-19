@@ -333,6 +333,48 @@ namespace System.Text.Json.Serialization.Metadata
         private bool _isExtensionDataProperty;
 
         /// <summary>
+        /// Specifies whether the current property should receive the polymorphic
+        /// type discriminator value during deserialization and override the type-level
+        /// discriminator mapping during serialization.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">
+        /// The <see cref="JsonPropertyInfo"/> instance has been locked for further modification.
+        ///
+        /// -or-
+        ///
+        /// The current <see cref="PropertyType"/> is not <see cref="string"/>.
+        /// </exception>
+        /// <remarks>
+        /// <para>
+        /// When set to <see langword="true"/>, the property will be populated with the
+        /// type discriminator value read from the JSON payload during deserialization.
+        /// During serialization, the property value takes precedence over the type-level
+        /// discriminator mapping if non-null, enabling roundtripping of unrecognized discriminators.
+        /// </para>
+        /// <para>
+        /// For contracts originating from <see cref="DefaultJsonTypeInfoResolver"/> or <see cref="JsonSerializerContext"/>,
+        /// the value of this property will be mapped from <see cref="JsonTypeDiscriminatorAttribute"/> annotations.
+        /// </para>
+        /// </remarks>
+        public bool IsTypeDiscriminatorBinding
+        {
+            get => _isTypeDiscriminatorBinding;
+            set
+            {
+                VerifyMutable();
+
+                if (value && PropertyType != typeof(string))
+                {
+                    ThrowHelper.ThrowInvalidOperationException_TypeDiscriminatorPropertyMustBeString(this);
+                }
+
+                _isTypeDiscriminatorBinding = value;
+            }
+        }
+
+        private bool _isTypeDiscriminatorBinding;
+
+        /// <summary>
         /// Specifies whether the current property is required for deserialization to be successful.
         /// </summary>
         /// <exception cref="InvalidOperationException">
@@ -528,6 +570,15 @@ namespace System.Text.Json.Serialization.Metadata
             Debug.Assert(EffectiveConverter != null, "Must have calculated the effective converter.");
             CanSerialize = HasGetter;
             CanDeserialize = HasSetter;
+
+            // Type discriminator binding properties should not be serialized;
+            // the type-level discriminator mapping takes precedence.
+            if (IsTypeDiscriminatorBinding)
+            {
+                CanSerialize = false;
+                CanDeserializeOrPopulate = CanDeserialize || EffectiveObjectCreationHandling == JsonObjectCreationHandling.Populate;
+                return;
+            }
 
             Debug.Assert(MemberType is 0 or MemberTypes.Field or MemberTypes.Property);
             if (MemberType == 0 || _ignoreCondition != null)

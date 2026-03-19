@@ -32,6 +32,7 @@ namespace System.Text.Json.SourceGeneration
             private const string JsonPropertyNameAttributeFullName = "System.Text.Json.Serialization.JsonPropertyNameAttribute";
             private const string JsonPropertyOrderAttributeFullName = "System.Text.Json.Serialization.JsonPropertyOrderAttribute";
             private const string JsonRequiredAttributeFullName = "System.Text.Json.Serialization.JsonRequiredAttribute";
+            private const string JsonTypeDiscriminatorAttributeFullName = "System.Text.Json.Serialization.JsonTypeDiscriminatorAttribute";
 
             internal const string JsonSerializableAttributeFullName = "System.Text.Json.Serialization.JsonSerializableAttribute";
 
@@ -1225,6 +1226,7 @@ namespace System.Text.Json.SourceGeneration
                     out TypeRef? converterType,
                     out int order,
                     out bool isExtensionData,
+                    out bool isTypeDiscriminatorBinding,
                     out bool hasJsonRequiredAttribute);
 
                 ProcessMember(
@@ -1311,6 +1313,7 @@ namespace System.Text.Json.SourceGeneration
                     Order = order,
                     HasJsonInclude = hasJsonInclude,
                     IsExtensionData = isExtensionData,
+                    IsTypeDiscriminatorBinding = isTypeDiscriminatorBinding,
                     PropertyType = propertyTypeRef,
                     DeclaringType = declaringType,
                     ConverterType = converterType,
@@ -1330,6 +1333,7 @@ namespace System.Text.Json.SourceGeneration
                 out TypeRef? converterType,
                 out int order,
                 out bool isExtensionData,
+                out bool isTypeDiscriminatorBinding,
                 out bool hasJsonRequiredAttribute)
             {
                 Debug.Assert(memberInfo is IFieldSymbol or IPropertySymbol);
@@ -1342,6 +1346,7 @@ namespace System.Text.Json.SourceGeneration
                 converterType = null;
                 order = 0;
                 isExtensionData = false;
+                isTypeDiscriminatorBinding = false;
                 hasJsonRequiredAttribute = false;
 
                 foreach (AttributeData attributeData in memberInfo.GetAttributes())
@@ -1409,6 +1414,11 @@ namespace System.Text.Json.SourceGeneration
                             case JsonExtensionDataAttributeFullName:
                             {
                                 isExtensionData = true;
+                                break;
+                            }
+                            case JsonTypeDiscriminatorAttributeFullName:
+                            {
+                                isTypeDiscriminatorBinding = true;
                                 break;
                             }
                             case JsonRequiredAttributeFullName:

@@ -27,6 +27,10 @@ namespace System.Text.Json.Serialization
                     Debug.Assert(!state.IsContinuation);
                     Debug.Assert(state.PolymorphicTypeDiscriminator != null);
 
+                    // Preserve the discriminator value for potential binding
+                    // to a property marked with [JsonTypeDiscriminator].
+                    state.Current.TypeDiscriminatorValue = state.PolymorphicTypeDiscriminator;
+
                     PolymorphicTypeResolver resolver = jsonTypeInfo.PolymorphicTypeResolver;
                     if (resolver.TryGetDerivedJsonTypeInfo(state.PolymorphicTypeDiscriminator, out JsonTypeInfo? resolvedType))
                     {
@@ -106,6 +110,22 @@ namespace System.Text.Json.Serialization
 
                                 state.PolymorphicTypeDiscriminator = typeDiscriminator;
                                 state.PolymorphicTypeResolver = resolver;
+                            }
+                        }
+
+                        // If the resolved type has a discriminator-bound property with a non-null value,
+                        // use it as the discriminator, overriding any type-level mapping.
+                        JsonTypeInfo resolvedTypeInfo = derivedJsonTypeInfo
+                            ?? options.GetTypeInfoInternal(runtimeType, ensureNotNull: null)
+                            ?? jsonTypeInfo;
+
+                        if (resolvedTypeInfo.TypeDiscriminatorProperty is { Get: not null } discriminatorProperty)
+                        {
+                            object? discriminatorValue = discriminatorProperty.Get(value);
+                            if (discriminatorValue is not null)
+                            {
+                                state.PolymorphicTypeDiscriminator = discriminatorValue;
+                                state.PolymorphicTypeResolver ??= resolver;
                             }
                         }
                     }

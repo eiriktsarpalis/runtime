@@ -683,6 +683,7 @@ namespace System.Text.Json.SourceGeneration
                             IgnoreCondition = {{ignoreConditionNamedArg}},
                             HasJsonInclude = {{FormatBoolLiteral(property.HasJsonInclude)}},
                             IsExtensionData = {{FormatBoolLiteral(property.IsExtensionData)}},
+                            IsTypeDiscriminatorBinding = {{FormatBoolLiteral(property.IsTypeDiscriminatorBinding)}},
                             NumberHandling = {{FormatNumberHandling(property.NumberHandling)}},
                             PropertyName = {{FormatStringLiteral(property.MemberName)}},
                             JsonPropertyName = {{FormatStringLiteral(property.JsonPropertyName)}},

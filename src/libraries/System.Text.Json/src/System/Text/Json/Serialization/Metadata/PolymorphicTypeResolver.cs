@@ -31,6 +31,17 @@ namespace System.Text.Json.Serialization.Metadata
                 ThrowHelper.ThrowInvalidOperationException_TypeDoesNotSupportPolymorphism(BaseType);
             }
 
+            // Validate and resolve the fallback type, if specified.
+            if (polymorphismOptions.FallbackType is Type fallbackType)
+            {
+                if (!IsSupportedDerivedType(BaseType, fallbackType))
+                {
+                    ThrowHelper.ThrowInvalidOperationException_DerivedTypeNotSupported(BaseType, fallbackType);
+                }
+
+                FallbackTypeInfo = options.GetTypeInfoInternal(fallbackType);
+            }
+
             bool containsDerivedTypes = false;
             foreach ((Type derivedType, object? typeDiscriminator) in polymorphismOptions.DerivedTypes)
             {
@@ -93,16 +104,29 @@ namespace System.Text.Json.Serialization.Metadata
                 }
 
                 // Check if the discriminator property name conflicts with any derived property names.
+                // Properties marked as type discriminator bindings are exempt from this check.
                 foreach (DerivedJsonTypeInfo derivedTypeInfo in _discriminatorIdtoType.Values)
                 {
                     if (derivedTypeInfo.JsonTypeInfo.Kind is JsonTypeInfoKind.Object)
                     {
                         foreach (JsonPropertyInfo property in derivedTypeInfo.JsonTypeInfo.Properties)
                         {
-                            if (property is { IsIgnored: false, IsExtensionData: false } && property.Name == propertyName)
+                            if (property is { IsIgnored: false, IsExtensionData: false, IsTypeDiscriminatorBinding: false } && property.Name == propertyName)
                             {
                                 ThrowHelper.ThrowInvalidOperationException_PropertyConflictsWithMetadataPropertyName(derivedTypeInfo.JsonTypeInfo.Type, propertyName);
                             }
+                        }
+                    }
+                }
+
+                // Also check the fallback type.
+                if (FallbackTypeInfo?.Kind is JsonTypeInfoKind.Object)
+                {
+                    foreach (JsonPropertyInfo property in FallbackTypeInfo.Properties)
+                    {
+                        if (property is { IsIgnored: false, IsExtensionData: false, IsTypeDiscriminatorBinding: false } && property.Name == propertyName)
+                        {
+                            ThrowHelper.ThrowInvalidOperationException_PropertyConflictsWithMetadataPropertyName(FallbackTypeInfo.Type, propertyName);
                         }
                     }
                 }
@@ -113,6 +137,7 @@ namespace System.Text.Json.Serialization.Metadata
         public JsonUnknownDerivedTypeHandling UnknownDerivedTypeHandling { get; }
         public bool UsesTypeDiscriminators { get; }
         public bool IgnoreUnrecognizedTypeDiscriminators { get; }
+        public JsonTypeInfo? FallbackTypeInfo { get; }
         public byte[]? CustomTypeDiscriminatorPropertyNameUtf8 { get; }
         public JsonEncodedText? CustomTypeDiscriminatorPropertyNameJsonEncoded { get; }
 
@@ -170,6 +195,13 @@ namespace System.Text.Json.Serialization.Metadata
             {
                 Debug.Assert(typeDiscriminator.Equals(result.TypeDiscriminator));
                 jsonTypeInfo = result.JsonTypeInfo;
+                return true;
+            }
+
+            // Unrecognized discriminator: try fallback type first.
+            if (FallbackTypeInfo is not null)
+            {
+                jsonTypeInfo = FallbackTypeInfo;
                 return true;
             }
 

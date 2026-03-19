@@ -182,6 +182,7 @@ namespace System.Text.Json.Serialization.Metadata
             propertyInfo.SrcGen_IsPublic = propertyInfoValues.IsPublic;
             propertyInfo.SrcGen_HasJsonInclude = propertyInfoValues.HasJsonInclude;
             propertyInfo.IsExtensionData = propertyInfoValues.IsExtensionData;
+            propertyInfo.IsTypeDiscriminatorBinding = propertyInfoValues.IsTypeDiscriminatorBinding;
             propertyInfo.CustomConverter = propertyInfoValues.Converter;
 
             if (propertyInfo.IgnoreCondition != JsonIgnoreCondition.Always)

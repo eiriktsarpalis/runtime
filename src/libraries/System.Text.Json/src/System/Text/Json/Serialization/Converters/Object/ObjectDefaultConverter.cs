@@ -91,6 +91,13 @@ namespace System.Text.Json.Serialization.Converters
                     Debug.Assert(!IsValueType);
                     bool success = polymorphicConverter.OnTryReadAsObject(ref reader, polymorphicConverter.Type!, options, ref state, out object? objectResult);
                     value = (T)objectResult!;
+
+                    // Bind type discriminator value to a property if configured.
+                    if (success && objectResult is not null)
+                    {
+                        JsonSerializer.BindTypeDiscriminatorValue(objectResult, ref state);
+                    }
+
                     state.ExitPolymorphicConverter(success);
                     return success;
                 }
@@ -252,6 +259,13 @@ namespace System.Text.Json.Serialization.Converters
 
             jsonTypeInfo.OnDeserialized?.Invoke(obj);
             state.Current.ValidateAllRequiredPropertiesAreRead(jsonTypeInfo);
+
+            // Bind type discriminator value for the PolymorphicReEntryNotFound case
+            // (base type deserialized directly with unrecognized discriminator).
+            if (state.Current.TypeDiscriminatorValue is not null)
+            {
+                JsonSerializer.BindTypeDiscriminatorValue(obj, ref state);
+            }
 
             // Unbox
             Debug.Assert(obj != null);

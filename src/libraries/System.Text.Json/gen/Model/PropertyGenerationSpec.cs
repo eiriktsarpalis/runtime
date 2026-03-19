@@ -138,6 +138,11 @@ namespace System.Text.Json.SourceGeneration
         public required bool IsExtensionData { get; init; }
 
         /// <summary>
+        /// Whether the property has the JsonTypeDiscriminatorAttribute.
+        /// </summary>
+        public required bool IsTypeDiscriminatorBinding { get; init; }
+
+        /// <summary>
         /// Gets a reference to the property type.
         /// </summary>
         public required TypeRef PropertyType { get; init; }
