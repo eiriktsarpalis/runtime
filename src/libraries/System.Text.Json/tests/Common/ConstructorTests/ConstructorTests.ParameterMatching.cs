@@ -577,9 +577,6 @@ namespace System.Text.Json.Serialization.Tests
         }
 
         [Fact]
-#if BUILDING_SOURCE_GENERATOR_TESTS
-        [ActiveIssue("10-element ValueTuple not registered in source gen context.")]
-#endif
         public async Task ValueTupleRoundTrip_TenElements()
         {
             var tuple = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10);

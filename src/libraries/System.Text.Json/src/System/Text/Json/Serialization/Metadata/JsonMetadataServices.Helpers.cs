@@ -56,11 +56,6 @@ namespace System.Text.Json.Serialization.Metadata
             typeInfo.ConstructorAttributeProviderFactory = objectInfo.ConstructorAttributeProviderFactory;
             typeInfo.SerializeHandler = objectInfo.SerializeHandler;
             typeInfo.NumberHandling = objectInfo.NumberHandling;
-            if (typeInfo.Kind == JsonTypeInfoKind.Object && DefaultJsonTypeInfoResolver.IsTupleType(typeof(T)))
-            {
-                typeInfo.IsTupleType = true;
-            }
-
             typeInfo.PopulatePolymorphismMetadata();
             typeInfo.MapInterfaceTypesToCallbacks();
 
@@ -160,7 +155,7 @@ namespace System.Text.Json.Serialization.Metadata
                     continue;
                 }
 
-                if (jsonPropertyInfo.MemberType == MemberTypes.Field && !jsonPropertyInfo.SrcGen_HasJsonInclude && !typeInfo.Options.IncludeFields && !typeInfo.IsTupleType)
+                if (jsonPropertyInfo.MemberType == MemberTypes.Field && !jsonPropertyInfo.SrcGen_HasJsonInclude && !typeInfo.Options.IncludeFields && !DefaultJsonTypeInfoResolver.IsTupleType(typeInfo.Type))
                 {
                     continue;
                 }

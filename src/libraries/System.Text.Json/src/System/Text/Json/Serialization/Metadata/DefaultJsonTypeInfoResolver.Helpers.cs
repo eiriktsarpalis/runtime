@@ -62,10 +62,7 @@ namespace System.Text.Json.Serialization.Metadata
                 typeInfo.UnmappedMemberHandling = unmappedMemberHandling;
             }
 
-            if (typeInfo.Kind == JsonTypeInfoKind.Object && IsTupleType(type))
-            {
-                typeInfo.IsTupleType = true;
-            }
+            bool isTupleType = typeInfo.Kind == JsonTypeInfoKind.Object && IsTupleType(type);
 
             typeInfo.PopulatePolymorphismMetadata();
             typeInfo.MapInterfaceTypesToCallbacks();
@@ -82,7 +79,7 @@ namespace System.Text.Json.Serialization.Metadata
                 {
                     // NB parameter metadata must be populated *before* property metadata
                     // so that properties can be linked to their associated parameters.
-                    if (typeInfo.IsTupleType && type.IsGenericType && type.GetGenericArguments().Length == 8)
+                    if (isTupleType && type.IsGenericType && type.GetGenericArguments().Length == 8)
                     {
                         PopulateFlattenedTupleParameterInfoValues(typeInfo);
                     }
@@ -92,9 +89,9 @@ namespace System.Text.Json.Serialization.Metadata
                     }
                 }
 
-                PopulateProperties(typeInfo, nullabilityCtx);
+                PopulateProperties(typeInfo, nullabilityCtx, isTupleType);
 
-                if (typeInfo.IsTupleType && type.IsGenericType && type.GetGenericArguments().Length == 8)
+                if (isTupleType && type.IsGenericType && type.GetGenericArguments().Length == 8)
                 {
                     FlattenTupleProperties(typeInfo);
                 }
@@ -108,7 +105,7 @@ namespace System.Text.Json.Serialization.Metadata
 
             // For tuple types with >7 elements, override the constructor delegate to handle
             // nested Rest construction from flattened parameters.
-            if (typeInfo.IsTupleType && typeInfo.CreateObjectWithArgs is not null &&
+            if (isTupleType && typeInfo.CreateObjectWithArgs is not null &&
                 type.IsGenericType && type.GetGenericArguments().Length == 8)
             {
                 typeInfo.CreateObjectWithArgs = CreateFlattenedTupleConstructorDelegate(type);
@@ -119,7 +116,7 @@ namespace System.Text.Json.Serialization.Metadata
 
         [RequiresUnreferencedCode(JsonSerializer.SerializationUnreferencedCodeMessage)]
         [RequiresDynamicCode(JsonSerializer.SerializationRequiresDynamicCodeMessage)]
-        private static void PopulateProperties(JsonTypeInfo typeInfo, NullabilityInfoContext nullabilityCtx)
+        private static void PopulateProperties(JsonTypeInfo typeInfo, NullabilityInfoContext nullabilityCtx, bool isTupleType = false)
         {
             Debug.Assert(!typeInfo.IsReadOnly);
             Debug.Assert(typeInfo.Kind is JsonTypeInfoKind.Object);
@@ -157,6 +154,7 @@ namespace System.Text.Json.Serialization.Metadata
                     nullabilityCtx,
                     typeIgnoreCondition,
                     constructorHasSetsRequiredMembersAttribute,
+                    isTupleType,
                     ref state);
             }
 
@@ -182,6 +180,7 @@ namespace System.Text.Json.Serialization.Metadata
             NullabilityInfoContext nullabilityCtx,
             JsonIgnoreCondition? typeIgnoreCondition,
             bool constructorHasSetsRequiredMembersAttribute,
+            bool isTupleType,
             ref JsonTypeInfo.PropertyHierarchyResolutionState state)
         {
             Debug.Assert(!typeInfo.IsReadOnly);
@@ -223,7 +222,7 @@ namespace System.Text.Json.Serialization.Metadata
             foreach (FieldInfo fieldInfo in currentType.GetFields(AllInstanceMembers))
             {
                 bool hasJsonIncludeAttribute = fieldInfo.GetCustomAttribute<JsonIncludeAttribute>(inherit: false) != null;
-                if (hasJsonIncludeAttribute || (fieldInfo.IsPublic && (typeInfo.Options.IncludeFields || typeInfo.IsTupleType)))
+                if (hasJsonIncludeAttribute || (fieldInfo.IsPublic && (typeInfo.Options.IncludeFields || isTupleType)))
                 {
                     AddMember(
                         typeInfo,
@@ -365,17 +364,25 @@ namespace System.Text.Json.Serialization.Metadata
         [RequiresDynamicCode(JsonSerializer.SerializationRequiresDynamicCodeMessage)]
         private static void FlattenTupleProperties(JsonTypeInfo typeInfo)
         {
-            var flattenedElements = new List<(Type ElementType, Func<object, object?> Getter, Action<object, object?>? Setter)>();
-            CollectTupleElements(typeInfo.Type, obj => obj, flattenedElements);
+            var flattenedElements = new List<(Type ElementType, MemberInfo[] MemberChain)>();
+            CollectTupleElements(typeInfo.Type, [], flattenedElements);
 
             typeInfo.PropertyList.Clear();
 
             JsonTypeInfo.PropertyHierarchyResolutionState state = new(typeInfo.Options);
+            MemberAccessor accessor = MemberAccessor;
+            bool isValueTuple = typeInfo.Type.FullName?.StartsWith("System.ValueTuple`", StringComparison.Ordinal) == true;
 
             for (int i = 0; i < flattenedElements.Count; i++)
             {
-                (Type elementType, Func<object, object?> getter, Action<object, object?>? setter) = flattenedElements[i];
+                (Type elementType, MemberInfo[] memberChain) = flattenedElements[i];
                 string name = $"Item{i + 1}";
+
+                Func<object, object?> getter = accessor.CreateTupleElementGetter<object?>(memberChain);
+
+                Action<object, object?>? setter = isValueTuple
+                    ? accessor.CreateTupleElementSetter<object?>(memberChain)
+                    : null;
 
                 JsonPropertyInfo propertyInfo = typeInfo.CreatePropertyUsingReflection(elementType, declaringType: null);
                 propertyInfo.Name = name;
@@ -387,14 +394,13 @@ namespace System.Text.Json.Serialization.Metadata
         }
 
         /// <summary>
-        /// Recursively collects all tuple elements with their accessor functions and setter delegates.
+        /// Recursively collects all tuple elements with their member chains.
         /// </summary>
-        [UnconditionalSuppressMessage("Trimming", "IL2070:UnrecognizedReflectionPattern",
-            Justification = "Tuple types are core runtime types whose public fields and properties are always preserved.")]
+        [RequiresUnreferencedCode(JsonSerializer.SerializationUnreferencedCodeMessage)]
         private static void CollectTupleElements(
             Type tupleType,
-            Func<object, object?> parentAccessor,
-            List<(Type, Func<object, object?>, Action<object, object?>?)> elements)
+            MemberInfo[] parentChain,
+            List<(Type, MemberInfo[])> elements)
         {
             if (!tupleType.IsGenericType)
             {
@@ -425,25 +431,8 @@ namespace System.Text.Json.Serialization.Metadata
                     continue;
                 }
 
-                Func<object, object?> currentAccessor = parentAccessor;
-                MemberInfo capturedMember = member;
-                Func<object, object?> elementGetter = obj =>
-                {
-                    object? parent = currentAccessor(obj);
-                    if (parent is null)
-                    {
-                        return null;
-                    }
-
-                    return capturedMember switch
-                    {
-                        FieldInfo f => f.GetValue(parent),
-                        PropertyInfo p => p.GetValue(parent),
-                        _ => null,
-                    };
-                };
-
-                elements.Add((typeArgs[i], elementGetter, null));
+                MemberInfo[] chain = [.. parentChain, member];
+                elements.Add((typeArgs[i], chain));
             }
 
             // Handle Rest (8th type argument for >7 element tuples)
@@ -455,25 +444,8 @@ namespace System.Text.Json.Serialization.Metadata
 
                 if (restMember is not null)
                 {
-                    Func<object, object?> currentAccessor = parentAccessor;
-                    MemberInfo capturedRest = restMember;
-                    Func<object, object?> restAccessor = obj =>
-                    {
-                        object? parent = currentAccessor(obj);
-                        if (parent is null)
-                        {
-                            return null;
-                        }
-
-                        return capturedRest switch
-                        {
-                            FieldInfo f => f.GetValue(parent),
-                            PropertyInfo p => p.GetValue(parent),
-                            _ => null,
-                        };
-                    };
-
-                    CollectTupleElements(typeArgs[7], restAccessor, elements);
+                    MemberInfo[] restChain = [.. parentChain, restMember];
+                    CollectTupleElements(typeArgs[7], restChain, elements);
                 }
             }
         }
@@ -512,8 +484,7 @@ namespace System.Text.Json.Serialization.Metadata
         /// Returns a Func&lt;object[], T&gt; that matches what the converter expects.
         /// </summary>
         [RequiresDynamicCode(JsonSerializer.SerializationRequiresDynamicCodeMessage)]
-        [UnconditionalSuppressMessage("Trimming", "IL2060:MakeGenericMethod",
-            Justification = "CreateFlattenedTupleConstructorGeneric<T> has no trimming annotations on T.")]
+        [RequiresUnreferencedCode(JsonSerializer.SerializationUnreferencedCodeMessage)]
         private static object CreateFlattenedTupleConstructorDelegate(Type tupleType)
         {
             // The Large converter expects Func<object[], T> where T is the tuple type.
@@ -525,6 +496,7 @@ namespace System.Text.Json.Serialization.Metadata
         }
 
         [RequiresDynamicCode(JsonSerializer.SerializationRequiresDynamicCodeMessage)]
+        [RequiresUnreferencedCode(JsonSerializer.SerializationUnreferencedCodeMessage)]
         private static Func<object[], T> CreateFlattenedTupleConstructorGeneric<T>(Type tupleType)
         {
             return args => (T)ConstructNestedTuple(tupleType, args, 0);
@@ -534,8 +506,7 @@ namespace System.Text.Json.Serialization.Metadata
         /// Recursively constructs a nested tuple from a flat array of arguments.
         /// </summary>
         [RequiresDynamicCode(JsonSerializer.SerializationRequiresDynamicCodeMessage)]
-        [UnconditionalSuppressMessage("Trimming", "IL2067:UnrecognizedReflectionPattern",
-            Justification = "Tuple types are core runtime types whose public constructors are always preserved.")]
+        [RequiresUnreferencedCode(JsonSerializer.SerializationUnreferencedCodeMessage)]
         private static object ConstructNestedTuple(
             Type tupleType,
             object?[] flatArgs, int startIndex)

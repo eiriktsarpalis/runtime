@@ -272,20 +272,6 @@ namespace System.Text.Json.Serialization.Metadata
             return success;
         }
 
-        internal override bool GetMemberAndWriteJsonValue(object obj, ref WriteStack state, Utf8JsonWriter writer)
-        {
-            T value = Get!(obj);
-
-            if (value is null)
-            {
-                Debug.Assert(PropertyTypeCanBeNull);
-                writer.WriteNullValue();
-                return true;
-            }
-
-            return EffectiveConverter.TryWrite(writer, value, Options, ref state);
-        }
-
         internal override bool ReadJsonAndSetMember(object obj, scoped ref ReadStack state, ref Utf8JsonReader reader)
         {
             bool success;
