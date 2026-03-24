@@ -736,6 +736,7 @@ namespace System.Text.Json.SourceGeneration
                     NullableUnderlyingType = nullableUnderlyingType,
                     RuntimeTypeRef = runtimeTypeRef,
                     IsValueTuple = type.IsTupleType,
+                    IsReferenceTuple = IsReferenceTupleType(type),
                     HasExtensionDataPropertyType = hasExtensionDataProperty,
                     ConverterType = customConverterType,
                     ImplementsIJsonOnSerialized = implementsIJsonOnSerialized,
@@ -2166,6 +2167,19 @@ namespace System.Text.Json.SourceGeneration
                         builtInSupportTypes.Add(type);
                     }
                 }
+            }
+
+            private static bool IsReferenceTupleType(ITypeSymbol type)
+            {
+                if (type is not INamedTypeSymbol { IsGenericType: true } namedType)
+                {
+                    return false;
+                }
+
+                INamedTypeSymbol def = namedType.ConstructedFrom;
+                return def.ContainingNamespace?.ToDisplayString() == "System" &&
+                       def.Name == "Tuple" &&
+                       def.Arity >= 1 && def.Arity <= 8;
             }
 
             private readonly struct TypeToGenerate

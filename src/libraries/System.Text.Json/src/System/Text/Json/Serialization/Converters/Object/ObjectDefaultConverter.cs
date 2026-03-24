@@ -324,6 +324,14 @@ namespace System.Text.Json.Serialization.Converters
 
             object obj = value; // box once
 
+            if (jsonTypeInfo.IsTupleType)
+            {
+                writer.WriteStartObject();
+                WriteTupleNamedElements(writer, obj, jsonTypeInfo, ref state, elementIndex: 1);
+                writer.WriteEndObject();
+                return true;
+            }
+
             if (!state.SupportContinuation)
             {
                 jsonTypeInfo.OnSerializing?.Invoke(obj);
@@ -498,6 +506,43 @@ namespace System.Text.Json.Serialization.Converters
             // Extension properties can use the JsonElement converter and thus require read-ahead.
             bool requiresReadAhead = jsonPropertyInfo.EffectiveConverter.RequiresReadAhead || state.Current.UseExtensionProperty;
             return reader.TryAdvanceWithOptionalReadAhead(requiresReadAhead);
+        }
+
+        private static void WriteTupleNamedElements(Utf8JsonWriter writer, object obj, JsonTypeInfo jsonTypeInfo, ref WriteStack state, int elementIndex)
+        {
+            foreach (JsonPropertyInfo jsonPropertyInfo in jsonTypeInfo.PropertyCache)
+            {
+                if (!jsonPropertyInfo.CanSerialize)
+                {
+                    continue;
+                }
+
+                state.Current.JsonPropertyInfo = jsonPropertyInfo;
+                state.Current.NumberHandling = jsonPropertyInfo.EffectiveNumberHandling;
+
+                if (jsonPropertyInfo.Name == "Rest")
+                {
+                    JsonTypeInfo? restTypeInfo = jsonPropertyInfo.JsonTypeInfo;
+                    if (restTypeInfo is { IsTupleType: true })
+                    {
+                        object? restValue = jsonPropertyInfo.GetValueAsObject(obj);
+                        if (restValue is not null)
+                        {
+                            WriteTupleNamedElements(writer, restValue, restTypeInfo, ref state, elementIndex);
+                        }
+
+                        state.Current.EndProperty();
+                        continue;
+                    }
+                }
+
+                writer.WritePropertyName($"Item{elementIndex}");
+                bool success = jsonPropertyInfo.GetMemberAndWriteJsonValue(obj, ref state, writer);
+                Debug.Assert(success);
+
+                state.Current.EndProperty();
+                elementIndex++;
+            }
         }
     }
 }

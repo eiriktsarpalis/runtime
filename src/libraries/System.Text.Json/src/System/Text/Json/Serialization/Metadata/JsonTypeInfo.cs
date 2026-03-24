@@ -558,6 +558,8 @@ namespace System.Text.Json.Serialization.Metadata
 
         internal JsonUnmappedMemberHandling EffectiveUnmappedMemberHandling { get; private set; }
 
+        internal bool IsTupleType { get; set; }
+
         private JsonObjectCreationHandling? _preferredPropertyObjectCreationHandling;
 
         /// <summary>

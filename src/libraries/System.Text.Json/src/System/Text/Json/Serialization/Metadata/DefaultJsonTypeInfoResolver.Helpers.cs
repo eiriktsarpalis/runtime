@@ -62,6 +62,11 @@ namespace System.Text.Json.Serialization.Metadata
                 typeInfo.UnmappedMemberHandling = unmappedMemberHandling;
             }
 
+            if (typeInfo.Kind == JsonTypeInfoKind.Object && IsTupleType(type))
+            {
+                typeInfo.IsTupleType = true;
+            }
+
             typeInfo.PopulatePolymorphismMetadata();
             typeInfo.MapInterfaceTypesToCallbacks();
 
@@ -197,7 +202,7 @@ namespace System.Text.Json.Serialization.Metadata
             foreach (FieldInfo fieldInfo in currentType.GetFields(AllInstanceMembers))
             {
                 bool hasJsonIncludeAttribute = fieldInfo.GetCustomAttribute<JsonIncludeAttribute>(inherit: false) != null;
-                if (hasJsonIncludeAttribute || (fieldInfo.IsPublic && typeInfo.Options.IncludeFields))
+                if (hasJsonIncludeAttribute || (fieldInfo.IsPublic && (typeInfo.Options.IncludeFields || typeInfo.IsTupleType)))
                 {
                     AddMember(
                         typeInfo,
@@ -303,6 +308,32 @@ namespace System.Text.Json.Serialization.Metadata
         {
             JsonUnmappedMemberHandlingAttribute? numberHandlingAttribute = type.GetUniqueCustomAttribute<JsonUnmappedMemberHandlingAttribute>(inherit: false);
             return numberHandlingAttribute?.UnmappedMemberHandling;
+        }
+
+        internal static bool IsTupleType(Type type)
+        {
+            if (!type.IsGenericType)
+            {
+                return false;
+            }
+
+            Type genericDef = type.GetGenericTypeDefinition();
+            return genericDef == typeof(ValueTuple<>) ||
+                   genericDef == typeof(ValueTuple<,>) ||
+                   genericDef == typeof(ValueTuple<,,>) ||
+                   genericDef == typeof(ValueTuple<,,,>) ||
+                   genericDef == typeof(ValueTuple<,,,,>) ||
+                   genericDef == typeof(ValueTuple<,,,,,>) ||
+                   genericDef == typeof(ValueTuple<,,,,,,>) ||
+                   genericDef == typeof(ValueTuple<,,,,,,,>) ||
+                   genericDef == typeof(Tuple<>) ||
+                   genericDef == typeof(Tuple<,>) ||
+                   genericDef == typeof(Tuple<,,>) ||
+                   genericDef == typeof(Tuple<,,,>) ||
+                   genericDef == typeof(Tuple<,,,,>) ||
+                   genericDef == typeof(Tuple<,,,,,>) ||
+                   genericDef == typeof(Tuple<,,,,,,>) ||
+                   genericDef == typeof(Tuple<,,,,,,,>);
         }
 
         private static bool PropertyIsOverriddenAndIgnored(PropertyInfo propertyInfo, Dictionary<string, JsonPropertyInfo>? ignoredMembers)
