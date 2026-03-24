@@ -859,7 +859,7 @@ namespace System.Text.Json.SourceGeneration
                     if (defaultCheckType != SerializedValueCheckType.None)
                     {
                         // Use temporary variable to evaluate property value only once
-                        string localVariableName =  $"__value_{propertyGenSpec.NameSpecifiedInSourceCode.TrimStart('@')}";
+                        string localVariableName =  $"__value_{propertyGenSpec.NameSpecifiedInSourceCode.TrimStart('@').Replace('.', '_')}";
                         writer.WriteLine($"{propertyGenSpec.PropertyType.FullyQualifiedName} {localVariableName} = {objectExpr}.{propertyGenSpec.NameSpecifiedInSourceCode};");
                         propValueExpr = localVariableName;
                     }
@@ -944,6 +944,11 @@ namespace System.Text.Json.SourceGeneration
 
             private static string GetParameterizedCtorInvocationFunc(TypeGenerationSpec typeGenerationSpec)
             {
+                if (typeGenerationSpec.HasNestedTupleElements)
+                {
+                    return GetTupleCtorInvocationFunc(typeGenerationSpec);
+                }
+
                 ImmutableEquatableArray<ParameterGenerationSpec> parameters = typeGenerationSpec.CtorParamGenSpecs;
                 ImmutableEquatableArray<PropertyInitializerGenerationSpec> propertyInitializers = typeGenerationSpec.PropertyInitializerSpecs;
 
@@ -1017,6 +1022,110 @@ namespace System.Text.Json.SourceGeneration
                         _ => $"({param.ParameterType.FullyQualifiedName}){argsVarName}[{param.ArgsIndex}]", // None or In (in doesn't require keyword at call site)
                     };
                 }
+            }
+
+            /// <summary>
+            /// Generates nested constructor invocation for tuple types.
+            /// For a 10-element tuple, generates:
+            /// static args => new ValueTuple&lt;...&gt;((T)args[0], ..., new ValueTuple&lt;...&gt;((T)args[7], ...))
+            /// </summary>
+            private static string GetTupleCtorInvocationFunc(TypeGenerationSpec typeGenerationSpec)
+            {
+                ImmutableEquatableArray<ParameterGenerationSpec> parameters = typeGenerationSpec.CtorParamGenSpecs;
+                const string ArgsVarName = "args";
+
+                StringBuilder sb = new($"static {ArgsVarName} => ");
+                string fullTypeName = typeGenerationSpec.TypeRef.FullyQualifiedName;
+                AppendNestedTupleConstructor(sb, fullTypeName, parameters, 0, ArgsVarName);
+                return sb.ToString();
+            }
+
+            /// <summary>
+            /// Recursively appends nested tuple constructor expressions.
+            /// </summary>
+            private static void AppendNestedTupleConstructor(
+                StringBuilder sb,
+                string tupleTypeName,
+                ImmutableEquatableArray<ParameterGenerationSpec> parameters,
+                int startIndex,
+                string argsVarName)
+            {
+                int remaining = parameters.Count - startIndex;
+                int directArgs = remaining > 7 ? 7 : remaining;
+
+                sb.Append($"new {tupleTypeName}(");
+
+                for (int i = 0; i < directArgs; i++)
+                {
+                    ParameterGenerationSpec param = parameters[startIndex + i];
+                    sb.Append($"({param.ParameterType.FullyQualifiedName}){argsVarName}[{param.ArgsIndex}]");
+
+                    if (i < directArgs - 1 || remaining > 7)
+                    {
+                        sb.Append(", ");
+                    }
+                }
+
+                if (remaining > 7)
+                {
+                    // Extract the Rest type from the outer tuple type name.
+                    // The type name is like global::System.ValueTuple<T1,...,T7,RestType>
+                    // We need to extract RestType.
+                    string restTypeName = ExtractRestTypeFromTupleName(tupleTypeName);
+                    AppendNestedTupleConstructor(sb, restTypeName, parameters, startIndex + 7, argsVarName);
+                }
+
+                sb.Append(')');
+            }
+
+            /// <summary>
+            /// Extracts the Rest type argument (the 8th type argument) from a fully qualified tuple type name.
+            /// For example, from "global::System.ValueTuple&lt;int, int, ..., global::System.ValueTuple&lt;int&gt;&gt;"
+            /// extracts "global::System.ValueTuple&lt;int&gt;".
+            /// </summary>
+            private static string ExtractRestTypeFromTupleName(string tupleTypeName)
+            {
+                // Find the opening '<' for the generic arguments
+                int openBracket = tupleTypeName.IndexOf('<');
+                if (openBracket < 0)
+                {
+                    return tupleTypeName;
+                }
+
+                // Walk through the type arguments, counting 7 commas at depth 1
+                int depth = 0;
+                int commaCount = 0;
+                for (int i = openBracket; i < tupleTypeName.Length; i++)
+                {
+                    char c = tupleTypeName[i];
+                    if (c == '<')
+                    {
+                        depth++;
+                    }
+                    else if (c == '>')
+                    {
+                        depth--;
+                    }
+                    else if (c == ',' && depth == 1)
+                    {
+                        commaCount++;
+                        if (commaCount == 7)
+                        {
+                            // The rest type starts after this comma (skip space)
+                            int restStart = i + 1;
+                            while (restStart < tupleTypeName.Length && tupleTypeName[restStart] == ' ')
+                            {
+                                restStart++;
+                            }
+
+                            // The rest type ends at the final '>'
+                            int restEnd = tupleTypeName.Length - 1;
+                            return tupleTypeName.Substring(restStart, restEnd - restStart);
+                        }
+                    }
+                }
+
+                return tupleTypeName;
             }
 
             private static string? GetPrimitiveWriterMethod(TypeGenerationSpec type)
