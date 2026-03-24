@@ -57,6 +57,11 @@ namespace System.Text.Json.SourceGeneration
 
         public bool IsTupleType => IsValueTuple || IsReferenceTuple;
 
+        /// <summary>
+        /// True when this tuple type has elements nested via Rest that were flattened into the property list.
+        /// </summary>
+        public required bool HasNestedTupleElements { get; init; }
+
         public required JsonNumberHandling? NumberHandling { get; init; }
         public required JsonUnmappedMemberHandling? UnmappedMemberHandling { get; init; }
         public required JsonObjectCreationHandling? PreferredPropertyObjectCreationHandling { get; init; }
