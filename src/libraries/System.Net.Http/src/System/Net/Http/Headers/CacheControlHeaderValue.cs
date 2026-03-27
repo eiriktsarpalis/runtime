@@ -178,18 +178,12 @@ namespace System.Net.Http.Headers
 
             if (source._noCacheHeaders != null)
             {
-                foreach (string noCacheHeader in source._noCacheHeaders)
-                {
-                    NoCacheHeaders.Add(noCacheHeader);
-                }
+                NoCacheHeaders.AddRange(source._noCacheHeaders);
             }
 
             if (source._privateHeaders != null)
             {
-                foreach (string privateHeader in source._privateHeaders)
-                {
-                    PrivateHeaders.Add(privateHeader);
-                }
+                PrivateHeaders.AddRange(source._privateHeaders);
             }
 
             _extensions = source._extensions.Clone();

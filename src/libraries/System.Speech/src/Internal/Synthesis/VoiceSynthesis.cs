@@ -1189,13 +1189,7 @@ namespace System.Speech.Internal.Synthesis
             List<InstalledVoice> tokens = new(_installedVoices);
 
             // Remove all the voices that are disabled
-            for (int i = tokens.Count - 1; i >= 0; i--)
-            {
-                if (!tokens[i].Enabled)
-                {
-                    tokens.RemoveAt(i);
-                }
-            }
+            tokens.RemoveAll(token => !token.Enabled);
 
             // Try to select the best available voice
             for (; voice == null && tokens.Count > 0;)
