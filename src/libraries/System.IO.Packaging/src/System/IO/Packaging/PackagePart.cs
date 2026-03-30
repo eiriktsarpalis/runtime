@@ -766,14 +766,7 @@ namespace System.IO.Packaging
         //Deletes all the streams that have been closed from the _requestedStreams list.
         private void CleanUpRequestedStreamsList()
         {
-            if (_requestedStreams != null)
-            {
-                for (int i = _requestedStreams.Count - 1; i >= 0; i--)
-                {
-                    if (IsStreamClosed(_requestedStreams[i]))
-                        _requestedStreams.RemoveAt(i);
-                }
-            }
+            _requestedStreams?.RemoveAll(IsStreamClosed);
         }
 
         //Detect if the stream has been closed.

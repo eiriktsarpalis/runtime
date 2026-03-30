@@ -161,15 +161,9 @@ namespace System.Speech.Internal.SrgsCompiler
 
             // Remove the orphaned arcs
             // This could happen in the case of a <item repeat=0-0"> <tag /></item>
-            for (int i = _tags.Count - 1; i >= 0; i--)
-            {
-                // When arc are created the index is set to zero. This value changes during serialization
-                // if an arc references it
-                if (_tags[i]._cfgTag.ArcIndex == 0)
-                {
-                    _tags.RemoveAt(i);
-                }
-            }
+            // When arc are created the index is set to zero. This value changes during serialization
+            // if an arc references it
+            _tags.RemoveAll(tag => tag._cfgTag.ArcIndex == 0);
             // Sort the _tags array by ArcIndex
             _tags.Sort();
 

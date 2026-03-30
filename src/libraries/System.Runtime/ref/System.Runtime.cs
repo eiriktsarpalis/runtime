@@ -8335,10 +8335,12 @@ namespace System.Collections.Generic
         int Count { get; }
         bool IsReadOnly { get; }
         void Add(T item);
+        void AddRange(System.Collections.Generic.IEnumerable<T> collection) { }
         void Clear();
         bool Contains(T item);
         void CopyTo(T[] array, int arrayIndex);
         bool Remove(T item);
+        int RemoveAll(System.Predicate<T> match) { throw null; }
     }
     public partial interface IComparer<in T> where T : allows ref struct
     {
@@ -8372,7 +8374,10 @@ namespace System.Collections.Generic
         T this[int index] { get; set; }
         int IndexOf(T item);
         void Insert(int index, T item);
+        void InsertRange(int index, System.Collections.Generic.IEnumerable<T> collection) { }
         void RemoveAt(int index);
+        void RemoveRange(int index, int count) { }
+        int System.Collections.Generic.ICollection<T>.RemoveAll(System.Predicate<T> match) { throw null; }
     }
     public partial interface IReadOnlyCollection<out T> : System.Collections.Generic.IEnumerable<T>, System.Collections.IEnumerable
     {

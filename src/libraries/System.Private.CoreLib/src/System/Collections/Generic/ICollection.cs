@@ -53,5 +53,52 @@ namespace System.Collections.Generic
         [DynamicDependency(nameof(Array.InternalArray__ICollection_Remove) + "``1", typeof(Array))]
 #endif
         bool Remove(T item);
+
+        /// <summary>Adds the elements of the specified collection to this collection.</summary>
+        /// <param name="collection">The collection whose elements should be added.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="collection"/> is <see langword="null"/>.</exception>
+        void AddRange(IEnumerable<T> collection)
+        {
+            ArgumentNullException.ThrowIfNull(collection);
+
+            foreach (T item in collection)
+            {
+                Add(item);
+            }
+        }
+
+        /// <summary>Removes all the elements that match the conditions defined by the specified predicate.</summary>
+        /// <param name="match">The delegate that defines the conditions of the elements to remove.</param>
+        /// <returns>The number of elements removed from the collection.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="match"/> is <see langword="null"/>.</exception>
+        int RemoveAll(Predicate<T> match)
+        {
+            ArgumentNullException.ThrowIfNull(match);
+
+            List<T>? toRemove = null;
+            foreach (T item in this)
+            {
+                if (match(item))
+                {
+                    (toRemove ??= new()).Add(item);
+                }
+            }
+
+            if (toRemove is null)
+            {
+                return 0;
+            }
+
+            int removed = 0;
+            foreach (T item in toRemove)
+            {
+                if (Remove(item))
+                {
+                    removed++;
+                }
+            }
+
+            return removed;
+        }
     }
 }
