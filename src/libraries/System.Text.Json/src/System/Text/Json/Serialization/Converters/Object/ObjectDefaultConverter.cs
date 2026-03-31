@@ -4,8 +4,11 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization.Metadata;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace System.Text.Json.Serialization.Converters
 {
@@ -504,6 +507,158 @@ namespace System.Text.Json.Serialization.Converters
             // Extension properties can use the JsonElement converter and thus require read-ahead.
             bool requiresReadAhead = jsonPropertyInfo.EffectiveConverter.RequiresReadAhead || state.Current.UseExtensionProperty;
             return reader.TryAdvanceWithOptionalReadAhead(requiresReadAhead);
+        }
+
+        /// <summary>
+        /// Fully async object deserialization. No ReadStack, no Push/Pop, no TryRead.
+        /// The compiler-generated async state machine replaces all manual state management.
+        /// Await points occur only when the buffer needs refilling from the stream.
+        /// </summary>
+        internal override async ValueTask<T?> OnReadCoreAsync(
+            JsonStreamReader streamReader,
+            Stream stream,
+            JsonTypeInfo jsonTypeInfo,
+            JsonSerializerOptions options,
+            CancellationToken cancellationToken)
+        {
+            // Fall back for parameterized constructors and reference handling.
+            if (ConstructorIsParameterized ||
+                options.ReferenceHandlingStrategy != JsonKnownReferenceHandler.Unspecified ||
+                jsonTypeInfo.PolymorphicTypeResolver?.UsesTypeDiscriminators == true ||
+                jsonTypeInfo.CreateObject is null ||
+                jsonTypeInfo.ExtensionDataProperty is not null ||
+                jsonTypeInfo.PreferredPropertyObjectCreationHandling is JsonObjectCreationHandling.Populate ||
+                options.PreferredObjectCreationHandling == JsonObjectCreationHandling.Populate ||
+                options.NumberHandling != JsonNumberHandling.Strict ||
+                jsonTypeInfo.NumberHandling is not null ||
+                jsonTypeInfo.OnDeserializing is not null ||
+                jsonTypeInfo.OnDeserialized is not null ||
+                options.RespectNullableAnnotations ||
+                !options.AllowDuplicateProperties)
+            {
+                return await base.OnReadCoreAsync(streamReader, stream, jsonTypeInfo, options, cancellationToken).ConfigureAwait(false);
+            }
+
+            // Check per-property settings that require the full TryRead machinery
+            foreach (JsonPropertyInfo prop in jsonTypeInfo.PropertyCache)
+            {
+                if (prop.EffectiveObjectCreationHandling == JsonObjectCreationHandling.Populate ||
+                    prop.IsRequired ||
+                    prop.EffectiveNumberHandling is not null)
+                {
+                    return await base.OnReadCoreAsync(streamReader, stream, jsonTypeInfo, options, cancellationToken).ConfigureAwait(false);
+                }
+            }
+
+            try
+            {
+            // Read StartObject (or Null) token
+            JsonTokenType tokenType;
+            while (!streamReader.TryReadToken(out tokenType, out _))
+            {
+                if (streamReader.IsFinalBlock) ThrowHelper.ThrowJsonException();
+                await streamReader.RefillBufferAsync(stream, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (tokenType == JsonTokenType.Null)
+            {
+                if (default(T) is not null)
+                {
+                    ThrowHelper.ThrowJsonException_DeserializeUnableToConvertValue(Type);
+                }
+
+                return default;
+            }
+
+            if (tokenType != JsonTokenType.StartObject)
+            {
+                ThrowHelper.ThrowJsonException_DeserializeUnableToConvertValue(Type);
+            }
+
+            object obj = jsonTypeInfo.CreateObject();
+            jsonTypeInfo.OnDeserializing?.Invoke(obj);
+
+            // Minimal frame for property lookup caching only.
+            ReadStackFrame propertyFrame = default;
+            propertyFrame.JsonTypeInfo = jsonTypeInfo;
+
+            // Property reading loop. Local variables ARE the state.
+            // The compiler's async state machine preserves them across awaits.
+            while (true)
+            {
+                // Read property name or EndObject
+                byte[]? propertyNameBytes;
+                while (!streamReader.TryReadToken(out tokenType, out propertyNameBytes))
+                {
+                    if (streamReader.IsFinalBlock) ThrowHelper.ThrowJsonException();
+                    await streamReader.RefillBufferAsync(stream, cancellationToken).ConfigureAwait(false);
+                }
+
+                if (tokenType == JsonTokenType.EndObject)
+                {
+                    break;
+                }
+
+                Debug.Assert(tokenType == JsonTokenType.PropertyName);
+                Debug.Assert(propertyNameBytes is not null);
+
+                // Look up the property
+                JsonPropertyInfo? jsonPropertyInfo = jsonTypeInfo.GetProperty(
+                    propertyNameBytes, ref propertyFrame, out _);
+                propertyFrame.PropertyIndex++;
+
+                if (jsonPropertyInfo is null || !jsonPropertyInfo.CanDeserializeOrPopulate)
+                {
+                    if (jsonPropertyInfo is null &&
+                        jsonTypeInfo.EffectiveUnmappedMemberHandling is JsonUnmappedMemberHandling.Disallow)
+                    {
+                        ThrowHelper.ThrowJsonException_UnmappedJsonProperty(
+                            jsonTypeInfo.Type, System.Text.Encoding.UTF8.GetString(propertyNameBytes));
+                    }
+
+                    // Skip the property value
+                    while (!streamReader.TrySkipValue())
+                    {
+                        if (streamReader.IsFinalBlock) ThrowHelper.ThrowJsonException();
+                        await streamReader.RefillBufferAsync(stream, cancellationToken).ConfigureAwait(false);
+                    }
+
+                    continue;
+                }
+
+                // Read property value via the child converter's async path.
+                object? propValue;
+                try
+                {
+                    propValue = await jsonPropertyInfo.EffectiveConverter.ReadCoreAsyncAsObject(
+                        streamReader, stream, jsonPropertyInfo.JsonTypeInfo, options, cancellationToken).ConfigureAwait(false);
+                }
+                catch (NotSupportedException ex) when (!ex.Message.Contains(" Path: "))
+                {
+                    string path = "$." + (jsonPropertyInfo.MemberName ?? jsonPropertyInfo.Name);
+                    throw new NotSupportedException(
+                        ex.Message + $" Path: {path} | LineNumber: 0 | BytePositionInLine: 0.", ex);
+                }
+
+                if (jsonPropertyInfo.HasSetter)
+                {
+                    jsonPropertyInfo.SetValueAsObject(obj, propValue);
+                }
+            }
+
+            jsonTypeInfo.OnDeserialized?.Invoke(obj);
+            return (T)obj;
+
+            }
+            catch (JsonReaderException ex)
+            {
+                throw new JsonException(ex.Message, ex.Path, ex.LineNumber, ex.BytePositionInLine, ex);
+            }
+            catch (InvalidOperationException ex) when (ex.Source == ThrowHelper.ExceptionSourceValueToRethrowAsJsonException)
+            {
+                ThrowHelper.ThrowJsonException(ex.Message);
+                return default; // unreachable
+            }
         }
     }
 }

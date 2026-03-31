@@ -3,7 +3,10 @@
 
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Text.Json.Serialization.Metadata;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace System.Text.Json.Serialization
 {
@@ -328,6 +331,131 @@ namespace System.Text.Json.Serialization
                 }
 
                 return key;
+            }
+        }
+
+        /// <summary>
+        /// Fully async dictionary deserialization. No ReadStack state machine.
+        /// Peeks for EndObject, reads keys from the live reader, dispatches values to child.
+        /// </summary>
+        internal override async ValueTask<TDictionary?> OnReadCoreAsync(
+            JsonStreamReader streamReader,
+            Stream stream,
+            JsonTypeInfo jsonTypeInfo,
+            JsonSerializerOptions options,
+            CancellationToken cancellationToken)
+        {
+            // Fall back for metadata, polymorphism, reference handling, duplicates,
+            // convertible collections, or types without a CreateObject delegate
+            if (options.ReferenceHandlingStrategy != JsonKnownReferenceHandler.Unspecified ||
+                jsonTypeInfo.PolymorphicTypeResolver?.UsesTypeDiscriminators == true ||
+                !options.AllowDuplicateProperties ||
+                jsonTypeInfo.CreateObject is null ||
+                IsConvertibleCollection ||
+                CanHaveMetadata)
+            {
+                return await base.OnReadCoreAsync(streamReader, stream, jsonTypeInfo, options, cancellationToken).ConfigureAwait(false);
+            }
+
+            try
+            {
+
+            // Read StartObject
+            JsonTokenType tokenType;
+            while (!streamReader.TryReadToken(out tokenType, out _))
+            {
+                if (streamReader.IsFinalBlock) ThrowHelper.ThrowJsonException();
+                await streamReader.RefillBufferAsync(stream, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (tokenType == JsonTokenType.Null)
+            {
+                if (default(TDictionary) is not null)
+                {
+                    ThrowHelper.ThrowJsonException_DeserializeUnableToConvertValue(Type);
+                }
+
+                return default;
+            }
+
+            if (tokenType != JsonTokenType.StartObject)
+            {
+                ThrowHelper.ThrowJsonException_DeserializeUnableToConvertValue(Type);
+            }
+
+            // Create dictionary
+            ReadStack tempState = default;
+            tempState.Initialize(jsonTypeInfo);
+            {
+                Utf8JsonReader reader = streamReader.GetReader();
+                CreateCollection(ref reader, ref tempState);
+            }
+
+            jsonTypeInfo.OnDeserializing?.Invoke(tempState.Current.ReturnValue!);
+
+            JsonTypeInfo keyTypeInfo = jsonTypeInfo.KeyTypeInfo!;
+            JsonTypeInfo valueTypeInfo = jsonTypeInfo.ElementTypeInfo!;
+            JsonConverter<TKey> keyConverter = _keyConverter ??= GetConverter<TKey>(keyTypeInfo);
+            JsonConverter valueConverter = ((JsonTypeInfo<TValue>)valueTypeInfo).EffectiveConverter;
+
+            // Read key-value pairs
+            while (true)
+            {
+                // Peek: EndObject is consumed; PropertyName leaves buffer for key reading
+                while (!streamReader.TryPeekTokenType(out tokenType))
+                {
+                    if (streamReader.IsFinalBlock) ThrowHelper.ThrowJsonException();
+                    await streamReader.RefillBufferAsync(stream, cancellationToken).ConfigureAwait(false);
+                }
+
+                if (tokenType == JsonTokenType.EndObject)
+                {
+                    break;
+                }
+
+                Debug.Assert(tokenType == JsonTokenType.PropertyName);
+
+                // Read the key from the live reader (peek left buffer unchanged)
+                TKey key;
+                {
+                    Utf8JsonReader reader = streamReader.GetReader();
+                    while (!reader.Read())
+                    {
+                        streamReader.SaveReader(ref reader);
+                        if (streamReader.IsFinalBlock) ThrowHelper.ThrowJsonException();
+                        await streamReader.RefillBufferAsync(stream, cancellationToken).ConfigureAwait(false);
+                        reader = streamReader.GetReader();
+                    }
+
+                    string keyString = reader.GetString()!;
+                    if (keyConverter.IsInternalConverter && keyConverter.Type == typeof(string))
+                    {
+                        key = (TKey)(object)keyString;
+                    }
+                    else
+                    {
+                        key = keyConverter.ReadAsPropertyNameCore(ref reader, typeof(TKey), options);
+                    }
+
+                    streamReader.SaveReader(ref reader);
+                }
+
+                // Read value via child converter
+                TValue? dictValue = (TValue?)await valueConverter.ReadCoreAsyncAsObject(
+                    streamReader, stream, valueTypeInfo, options, cancellationToken).ConfigureAwait(false);
+
+                Add(key, dictValue!, options, ref tempState);
+            }
+
+            ConvertCollection(ref tempState, options);
+            object returnValue = tempState.Current.ReturnValue!;
+            jsonTypeInfo.OnDeserialized?.Invoke(returnValue);
+            return (TDictionary)returnValue;
+
+            }
+            catch (JsonReaderException ex)
+            {
+                throw new JsonException(ex.Message, ex.Path, ex.LineNumber, ex.BytePositionInLine, ex);
             }
         }
 

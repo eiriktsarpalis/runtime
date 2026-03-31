@@ -55,11 +55,12 @@ namespace System.Text.Json.Serialization.Metadata
             }
         }
 
-        internal ValueTask<T?> DeserializeAsync(Stream utf8Json, CancellationToken cancellationToken)
+        internal async ValueTask<T?> DeserializeAsync(Stream utf8Json, CancellationToken cancellationToken)
         {
-            // Note: The ReadBufferState ctor rents pooled buffers.
-            StreamReadBufferState bufferState = new StreamReadBufferState(Options.DefaultBufferSize);
-            return DeserializeAsync(utf8Json, bufferState, cancellationToken);
+            Debug.Assert(IsConfigured);
+            using JsonStreamReader streamReader = new(Options);
+            await streamReader.RefillBufferAsync(utf8Json, cancellationToken).ConfigureAwait(false);
+            return await EffectiveConverter.ReadCoreAsync(streamReader, utf8Json, this, Options, cancellationToken).ConfigureAwait(false);
         }
 
         internal ValueTask<T?> DeserializeAsync(PipeReader utf8Json, CancellationToken cancellationToken)
@@ -114,9 +115,7 @@ namespace System.Text.Json.Serialization.Metadata
 
         internal sealed override async ValueTask<object?> DeserializeAsObjectAsync(Stream utf8Json, CancellationToken cancellationToken)
         {
-            // Note: The ReadBufferState ctor rents pooled buffers.
-            StreamReadBufferState bufferState = new StreamReadBufferState(Options.DefaultBufferSize);
-            T? result = await DeserializeAsync(utf8Json, bufferState, cancellationToken).ConfigureAwait(false);
+            T? result = await DeserializeAsync(utf8Json, cancellationToken).ConfigureAwait(false);
             return result;
         }
 

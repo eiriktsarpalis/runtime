@@ -3,10 +3,13 @@
 
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Reflection;
 using System.Text.Json.Schema;
 using System.Text.Json.Serialization.Converters;
 using System.Text.Json.Serialization.Metadata;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace System.Text.Json.Serialization
 {
@@ -218,6 +221,14 @@ namespace System.Text.Json.Serialization
         internal abstract void WriteAsPropertyNameAsObject(Utf8JsonWriter writer, object? value, JsonSerializerOptions options);
         internal abstract void WriteAsPropertyNameCoreAsObject(Utf8JsonWriter writer, object? value, JsonSerializerOptions options, bool isWritingExtensionDataProperty);
         internal abstract void WriteNumberWithCustomHandlingAsObject(Utf8JsonWriter writer, object? value, JsonNumberHandling handling);
+
+        // Async deserialization bridge
+        internal abstract ValueTask<object?> ReadCoreAsyncAsObject(
+            JsonStreamReader streamReader,
+            Stream stream,
+            JsonTypeInfo jsonTypeInfo,
+            JsonSerializerOptions options,
+            CancellationToken cancellationToken);
 
         /// <summary>
         /// Gets a schema from the type being converted

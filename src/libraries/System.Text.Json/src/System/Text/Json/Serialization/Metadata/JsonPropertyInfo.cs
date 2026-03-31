@@ -918,6 +918,47 @@ namespace System.Text.Json.Serialization.Metadata
 
         internal abstract bool ReadJsonAndSetMember(object obj, scoped ref ReadStack state, ref Utf8JsonReader reader);
 
+        /// <summary>
+        /// Sets a property value using the untyped setter. Used by async converter paths
+        /// where the property value has already been deserialized as object.
+        /// </summary>
+        internal void SetValueAsObject(object obj, object? value)
+        {
+            Debug.Assert(_untypedSet is not null);
+            _untypedSet(obj, value);
+        }
+
+        /// <summary>
+        /// Sets an extension data property value. Used by async converter paths.
+        /// </summary>
+        internal void SetExtensionDataValueAsObject(object obj, object? value, string propertyName)
+        {
+            object propValue = GetValueAsObject(obj)!;
+
+            if (propValue is IDictionary<string, object?> dictionaryObjectValue)
+            {
+                dictionaryObjectValue[propertyName] = value;
+            }
+            else if (propValue is IDictionary<string, JsonElement> dictionaryElementValue)
+            {
+                dictionaryElementValue[propertyName] = value is JsonElement je ? je : default;
+            }
+            else
+            {
+                // JsonObject extension data: use the converter's ReadElementAndSetProperty
+                // which handles trimming-safe JsonNode creation.
+                Debug.Assert(propValue is Nodes.JsonObject);
+                if (value is Nodes.JsonNode node)
+                {
+                    ((Nodes.JsonObject)propValue)[propertyName] = node;
+                }
+                else
+                {
+                    ((Nodes.JsonObject)propValue)[propertyName] = null;
+                }
+            }
+        }
+
         internal abstract bool ReadJsonAsObject(scoped ref ReadStack state, ref Utf8JsonReader reader, out object? value);
 
         internal bool ReadJsonExtensionDataValue(scoped ref ReadStack state, ref Utf8JsonReader reader, out object? value)

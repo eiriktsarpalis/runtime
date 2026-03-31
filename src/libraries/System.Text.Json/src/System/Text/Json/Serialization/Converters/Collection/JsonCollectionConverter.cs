@@ -4,7 +4,10 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Text.Json.Serialization.Metadata;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace System.Text.Json.Serialization
 {
@@ -286,6 +289,98 @@ namespace System.Text.Json.Serialization
             value = (TCollection)returnValue;
 
             return true;
+        }
+
+        /// <summary>
+        /// Fully async collection deserialization. No ReadStack state machine.
+        /// Reads StartArray, peeks for EndArray, dispatches elements to child converters.
+        /// </summary>
+        internal override async ValueTask<TCollection?> OnReadCoreAsync(
+            JsonStreamReader streamReader,
+            Stream stream,
+            JsonTypeInfo jsonTypeInfo,
+            JsonSerializerOptions options,
+            CancellationToken cancellationToken)
+        {
+            // Fall back for metadata, polymorphism, reference handling, populate,
+            // or types without a CreateObject delegate (e.g., struct collections)
+            if (options.ReferenceHandlingStrategy != JsonKnownReferenceHandler.Unspecified ||
+                jsonTypeInfo.PolymorphicTypeResolver?.UsesTypeDiscriminators == true ||
+                jsonTypeInfo.CreateObject is null ||
+                IsConvertibleCollection ||
+                CanHaveMetadata)
+            {
+                return await base.OnReadCoreAsync(streamReader, stream, jsonTypeInfo, options, cancellationToken).ConfigureAwait(false);
+            }
+
+            // Read StartArray
+            try
+            {
+            JsonTokenType tokenType;
+            while (!streamReader.TryReadToken(out tokenType, out _))
+            {
+                if (streamReader.IsFinalBlock) ThrowHelper.ThrowJsonException();
+                await streamReader.RefillBufferAsync(stream, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (tokenType == JsonTokenType.Null)
+            {
+                if (default(TCollection) is not null)
+                {
+                    ThrowHelper.ThrowJsonException_DeserializeUnableToConvertValue(Type);
+                }
+
+                return default;
+            }
+
+            if (tokenType != JsonTokenType.StartArray)
+            {
+                ThrowHelper.ThrowJsonException_DeserializeUnableToConvertValue(Type);
+            }
+
+            // Create collection
+            ReadStack tempState = default;
+            tempState.Initialize(jsonTypeInfo);
+            {
+                Utf8JsonReader reader = streamReader.GetReader();
+                CreateCollection(ref reader, ref tempState, options);
+            }
+
+            jsonTypeInfo.OnDeserializing?.Invoke(tempState.Current.ReturnValue!);
+            JsonTypeInfo elementTypeInfo = jsonTypeInfo.ElementTypeInfo!;
+            JsonConverter elementConverter = ((JsonTypeInfo<TElement>)elementTypeInfo).EffectiveConverter;
+
+            // Read elements: peek for EndArray, dispatch non-end tokens to child
+            while (true)
+            {
+                // Peek: if EndArray it's consumed; otherwise buffer stays for child
+                while (!streamReader.TryPeekTokenType(out tokenType))
+                {
+                    if (streamReader.IsFinalBlock) ThrowHelper.ThrowJsonException();
+                    await streamReader.RefillBufferAsync(stream, cancellationToken).ConfigureAwait(false);
+                }
+
+                if (tokenType == JsonTokenType.EndArray)
+                {
+                    break;
+                }
+
+                // Child reads its own first token (buffer unchanged by peek)
+                TElement? element = (TElement?)await elementConverter.ReadCoreAsyncAsObject(
+                    streamReader, stream, elementTypeInfo, options, cancellationToken).ConfigureAwait(false);
+                Add(element!, ref tempState);
+            }
+
+            ConvertCollection(ref tempState, options);
+            object returnValue = tempState.Current.ReturnValue!;
+            jsonTypeInfo.OnDeserialized?.Invoke(returnValue);
+            return (TCollection)returnValue;
+
+            }
+            catch (JsonReaderException ex)
+            {
+                throw new JsonException(ex.Message, ex.Path, ex.LineNumber, ex.BytePositionInLine, ex);
+            }
         }
 
         internal override bool OnTryWrite(

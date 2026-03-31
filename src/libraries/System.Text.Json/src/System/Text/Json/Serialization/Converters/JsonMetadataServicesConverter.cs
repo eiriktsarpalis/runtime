@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Text.Json.Nodes;
 using System.Text.Json.Schema;
 using System.Text.Json.Serialization.Metadata;
+using System.Threading.Tasks;
 
 namespace System.Text.Json.Serialization.Converters
 {

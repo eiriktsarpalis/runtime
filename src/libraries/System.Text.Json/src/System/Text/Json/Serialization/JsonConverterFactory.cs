@@ -2,7 +2,10 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Diagnostics;
+using System.IO;
 using System.Text.Json.Serialization.Metadata;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace System.Text.Json.Serialization
 {
@@ -153,6 +156,18 @@ namespace System.Text.Json.Serialization
         }
 
         internal sealed override void WriteNumberWithCustomHandlingAsObject(Utf8JsonWriter writer, object? value, JsonNumberHandling handling)
+        {
+            Debug.Fail("We should never get here.");
+
+            throw new InvalidOperationException();
+        }
+
+        internal sealed override ValueTask<object?> ReadCoreAsyncAsObject(
+            JsonStreamReader streamReader,
+            Stream stream,
+            JsonTypeInfo jsonTypeInfo,
+            JsonSerializerOptions options,
+            CancellationToken cancellationToken)
         {
             Debug.Fail("We should never get here.");
 
