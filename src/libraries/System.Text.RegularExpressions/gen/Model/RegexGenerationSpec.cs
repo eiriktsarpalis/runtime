@@ -9,8 +9,9 @@ namespace System.Text.RegularExpressions.Generator
     {
         /// <summary>
         /// Top-level incremental model. The regular <see cref="RegexMethod"/> instances are wrapped
-        /// in an equatable envelope so Roslyn can compare successive results without us needing to
-        /// maintain a mirrored immutable object graph for the regex tree.
+        /// in an equatable envelope so Roslyn can compare successive results using structural
+        /// equality over the parsed <see cref="RegexTree"/> and <see cref="AnalysisResults"/>
+        /// objects, without us needing to maintain a mirrored immutable object graph.
         /// </summary>
         private sealed record RegexGenerationSpec
         {
