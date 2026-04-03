@@ -4,12 +4,16 @@
 namespace System.Text.RegularExpressions.Generator
 {
     /// <summary>
-    /// Immutable, structurally equatable representation of a type that declares a regex member.
-    /// Mirrors the data in the generator's internal <c>RegexType</c> record.
+    /// Immutable snapshot of the type hierarchy that declares a generated regex member.
+    /// This provides a value-equatable cache key for Roslyn while the emitter continues to
+    /// use its existing mutable <c>RegexType</c> helper.
     /// </summary>
     internal sealed record RegexTypeSpec(
         string Keyword,
         string Namespace,
         string Name,
-        RegexTypeSpec? Parent);
+        RegexTypeSpec? Parent)
+    {
+        public string FullName { get; } = Parent is null ? Name : $"{Parent.FullName}.{Name}";
+    }
 }

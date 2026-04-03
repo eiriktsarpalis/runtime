@@ -1,7 +1,8 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.Collections;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using SourceGenerators;
 
@@ -26,47 +27,62 @@ namespace System.Text.RegularExpressions.Generator
                 CaptureNames: tree.CaptureNames?.ToImmutableEquatableArray(),
                 CaptureNameToNumberMapping: tree.CaptureNameToNumberMapping?.ToImmutableEquatableDictionary<string, int>(),
                 CaptureNumberSparseMapping: tree.CaptureNumberSparseMapping?.ToImmutableEquatableDictionary<int, int>(),
-                FindOptimizations: ConvertFindOptimizations(tree.FindOptimizations, analysis),
+                FindOptimizations: ConvertFindOptimizations(tree.FindOptimizations),
                 HasIgnoreCase: analysis.HasIgnoreCase,
                 HasRightToLeft: analysis.HasRightToLeft);
         }
 
-        /// <summary>Recursively converts a <see cref="RegexNode"/> tree to a <see cref="RegexNodeSpec"/> tree.</summary>
+        /// <summary>Converts a <see cref="RegexNode"/> tree to a <see cref="RegexNodeSpec"/> tree using an explicit stack.</summary>
         private static RegexNodeSpec ConvertNode(RegexNode node, AnalysisResults analysis)
         {
-            int childCount = node.ChildCount();
-            ImmutableEquatableArray<RegexNodeSpec> children;
-            if (childCount == 0)
+            RegexNodeSpec? rootSpec = null;
+            Stack<RegexNodeConversionFrame> stack = new();
+            stack.Push(new RegexNodeConversionFrame(node));
+
+            while (stack.Count != 0)
             {
-                children = ImmutableEquatableArray<RegexNodeSpec>.Empty;
-            }
-            else
-            {
-                RegexNodeSpec[] childSpecs = new RegexNodeSpec[childCount];
-                for (int i = 0; i < childCount; i++)
+                RegexNodeConversionFrame frame = stack.Pop();
+                int childCount = frame.Node.ChildCount();
+
+                if (frame.NextChildIndex < childCount)
                 {
-                    childSpecs[i] = ConvertNode(node.Child(i), analysis);
+                    int childIndex = frame.NextChildIndex++;
+                    stack.Push(frame);
+                    stack.Push(new RegexNodeConversionFrame(frame.Node.Child(childIndex)));
+                    continue;
                 }
 
-                children = new ImmutableEquatableArray<RegexNodeSpec>(childSpecs);
+                RegexNodeSpec currentSpec = new(
+                    Kind: frame.Node.Kind,
+                    Options: frame.Node.Options,
+                    Ch: frame.Node.Ch,
+                    Str: frame.Node.Str,
+                    M: frame.Node.M,
+                    N: frame.Node.N,
+                    Children: frame.Children is null ? ImmutableEquatableArray<RegexNodeSpec>.Empty : new ImmutableEquatableArray<RegexNodeSpec>(frame.Children),
+                    IsAtomicByAncestor: analysis.IsAtomicByAncestor(frame.Node),
+                    MayBacktrack: analysis.MayBacktrack(frame.Node),
+                    MayContainCapture: analysis.MayContainCapture(frame.Node),
+                    IsInLoop: analysis.IsInLoop(frame.Node));
+
+                if (stack.Count == 0)
+                {
+                    rootSpec = currentSpec;
+                    break;
+                }
+
+                RegexNodeConversionFrame parent = stack.Pop();
+                int completedChildIndex = parent.NextChildIndex - 1;
+                (parent.Children ??= new RegexNodeSpec[parent.Node.ChildCount()])[completedChildIndex] = currentSpec;
+                stack.Push(parent);
             }
 
-            return new RegexNodeSpec(
-                Kind: node.Kind,
-                Options: node.Options,
-                Ch: node.Ch,
-                Str: node.Str,
-                M: node.M,
-                N: node.N,
-                Children: children,
-                IsAtomicByAncestor: analysis.IsAtomicByAncestor(node),
-                MayBacktrack: analysis.MayBacktrack(node),
-                MayContainCapture: analysis.MayContainCapture(node),
-                IsInLoop: analysis.IsInLoop(node));
+            Debug.Assert(rootSpec is not null);
+            return rootSpec!;
         }
 
         /// <summary>Converts <see cref="RegexFindOptimizations"/> to <see cref="FindOptimizationsSpec"/>.</summary>
-        private static FindOptimizationsSpec ConvertFindOptimizations(RegexFindOptimizations opts, AnalysisResults analysis)
+        private static FindOptimizationsSpec ConvertFindOptimizations(RegexFindOptimizations opts)
         {
             ImmutableEquatableArray<FixedDistanceSetSpec>? fixedDistanceSets = null;
             if (opts.FixedDistanceSets is { } sets)
@@ -83,7 +99,6 @@ namespace System.Text.RegularExpressions.Generator
             if (opts.LiteralAfterLoop is { } lal)
             {
                 literalAfterLoop = new LiteralAfterLoopSpec(
-                    LoopNode: ConvertNode(lal.LoopNode, analysis),
                     LiteralChar: lal.Literal.Char,
                     LiteralString: lal.Literal.String,
                     LiteralStringComparison: lal.Literal.StringComparison,
@@ -101,6 +116,20 @@ namespace System.Text.RegularExpressions.Generator
                 FixedDistanceLiteral: opts.FixedDistanceLiteral,
                 FixedDistanceSets: fixedDistanceSets,
                 LiteralAfterLoop: literalAfterLoop);
+        }
+
+        private struct RegexNodeConversionFrame
+        {
+            public RegexNodeConversionFrame(RegexNode node)
+            {
+                Node = node;
+                NextChildIndex = 0;
+                Children = null;
+            }
+
+            public readonly RegexNode Node;
+            public int NextChildIndex;
+            public RegexNodeSpec[]? Children;
         }
     }
 }

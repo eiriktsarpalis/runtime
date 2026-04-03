@@ -6,11 +6,11 @@ using SourceGenerators;
 namespace System.Text.RegularExpressions.Generator
 {
     /// <summary>
-    /// Immutable, structurally equatable representation of a literal that follows
-    /// an atomic loop in the regex find optimizations.
+    /// Immutable, structurally equatable representation of the literal that follows
+    /// an atomic loop in the regex find optimizations. The loop node itself is already
+    /// captured by <see cref="RegexTreeSpec.Root"/>.
     /// </summary>
     internal sealed record LiteralAfterLoopSpec(
-        RegexNodeSpec LoopNode,
         char LiteralChar,
         string? LiteralString,
         StringComparison LiteralStringComparison,

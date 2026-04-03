@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
@@ -304,6 +305,100 @@ namespace System.Text.RegularExpressions.Tests
             string secondOutput = string.Concat(driver.GetRunResult().Results[0].GeneratedSources.Select(s => s.SyntaxTree.ToString()));
             Assert.Contains("NS2", secondOutput);
             Assert.NotEqual(firstOutput, secondOutput);
+        }
+
+        [Fact]
+        public static void SameLeafNestedTypeNames_EmitDeterministically()
+        {
+            string source1 = """
+                using System.Text.RegularExpressions;
+                namespace NS
+                {
+                    public partial class OuterB
+                    {
+                        public partial class C
+                        {
+                            [GeneratedRegex(@"abc")]
+                            public static partial Regex GetRegex();
+                        }
+                    }
+
+                    public partial class OuterA
+                    {
+                        public partial class C
+                        {
+                            [GeneratedRegex(@"abc")]
+                            public static partial Regex GetRegex();
+                        }
+                    }
+                }
+                """;
+
+            string source2 = """
+                using System.Text.RegularExpressions;
+                namespace NS
+                {
+                    public partial class OuterA
+                    {
+                        public partial class C
+                        {
+                            [GeneratedRegex(@"abc")]
+                            public static partial Regex GetRegex();
+                        }
+                    }
+
+                    public partial class OuterB
+                    {
+                        public partial class C
+                        {
+                            [GeneratedRegex(@"abc")]
+                            public static partial Regex GetRegex();
+                        }
+                    }
+                }
+                """;
+
+            Compilation compilation = CreateCompilation(source1);
+            GeneratorDriver driver = CreateRegexGeneratorDriver(compilation);
+
+            driver = driver.RunGenerators(compilation);
+            string firstOutput = string.Concat(driver.GetRunResult().Results[0].GeneratedSources.Select(s => s.SyntaxTree.ToString()));
+
+            compilation = CreateCompilation(source2);
+            driver = CreateRegexGeneratorDriver(compilation);
+
+            driver = driver.RunGenerators(compilation);
+            string secondOutput = string.Concat(driver.GetRunResult().Results[0].GeneratedSources.Select(s => s.SyntaxTree.ToString()));
+
+            Assert.Equal(firstOutput, secondOutput);
+            int outerAIndex = firstOutput.IndexOf("partial class OuterA", StringComparison.Ordinal);
+            int outerBIndex = firstOutput.IndexOf("partial class OuterB", StringComparison.Ordinal);
+            Assert.True(outerAIndex >= 0);
+            Assert.True(outerBIndex >= 0);
+            Assert.True(outerAIndex < outerBIndex);
+        }
+
+        [Fact]
+        public static void DeeplyNestedPattern_FallsBackGracefully()
+        {
+            string nestedPattern = new string('(', 100) + "a" + new string(')', 100);
+            string source = $$"""
+                using System.Text.RegularExpressions;
+                public partial class C
+                {
+                    [GeneratedRegex(@"{{nestedPattern}}")]
+                    public static partial Regex GetRegex();
+                }
+                """;
+
+            Compilation compilation = CreateCompilation(source);
+            GeneratorDriver driver = CreateRegexGeneratorDriver(compilation);
+
+            driver = driver.RunGenerators(compilation);
+            GeneratorRunResult runResult = driver.GetRunResult().Results[0];
+
+            Assert.Equal("SYSLIB1044", Assert.Single(runResult.Diagnostics).Id);
+            Assert.False(runResult.GeneratedSources.IsEmpty);
         }
 
         [Fact]

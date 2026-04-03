@@ -57,7 +57,13 @@ namespace System.Text.RegularExpressions.Generator
             Dictionary<string, string[]> requiredHelpers = new();
             List<(RegexMethodSpec Spec, RegexMethod Method)> methods = new();
             foreach (RegexMethodSpec methodSpec in spec.RegexMethods
-                .OrderBy(m => (m.DeclaringType.Namespace, m.DeclaringType.Name, m.MemberName, m.Pattern, (int)m.Options, m.MatchTimeout)))
+                .OrderBy(m => m.DeclaringType.Namespace, StringComparer.Ordinal)
+                .ThenBy(m => m.DeclaringType.FullName, StringComparer.Ordinal)
+                .ThenBy(m => m.MemberName, StringComparer.Ordinal)
+                .ThenBy(m => m.Pattern, StringComparer.Ordinal)
+                .ThenBy(m => (int)m.Options)
+                .ThenBy(m => m.MatchTimeout)
+                .ThenBy(m => m.CultureName ?? string.Empty, StringComparer.Ordinal))
             {
                 RegexType regexType = ConvertRegexTypeSpecToRegexType(methodSpec.DeclaringType);
 

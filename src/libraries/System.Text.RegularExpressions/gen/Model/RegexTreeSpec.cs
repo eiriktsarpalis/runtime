@@ -6,9 +6,9 @@ using SourceGenerators;
 namespace System.Text.RegularExpressions.Generator
 {
     /// <summary>
-    /// Immutable, structurally equatable representation of a parsed regex tree.
-    /// Mirrors the data in <see cref="RegexTree"/> with baked-in analysis results
-    /// to enable effective incremental caching by the Roslyn pipeline.
+    /// Immutable snapshot of a parsed regex tree used as the incremental cache boundary.
+    /// <see cref="RegexTree"/> is mutable and reference-based, so the generator needs a
+    /// value-equatable representation in order for Roslyn to cache emission correctly.
     /// </summary>
     internal sealed record RegexTreeSpec(
         RegexNodeSpec Root,

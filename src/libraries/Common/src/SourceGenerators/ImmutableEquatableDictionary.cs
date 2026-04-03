@@ -91,7 +91,7 @@ namespace SourceGenerators
     internal static class ImmutableEquatableDictionary
     {
         public static ImmutableEquatableDictionary<TKey, TValue> ToImmutableEquatableDictionary<TKey, TValue>(
-            this Hashtable source)
+            this IDictionary source)
             where TKey : IEquatable<TKey>
             where TValue : IEquatable<TValue>
         {
