@@ -307,6 +307,53 @@ namespace System.Text.RegularExpressions.Tests
             Assert.NotEqual(firstOutput, secondOutput);
         }
 
+        [Theory]
+        [InlineData(
+            "public static partial Regex GetRegex();",
+            "internal static partial Regex GetRegex();")]
+        [InlineData(
+            "public static partial Regex GetRegex();",
+            "public static partial Regex? GetRegex();")]
+        public static void SignatureChange_Regenerates(string originalSignature, string updatedSignature)
+        {
+            string source1 = $$"""
+                using System.Text.RegularExpressions;
+                public partial class C
+                {
+                    [GeneratedRegex(@"abc")]
+                    {{originalSignature}}
+                }
+                """;
+
+            string source2 = $$"""
+                using System.Text.RegularExpressions;
+                public partial class C
+                {
+                    [GeneratedRegex(@"abc")]
+                    {{updatedSignature}}
+                }
+                """;
+
+            Compilation compilation = CreateCompilation(source1);
+            GeneratorDriver driver = CreateRegexGeneratorDriver(compilation);
+
+            driver = driver.RunGenerators(compilation);
+            string firstOutput = string.Concat(driver.GetRunResult().Results[0].GeneratedSources.Select(s => s.SyntaxTree.ToString()));
+
+            compilation = compilation.ReplaceSyntaxTree(
+                compilation.SyntaxTrees.First(),
+                CSharpSyntaxTree.ParseText(SourceText.From(source2, Encoding.UTF8),
+                    CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Preview)));
+
+            driver = driver.RunGenerators(compilation);
+            GeneratorRunResult runResult = driver.GetRunResult().Results[0];
+            string secondOutput = string.Concat(runResult.GeneratedSources.Select(s => s.SyntaxTree.ToString()));
+
+            AssertSourceModelModified(runResult,
+                "Expected the source model to be recomputed after a signature-affecting change.");
+            Assert.NotEqual(firstOutput, secondOutput);
+        }
+
         [Fact]
         public static void SameLeafNestedTypeNames_EmitDeterministically()
         {

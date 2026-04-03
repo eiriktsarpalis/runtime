@@ -5,14 +5,16 @@ using SourceGenerators;
 
 namespace System.Text.RegularExpressions.Generator
 {
-    /// <summary>
-    /// Immutable, structurally equatable top-level model representing the complete
-    /// set of regex methods to be generated. This is the incremental cache boundary:
-    /// Roslyn compares successive instances using value equality to determine whether
-    /// the source output callback needs to re-run.
-    /// </summary>
-    internal sealed record RegexGenerationSpec
+    public partial class RegexGenerator
     {
-        public required ImmutableEquatableSet<RegexMethodSpec> RegexMethods { get; init; }
+        /// <summary>
+        /// Top-level incremental model. The regular <see cref="RegexMethod"/> instances are wrapped
+        /// in an equatable envelope so Roslyn can compare successive results without us needing to
+        /// maintain a mirrored immutable object graph for the regex tree.
+        /// </summary>
+        private sealed record RegexGenerationSpec
+        {
+            public required ImmutableEquatableSet<Equatable<RegexMethod, RegexMethodComparer>> RegexMethods { get; init; }
+        }
     }
 }

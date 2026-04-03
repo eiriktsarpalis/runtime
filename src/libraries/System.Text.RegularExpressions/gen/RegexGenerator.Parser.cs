@@ -7,6 +7,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Linq;
+using System.Numerics.Hashing;
 using System.Threading;
 
 using Microsoft.CodeAnalysis;
@@ -29,15 +30,15 @@ namespace System.Text.RegularExpressions.Generator
         private static (RegexGenerationSpec? Spec, ImmutableArray<Diagnostic> Diagnostics) Parse(
             ImmutableArray<GeneratorAttributeSyntaxContext> contexts, CancellationToken cancellationToken)
         {
-            List<RegexMethodSpec>? methods = null;
+            List<Equatable<RegexMethod, RegexMethodComparer>>? methods = null;
             List<Diagnostic>? diagnostics = null;
 
             foreach (GeneratorAttributeSyntaxContext context in contexts)
             {
-                RegexMethodSpec? spec = ParseMethod(context, ref diagnostics, cancellationToken);
-                if (spec is not null)
+                RegexMethod? regexMethod = ParseMethod(context, ref diagnostics, cancellationToken);
+                if (regexMethod is not null)
                 {
-                    (methods ??= []).Add(spec);
+                    (methods ??= []).Add(new(regexMethod));
                 }
             }
 
@@ -55,11 +56,11 @@ namespace System.Text.RegularExpressions.Generator
         }
 
         /// <summary>
-        /// Parses a single <see cref="GeneratorAttributeSyntaxContext"/> into a <see cref="RegexMethodSpec"/>.
+        /// Parses a single <see cref="GeneratorAttributeSyntaxContext"/> into a <see cref="RegexMethod"/>.
         /// Returns <see langword="null"/> if the member should be skipped. Appends any diagnostics
         /// to the provided builder.
         /// </summary>
-        private static RegexMethodSpec? ParseMethod(
+        private static RegexMethod? ParseMethod(
             GeneratorAttributeSyntaxContext context,
             ref List<Diagnostic>? diagnostics,
             CancellationToken cancellationToken)
@@ -257,7 +258,7 @@ namespace System.Text.RegularExpressions.Generator
                 SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted));
 
             // Build the declaring type hierarchy from outside in.
-            RegexTypeSpec? parentSpec = null;
+            RegexType? parentType = null;
             TypeDeclarationSyntax? parentDec = typeDec.Parent as TypeDeclarationSyntax;
             if (parentDec is not null)
             {
@@ -273,42 +274,37 @@ namespace System.Text.RegularExpressions.Generator
                 for (int i = parents.Count - 1; i >= 0; i--)
                 {
                     TypeDeclarationSyntax p = parents[i];
-                    parentSpec = new RegexTypeSpec(
+                    parentType = new RegexType(
                         p is RecordDeclarationSyntax rds2 ? $"{p.Keyword.ValueText} {rds2.ClassOrStructKeyword}" : p.Keyword.ValueText,
                         ns ?? string.Empty,
                         $"{p.Identifier}{p.TypeParameterList}",
-                        Parent: parentSpec);
+                        parentType);
                 }
             }
 
-            RegexTypeSpec regexTypeSpec = new(
+            RegexType regexType = new(
                 typeDec is RecordDeclarationSyntax rds ? $"{typeDec.Keyword.ValueText} {rds.ClassOrStructKeyword}" : typeDec.Keyword.ValueText,
                 ns ?? string.Empty,
                 $"{typeDec.Identifier}{typeDec.TypeParameterList}",
-                Parent: parentSpec);
+                parentType);
 
             CompilationData compilationData = compilation is CSharpCompilation { LanguageVersion: LanguageVersion langVersion, Options: CSharpCompilationOptions compilationOptions }
                 ? new CompilationData(compilationOptions.AllowUnsafe, compilationOptions.CheckOverflow, langVersion)
                 : default;
 
-            // Parse the regex and build the equatable model.
-            RegexTreeSpec? treeSpec;
             string? limitedSupportReason;
+            RegexTree regexTree;
+            AnalysisResults analysis;
             try
             {
-                RegexTree regexTree = RegexParser.Parse(pattern, regexOptions | RegexOptions.Compiled, culture);
-                AnalysisResults analysis = RegexTreeAnalyzer.Analyze(regexTree);
+                regexTree = RegexParser.Parse(pattern, regexOptions | RegexOptions.Compiled, culture);
+                analysis = RegexTreeAnalyzer.Analyze(regexTree);
 
                 if (!SupportsCodeGeneration(regexTree.Root, compilationData.LanguageVersion, out limitedSupportReason))
                 {
-                    // Limited support — emit a boilerplate Regex wrapper, no tree needed
+                    // Limited support — emit a boilerplate Regex wrapper, but still preserve the parsed data
+                    // for the emitter rather than mirroring the tree into a second object model.
                     (diagnostics ??= []).Add(Diagnostic.Create(DiagnosticDescriptors.LimitedSourceGeneration, memberSyntax.GetLocation()));
-                    treeSpec = null;
-                }
-                else
-                {
-                    treeSpec = CreateRegexTreeSpec(regexTree, analysis, effectiveCultureName);
-                    limitedSupportReason = null;
                 }
             }
             catch (Exception e)
@@ -317,21 +313,20 @@ namespace System.Text.RegularExpressions.Generator
                 return null;
             }
 
-            return new RegexMethodSpec
-            {
-                DeclaringType = regexTypeSpec,
-                IsProperty = regexMemberSymbol is IPropertySymbol,
-                MemberName = regexMemberSymbol.Name,
-                Modifiers = memberSyntax.Modifiers.ToString(),
-                NullableRegex = nullableRegex,
-                Pattern = pattern,
-                Options = regexOptions,
-                MatchTimeout = matchTimeout,
-                CultureName = effectiveCultureName,
-                Tree = treeSpec,
-                LimitedSupportReason = limitedSupportReason,
-                CompilationData = compilationData,
-            };
+            return new RegexMethod(
+                regexType,
+                regexMemberSymbol is IPropertySymbol,
+                regexMemberSymbol.Name,
+                memberSyntax.Modifiers.ToString(),
+                nullableRegex,
+                pattern,
+                regexOptions,
+                matchTimeout,
+                effectiveCultureName,
+                regexTree,
+                analysis,
+                limitedSupportReason,
+                compilationData);
 
             static bool IsAllowedKind(SyntaxKind kind) => kind is
                 SyntaxKind.ClassDeclaration or
@@ -397,8 +392,21 @@ namespace System.Text.RegularExpressions.Generator
                 return false;
             }
         }
-        /// <summary>Data about a regex, including a fully parsed RegexTree and subsequent analysis.</summary>
-        private sealed class RegexMethod(RegexType declaringType, bool isProperty, string memberName, string modifiers, bool nullableRegex, string pattern, RegexOptions options, int? matchTimeout, RegexTree tree, AnalysisResults analysis, CompilationData compilationData)
+        /// <summary>Data about a regex, including its parsed tree and analysis results used by the emitter.</summary>
+        private sealed class RegexMethod(
+            RegexType declaringType,
+            bool isProperty,
+            string memberName,
+            string modifiers,
+            bool nullableRegex,
+            string pattern,
+            RegexOptions options,
+            int? matchTimeout,
+            string? cultureName,
+            RegexTree tree,
+            AnalysisResults analysis,
+            string? limitedSupportReason,
+            CompilationData compilationData)
         {
             public RegexType DeclaringType { get; } = declaringType;
             public bool IsProperty { get; } = isProperty;
@@ -408,20 +416,106 @@ namespace System.Text.RegularExpressions.Generator
             public string Pattern { get; } = pattern;
             public RegexOptions Options { get; } = options;
             public int? MatchTimeout { get; } = matchTimeout;
+            public string? CultureName { get; } = cultureName;
             public RegexTree Tree { get; } = tree;
             public AnalysisResults Analysis { get; } = analysis;
+            public string? LimitedSupportReason { get; } = limitedSupportReason;
             public CompilationData CompilationData { get; } = compilationData;
             public string? GeneratedName { get; set; }
             public bool IsDuplicate { get; set; }
         }
 
-        /// <summary>A type holding a regex method.</summary>
-        private sealed class RegexType(string keyword, string @namespace, string name)
+        /// <summary>A containing type for a regex member.</summary>
+        private sealed class RegexType(string keyword, string @namespace, string name, RegexType? parent)
         {
+            private string? _fullName;
+
             public string Keyword { get; } = keyword;
             public string Namespace { get; } = @namespace;
             public string Name { get; } = name;
-            public RegexType? Parent { get; set; }
+            public RegexType? Parent { get; } = parent;
+            public string FullName => _fullName ??= Parent is null ? Name : $"{Parent.FullName}+{Name}";
+        }
+
+        /// <summary>
+        /// Compares <see cref="RegexMethod"/> instances by the source inputs that affect emitted output.
+        /// The parsed tree and analysis are intentionally excluded: they are deterministically derived from
+        /// these inputs and are carried only so the emitter can reuse them without maintaining a mirrored model.
+        /// </summary>
+        private sealed class RegexMethodComparer : IEqualityComparer<RegexMethod>
+        {
+            private static readonly RegexTypeComparer s_typeComparer = new();
+
+            public bool Equals(RegexMethod? x, RegexMethod? y)
+            {
+                if (ReferenceEquals(x, y))
+                {
+                    return true;
+                }
+
+                if (x is null || y is null)
+                {
+                    return false;
+                }
+
+                return s_typeComparer.Equals(x.DeclaringType, y.DeclaringType) &&
+                    x.IsProperty == y.IsProperty &&
+                    StringComparer.Ordinal.Equals(x.MemberName, y.MemberName) &&
+                    StringComparer.Ordinal.Equals(x.Modifiers, y.Modifiers) &&
+                    x.NullableRegex == y.NullableRegex &&
+                    StringComparer.Ordinal.Equals(x.Pattern, y.Pattern) &&
+                    x.Options == y.Options &&
+                    x.MatchTimeout == y.MatchTimeout &&
+                    StringComparer.Ordinal.Equals(x.CultureName, y.CultureName) &&
+                    StringComparer.Ordinal.Equals(x.LimitedSupportReason, y.LimitedSupportReason) &&
+                    x.CompilationData.Equals(y.CompilationData);
+            }
+
+            public int GetHashCode(RegexMethod obj)
+            {
+                int hash = s_typeComparer.GetHashCode(obj.DeclaringType);
+                hash = HashHelpers.Combine(hash, obj.IsProperty.GetHashCode());
+                hash = HashHelpers.Combine(hash, StringComparer.Ordinal.GetHashCode(obj.MemberName));
+                hash = HashHelpers.Combine(hash, StringComparer.Ordinal.GetHashCode(obj.Modifiers));
+                hash = HashHelpers.Combine(hash, obj.NullableRegex.GetHashCode());
+                hash = HashHelpers.Combine(hash, StringComparer.Ordinal.GetHashCode(obj.Pattern));
+                hash = HashHelpers.Combine(hash, obj.Options.GetHashCode());
+                hash = HashHelpers.Combine(hash, obj.MatchTimeout.GetHashCode());
+                hash = HashHelpers.Combine(hash, obj.CultureName is null ? 0 : StringComparer.Ordinal.GetHashCode(obj.CultureName));
+                hash = HashHelpers.Combine(hash, obj.LimitedSupportReason is null ? 0 : StringComparer.Ordinal.GetHashCode(obj.LimitedSupportReason));
+                hash = HashHelpers.Combine(hash, obj.CompilationData.GetHashCode());
+                return hash;
+            }
+        }
+
+        private sealed class RegexTypeComparer : IEqualityComparer<RegexType>
+        {
+            public bool Equals(RegexType? x, RegexType? y)
+            {
+                if (ReferenceEquals(x, y))
+                {
+                    return true;
+                }
+
+                if (x is null || y is null)
+                {
+                    return false;
+                }
+
+                return StringComparer.Ordinal.Equals(x.Keyword, y.Keyword) &&
+                    StringComparer.Ordinal.Equals(x.Namespace, y.Namespace) &&
+                    StringComparer.Ordinal.Equals(x.Name, y.Name) &&
+                    Equals(x.Parent, y.Parent);
+            }
+
+            public int GetHashCode(RegexType obj)
+            {
+                int hash = StringComparer.Ordinal.GetHashCode(obj.Keyword);
+                hash = HashHelpers.Combine(hash, StringComparer.Ordinal.GetHashCode(obj.Namespace));
+                hash = HashHelpers.Combine(hash, StringComparer.Ordinal.GetHashCode(obj.Name));
+                hash = HashHelpers.Combine(hash, obj.Parent is null ? 0 : GetHashCode(obj.Parent));
+                return hash;
+            }
         }
     }
 }

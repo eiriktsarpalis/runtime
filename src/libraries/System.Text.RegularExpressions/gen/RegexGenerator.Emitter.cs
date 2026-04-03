@@ -50,13 +50,11 @@ namespace System.Text.RegularExpressions.Generator
             // Regex type per unique expression/options/timeout/culture. The value is the implementation used for the key.
             Dictionary<(string Pattern, RegexOptions Options, int? Timeout, string? CultureName), RegexMethod> emittedExpressions = new();
 
-            // Convert each spec to a RegexMethod (re-parsing the regex to obtain the full
-            // RegexTree/AnalysisResults needed by the emitter). This re-parse is fast and only
-            // happens on incremental cache misses.
-            // Sort specs deterministically to ensure stable ID assignment and output ordering.
+            // Sort deterministically to ensure stable ID assignment and output ordering.
             Dictionary<string, string[]> requiredHelpers = new();
-            List<(RegexMethodSpec Spec, RegexMethod Method)> methods = new();
-            foreach (RegexMethodSpec methodSpec in spec.RegexMethods
+            List<RegexMethod> methods = new();
+            foreach (RegexMethod regexMethod in spec.RegexMethods
+                .Select(static m => m.Value)
                 .OrderBy(m => m.DeclaringType.Namespace, StringComparer.Ordinal)
                 .ThenBy(m => m.DeclaringType.FullName, StringComparer.Ordinal)
                 .ThenBy(m => m.MemberName, StringComparer.Ordinal)
@@ -65,20 +63,8 @@ namespace System.Text.RegularExpressions.Generator
                 .ThenBy(m => m.MatchTimeout)
                 .ThenBy(m => m.CultureName ?? string.Empty, StringComparer.Ordinal))
             {
-                RegexType regexType = ConvertRegexTypeSpecToRegexType(methodSpec.DeclaringType);
-
-                CultureInfo culture = methodSpec.CultureName is not null
-                    ? CultureInfo.GetCultureInfo(methodSpec.CultureName)
-                    : CultureInfo.InvariantCulture;
-                RegexTree regexTree = RegexParser.Parse(methodSpec.Pattern, methodSpec.Options | RegexOptions.Compiled, culture);
-                AnalysisResults analysis = RegexTreeAnalyzer.Analyze(regexTree);
-
-                RegexMethod regexMethod = new(regexType, methodSpec.IsProperty, methodSpec.MemberName, methodSpec.Modifiers,
-                    methodSpec.NullableRegex, methodSpec.Pattern, methodSpec.Options, methodSpec.MatchTimeout,
-                    regexTree, analysis, methodSpec.CompilationData);
-
                 (string Pattern, RegexOptions Options, int? Timeout, string? CultureName) key =
-                    (regexMethod.Pattern, regexMethod.Options, regexMethod.MatchTimeout, methodSpec.CultureName);
+                    (regexMethod.Pattern, regexMethod.Options, regexMethod.MatchTimeout, regexMethod.CultureName);
                 if (emittedExpressions.TryGetValue(key, out RegexMethod? implementation))
                 {
                     regexMethod.IsDuplicate = true;
@@ -91,11 +77,11 @@ namespace System.Text.RegularExpressions.Generator
                     emittedExpressions.Add(key, regexMethod);
                 }
 
-                methods.Add((methodSpec, regexMethod));
+                methods.Add(regexMethod);
             }
 
             // Emit partial method definitions.
-            foreach ((RegexMethodSpec _, RegexMethod rm) in methods)
+            foreach (RegexMethod rm in methods)
             {
                 EmitRegexPartialMethod(rm, writer);
                 writer.WriteLine();
@@ -117,14 +103,14 @@ namespace System.Text.RegularExpressions.Generator
 
             // Emit each Regex-derived type.
             writer.Indent++;
-            foreach ((RegexMethodSpec methodSpec, RegexMethod rm) in methods)
+            foreach (RegexMethod rm in methods)
             {
                 if (rm.IsDuplicate)
                 {
                     continue;
                 }
 
-                if (methodSpec.Tree is not null)
+                if (rm.LimitedSupportReason is null)
                 {
                     // Generate the RunnerFactory implementation.
                     using StringWriter runnerSw = new();
@@ -139,8 +125,8 @@ namespace System.Text.RegularExpressions.Generator
                 }
                 else
                 {
-                    Debug.Assert(methodSpec.LimitedSupportReason is not null);
-                    EmitRegexLimitedBoilerplate(writer, rm, methodSpec.LimitedSupportReason!, rm.CompilationData.LanguageVersion);
+                    Debug.Assert(rm.LimitedSupportReason is not null);
+                    EmitRegexLimitedBoilerplate(writer, rm, rm.LimitedSupportReason!, rm.CompilationData.LanguageVersion);
                     writer.WriteLine();
                 }
             }
@@ -179,19 +165,6 @@ namespace System.Text.RegularExpressions.Generator
             // Save out the source
             context.AddSource("RegexGenerator.g.cs", sw.ToString());
         }
-
-        /// <summary>Converts a <see cref="RegexTypeSpec"/> back to a <see cref="RegexType"/> for the emitter.</summary>
-        private static RegexType ConvertRegexTypeSpecToRegexType(RegexTypeSpec typeSpec)
-        {
-            RegexType regexType = new(typeSpec.Keyword, typeSpec.Namespace, typeSpec.Name);
-            if (typeSpec.Parent is not null)
-            {
-                regexType.Parent = ConvertRegexTypeSpecToRegexType(typeSpec.Parent);
-            }
-
-            return regexType;
-        }
-
         /// <summary>Escapes characters that are invalid in XML comments.</summary>
         private static string EscapeXmlComment(string text)
         {
