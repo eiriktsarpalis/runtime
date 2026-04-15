@@ -732,6 +732,7 @@ namespace System
         /// -or-
         /// <see cref="Empty"/> if <paramref name="value"/> has zero elements.
         /// </returns>
+        [OverloadResolutionPriority(1)]
         public static string Join(char separator, params ReadOnlySpan<string?> value)
         {
             return JoinCore(new ReadOnlySpan<char>(in separator), value);
@@ -757,6 +758,7 @@ namespace System
         /// -or-
         /// <see cref="Empty"/> if <paramref name="value"/> has zero elements.
         /// </returns>
+        [OverloadResolutionPriority(1)]
         public static string Join(string? separator, params ReadOnlySpan<string?> value)
         {
             return JoinCore(separator.AsSpan(), value);

@@ -200,6 +200,51 @@ namespace System.Collections.Immutable.Tests
             Assert.True(memory.IsEmpty);
         }
 
+        [Theory]
+        [MemberData(nameof(Int32EnumerableData))]
+        public void ImplicitConversionToReadOnlySpan(IEnumerable<int> source)
+        {
+            ImmutableArray<int> immutableArray = source.ToImmutableArray();
+            ReadOnlySpan<int> span = immutableArray;
+            Assert.Equal(immutableArray.Length, span.Length);
+            Assert.Equal(immutableArray, span.ToArray());
+        }
+
+        [Fact]
+        public void ImplicitConversionToReadOnlySpan_Default()
+        {
+            ImmutableArray<int> immutableArray = default;
+            ReadOnlySpan<int> span = immutableArray;
+            Assert.Equal(0, span.Length);
+            Assert.True(span.IsEmpty);
+        }
+
+        [Fact]
+        public void ImplicitConversionToReadOnlySpan_Empty()
+        {
+            ImmutableArray<int> immutableArray = ImmutableArray<int>.Empty;
+            ReadOnlySpan<int> span = immutableArray;
+            Assert.Equal(0, span.Length);
+            Assert.True(span.IsEmpty);
+        }
+
+        [Fact]
+        public void ImplicitConversionToReadOnlySpan_PassToMethod()
+        {
+            ImmutableArray<int> immutableArray = ImmutableArray.Create(1, 2, 3);
+            Assert.Equal(6, SumSpan(immutableArray));
+
+            static int SumSpan(ReadOnlySpan<int> span)
+            {
+                int sum = 0;
+                foreach (int item in span)
+                {
+                    sum += item;
+                }
+                return sum;
+            }
+        }
+
         [Fact]
         public void CreateEnumerableElementType()
         {

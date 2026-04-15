@@ -310,6 +310,7 @@ namespace System.Collections.Immutable
         public static bool operator ==(System.Collections.Immutable.ImmutableArray<T>? left, System.Collections.Immutable.ImmutableArray<T>? right) { throw null; }
         public static bool operator !=(System.Collections.Immutable.ImmutableArray<T> left, System.Collections.Immutable.ImmutableArray<T> right) { throw null; }
         public static bool operator !=(System.Collections.Immutable.ImmutableArray<T>? left, System.Collections.Immutable.ImmutableArray<T>? right) { throw null; }
+        public static implicit operator System.ReadOnlySpan<T>(System.Collections.Immutable.ImmutableArray<T> array) { throw null; }
         public System.Collections.Immutable.ImmutableArray<T> Remove(T item) { throw null; }
         public System.Collections.Immutable.ImmutableArray<T> Remove(T item, System.Collections.Generic.IEqualityComparer<T>? equalityComparer) { throw null; }
         public System.Collections.Immutable.ImmutableArray<T> RemoveAll(System.Predicate<T> match) { throw null; }

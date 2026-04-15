@@ -110,6 +110,16 @@ namespace System.Collections.Immutable
             return !left.GetValueOrDefault().Equals(right.GetValueOrDefault());
         }
 
+        /// <summary>
+        /// Converts the <see cref="ImmutableArray{T}"/> to a <see cref="ReadOnlySpan{T}"/>.
+        /// </summary>
+        /// <param name="array">The immutable array to convert.</param>
+        /// <returns>A <see cref="ReadOnlySpan{T}"/> wrapping the underlying array.</returns>
+        public static implicit operator ReadOnlySpan<T>(ImmutableArray<T> array)
+        {
+            return new ReadOnlySpan<T>(array.array);
+        }
+
         #endregion
 
         /// <summary>

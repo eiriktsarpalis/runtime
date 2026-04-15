@@ -5764,12 +5764,14 @@ namespace System
         public static string Join(char separator, params object?[] values) { throw null; }
         public static string Join(char separator, params System.ReadOnlySpan<object?> values) { throw null; }
         public static string Join(char separator, params string?[] value) { throw null; }
+        [System.Runtime.CompilerServices.OverloadResolutionPriority(1)]
         public static string Join(char separator, params System.ReadOnlySpan<string?> value) { throw null; }
         public static string Join(char separator, string?[] value, int startIndex, int count) { throw null; }
         public static string Join(string? separator, System.Collections.Generic.IEnumerable<string?> values) { throw null; }
         public static string Join(string? separator, params object?[] values) { throw null; }
         public static string Join(string? separator, params System.ReadOnlySpan<object?> values) { throw null; }
         public static string Join(string? separator, params string?[] value) { throw null; }
+        [System.Runtime.CompilerServices.OverloadResolutionPriority(1)]
         public static string Join(string? separator, params System.ReadOnlySpan<string?> value) { throw null; }
         public static string Join(string? separator, string?[] value, int startIndex, int count) { throw null; }
         public static string Join<T>(char separator, System.Collections.Generic.IEnumerable<T> values) { throw null; }

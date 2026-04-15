@@ -411,7 +411,7 @@ namespace System.Collections.Immutable
                 return self;
             }
 
-            return self.InsertSpanRangeInternal(index, items.AsSpan());
+            return self.InsertSpanRangeInternal(index, items);
         }
 
         /// <summary>
