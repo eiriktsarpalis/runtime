@@ -15,10 +15,10 @@ namespace System.Collections.Immutable
         public ReadOnlySpan<T> AsSpan(Range range)
         {
             ImmutableArray<T> self = this;
-            self.ThrowNullRefIfNotInitialized();
+            T[] arr = self.OrEmpty;
 
-            (int start, int length) = range.GetOffsetAndLength(self.Length);
-            return new ReadOnlySpan<T>(self.array, start, length);
+            (int start, int length) = range.GetOffsetAndLength(arr.Length);
+            return new ReadOnlySpan<T>(arr, start, length);
         }
     }
 }

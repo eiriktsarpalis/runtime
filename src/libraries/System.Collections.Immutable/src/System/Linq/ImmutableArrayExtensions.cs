@@ -28,7 +28,7 @@ namespace System.Linq
             // LINQ Select/Where have optimized treatment for arrays.
             // They also do not modify the source arrays or expose them to modifications.
             // Therefore we will just apply Select/Where to the underlying this.array array.
-            return immutableArray.array.Select(selector);
+            return immutableArray.OrEmpty.Select(selector);
         }
 
         /// <summary>
@@ -86,7 +86,7 @@ namespace System.Linq
             // LINQ Select/Where have optimized treatment for arrays.
             // They also do not modify the source arrays or expose them to modifications.
             // Therefore we will just apply Select/Where to the underlying this.array array.
-            return immutableArray.array.Where(predicate);
+            return immutableArray.OrEmpty.Where(predicate);
         }
 
         /// <summary>
@@ -111,7 +111,7 @@ namespace System.Linq
             immutableArray.ThrowNullRefIfNotInitialized();
             Requires.NotNull(predicate, nameof(predicate));
 
-            foreach (T v in immutableArray.array)
+            foreach (T v in immutableArray.OrEmpty)
             {
                 if (predicate(v))
                 {
@@ -137,7 +137,7 @@ namespace System.Linq
             immutableArray.ThrowNullRefIfNotInitialized();
             Requires.NotNull(predicate, nameof(predicate));
 
-            foreach (T v in immutableArray.array)
+            foreach (T v in immutableArray.OrEmpty)
             {
                 if (!predicate(v))
                 {
@@ -157,7 +157,7 @@ namespace System.Linq
         {
             immutableArray.ThrowNullRefIfNotInitialized();
             items.ThrowNullRefIfNotInitialized();
-            if (object.ReferenceEquals(immutableArray.array, items.array))
+            if (object.ReferenceEquals(immutableArray.OrEmpty, items.OrEmpty))
             {
                 return true;
             }
@@ -171,7 +171,7 @@ namespace System.Linq
 
             for (int i = 0; i < immutableArray.Length; i++)
             {
-                if (!comparer.Equals(immutableArray.array[i], items.array[i]))
+                if (!comparer.Equals(immutableArray.OrEmpty[i], items.OrEmpty[i]))
                 {
                     return false;
                 }
@@ -190,7 +190,7 @@ namespace System.Linq
             if (items is ICollection<TBase> itemsCol)
             {
                 immutableArray.ThrowNullRefIfNotInitialized();
-                return Enumerable.SequenceEqual(immutableArray.array, itemsCol, comparer);
+                return Enumerable.SequenceEqual(immutableArray.OrEmpty, itemsCol, comparer);
             }
 
             return Enumerate(immutableArray, items, comparer);
@@ -233,7 +233,7 @@ namespace System.Linq
             immutableArray.ThrowNullRefIfNotInitialized();
             items.ThrowNullRefIfNotInitialized();
 
-            if (object.ReferenceEquals(immutableArray.array, items.array))
+            if (object.ReferenceEquals(immutableArray.OrEmpty, items.OrEmpty))
             {
                 return true;
             }
@@ -286,7 +286,7 @@ namespace System.Linq
             Requires.NotNull(func, nameof(func));
 
             TAccumulate result = seed;
-            foreach (T v in immutableArray.array!)
+            foreach (T v in immutableArray.OrEmpty!)
             {
                 result = func(result, v);
             }
@@ -342,7 +342,7 @@ namespace System.Linq
         {
             Requires.NotNull(predicate, nameof(predicate));
 
-            foreach (T v in immutableArray.array!)
+            foreach (T v in immutableArray.OrEmpty!)
             {
                 if (predicate(v))
                 {
@@ -366,7 +366,7 @@ namespace System.Linq
             // that the linq extension method would.
             return immutableArray.Length > 0
                 ? immutableArray[0]
-                : Enumerable.First(immutableArray.array!);
+                : Enumerable.First(immutableArray.OrEmpty!);
         }
 
         /// <summary>
@@ -376,7 +376,7 @@ namespace System.Linq
         /// <param name="immutableArray"></param>
         public static T? FirstOrDefault<T>(this ImmutableArray<T> immutableArray)
         {
-            return immutableArray.array!.Length > 0 ? immutableArray.array[0] : default;
+            return immutableArray.OrEmpty!.Length > 0 ? immutableArray.OrEmpty[0] : default;
         }
 
         /// <summary>
@@ -387,7 +387,7 @@ namespace System.Linq
         {
             Requires.NotNull(predicate, nameof(predicate));
 
-            foreach (T v in immutableArray.array!)
+            foreach (T v in immutableArray.OrEmpty!)
             {
                 if (predicate(v))
                 {
@@ -409,7 +409,7 @@ namespace System.Linq
             // that the linq extension method would.
             return immutableArray.Length > 0
                 ? immutableArray[immutableArray.Length - 1]
-                : Enumerable.Last(immutableArray.array!);
+                : Enumerable.Last(immutableArray.OrEmpty!);
         }
 
         /// <summary>
@@ -440,7 +440,7 @@ namespace System.Linq
         public static T? LastOrDefault<T>(this ImmutableArray<T> immutableArray)
         {
             immutableArray.ThrowNullRefIfNotInitialized();
-            return immutableArray.array.LastOrDefault()!;
+            return immutableArray.OrEmpty.LastOrDefault()!;
         }
 
         /// <summary>
@@ -470,7 +470,7 @@ namespace System.Linq
         public static T Single<T>(this ImmutableArray<T> immutableArray)
         {
             immutableArray.ThrowNullRefIfNotInitialized();
-            return immutableArray.array.Single();
+            return immutableArray.OrEmpty.Single();
         }
 
         /// <summary>
@@ -485,7 +485,7 @@ namespace System.Linq
 
             bool first = true;
             T? result = default;
-            foreach (T v in immutableArray.array!)
+            foreach (T v in immutableArray.OrEmpty!)
             {
                 if (predicate(v))
                 {
@@ -515,7 +515,7 @@ namespace System.Linq
         public static T? SingleOrDefault<T>(this ImmutableArray<T> immutableArray)
         {
             immutableArray.ThrowNullRefIfNotInitialized();
-            return immutableArray.array.SingleOrDefault()!;
+            return immutableArray.OrEmpty.SingleOrDefault()!;
         }
 
         /// <summary>
@@ -528,7 +528,7 @@ namespace System.Linq
 
             bool first = true;
             T? result = default;
-            foreach (T v in immutableArray.array!)
+            foreach (T v in immutableArray.OrEmpty!)
             {
                 if (predicate(v))
                 {
@@ -612,7 +612,7 @@ namespace System.Linq
             Requires.NotNull(elementSelector, nameof(elementSelector));
 
             var result = new Dictionary<TKey, TElement>(immutableArray.Length, comparer);
-            foreach (T v in immutableArray.array!)
+            foreach (T v in immutableArray.OrEmpty!)
             {
                 result.Add(keySelector(v), elementSelector(v));
             }
@@ -629,12 +629,12 @@ namespace System.Linq
         public static T[] ToArray<T>(this ImmutableArray<T> immutableArray)
         {
             immutableArray.ThrowNullRefIfNotInitialized();
-            if (immutableArray.array.Length == 0)
+            if (immutableArray.OrEmpty.Length == 0)
             {
                 return ImmutableArray<T>.Empty.array!;
             }
 
-            return (T[])immutableArray.array.Clone();
+            return (T[])immutableArray.OrEmpty.Clone();
         }
 
         #endregion
@@ -711,7 +711,7 @@ namespace System.Linq
             Func<TSource, IEnumerable<TCollection>> collectionSelector,
             Func<TSource, TCollection, TResult> resultSelector)
         {
-            foreach (TSource item in immutableArray.array!)
+            foreach (TSource item in immutableArray.OrEmpty!)
             {
                 foreach (TCollection result in collectionSelector(item))
                 {

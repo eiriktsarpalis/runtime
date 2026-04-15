@@ -53,6 +53,16 @@ namespace System.Collections.Immutable
         internal readonly T[]? array;
 
         /// <summary>
+        /// Returns the underlying array, or an empty array if the underlying array is null (default state).
+        /// </summary>
+        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        internal T[] OrEmpty
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => this.array ?? Array.Empty<T>();
+        }
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="ImmutableArray{T}"/> struct
         /// *without making a defensive copy*.
         /// </summary>
@@ -122,12 +132,7 @@ namespace System.Collections.Immutable
             [NonVersionable]
             get
             {
-                // We intentionally do not check this.array != null, and throw NullReferenceException
-                // if this is called while uninitialized.
-                // The reason for this is perf.
-                // Length and the indexer must be absolutely trivially implemented for the JIT optimization
-                // of removing array bounds checking to work.
-                return this.array![index];
+                return this.OrEmpty[index];
             }
         }
 
@@ -138,12 +143,7 @@ namespace System.Collections.Immutable
         /// <returns>A read-only reference to the element at the specified index in the read-only list.</returns>
         public ref readonly T ItemRef(int index)
         {
-            // We intentionally do not check this.array != null, and throw NullReferenceException
-            // if this is called while uninitialized.
-            // The reason for this is perf.
-            // Length and the indexer must be absolutely trivially implemented for the JIT optimization
-            // of removing array bounds checking to work.
-            return ref this.array![index];
+            return ref this.OrEmpty[index];
         }
 
         /// <summary>
@@ -153,7 +153,7 @@ namespace System.Collections.Immutable
         public bool IsEmpty
         {
             [NonVersionable]
-            get { return this.array!.Length == 0; }
+            get { return this.array is null || this.array.Length == 0; }
         }
 
         /// <summary>
@@ -165,12 +165,7 @@ namespace System.Collections.Immutable
             [NonVersionable]
             get
             {
-                // We intentionally do not check this.array != null, and throw NullReferenceException
-                // if this is called while uninitialized.
-                // The reason for this is perf.
-                // Length and the indexer must be absolutely trivially implemented for the JIT optimization
-                // of removing array bounds checking to work.
-                return this.array!.Length;
+                return this.array?.Length ?? 0;
             }
         }
 
@@ -225,8 +220,10 @@ namespace System.Collections.Immutable
         public void CopyTo(T[] destination)
         {
             ImmutableArray<T> self = this;
-            self.ThrowNullRefIfNotInitialized();
-            Array.Copy(self.array, destination, self.Length);
+            if (self.Length > 0)
+            {
+                Array.Copy(self.array!, destination, self.Length);
+            }
         }
 
         /// <summary>
@@ -237,8 +234,10 @@ namespace System.Collections.Immutable
         public void CopyTo(T[] destination, int destinationIndex)
         {
             ImmutableArray<T> self = this;
-            self.ThrowNullRefIfNotInitialized();
-            Array.Copy(self.array, 0, destination, destinationIndex, self.Length);
+            if (self.Length > 0)
+            {
+                Array.Copy(self.array!, 0, destination, destinationIndex, self.Length);
+            }
         }
 
         /// <summary>
@@ -251,8 +250,10 @@ namespace System.Collections.Immutable
         public void CopyTo(int sourceIndex, T[] destination, int destinationIndex, int length)
         {
             ImmutableArray<T> self = this;
-            self.ThrowNullRefIfNotInitialized();
-            Array.Copy(self.array, sourceIndex, destination, destinationIndex, length);
+            if (length > 0)
+            {
+                Array.Copy(self.array!, sourceIndex, destination, destinationIndex, length);
+            }
         }
 
         /// <summary>
@@ -280,8 +281,7 @@ namespace System.Collections.Immutable
         public Enumerator GetEnumerator()
         {
             ImmutableArray<T> self = this;
-            self.ThrowNullRefIfNotInitialized();
-            return new Enumerator(self.array);
+            return new Enumerator(self.OrEmpty);
         }
 
         /// <summary>
@@ -386,8 +386,7 @@ namespace System.Collections.Immutable
         IEnumerator<T> IEnumerable<T>.GetEnumerator()
         {
             ImmutableArray<T> self = this;
-            self.ThrowInvalidOperationIfNotInitialized();
-            return EnumeratorObject.Create(self.array);
+            return EnumeratorObject.Create(self.OrEmpty);
         }
 
         /// <summary>
@@ -398,42 +397,25 @@ namespace System.Collections.Immutable
         IEnumerator IEnumerable.GetEnumerator()
         {
             ImmutableArray<T> self = this;
-            self.ThrowInvalidOperationIfNotInitialized();
-            return EnumeratorObject.Create(self.array);
+            return EnumeratorObject.Create(self.OrEmpty);
         }
 
         /// <summary>
-        /// Throws a null reference exception if the array field is null.
+        /// No longer throws. Retained for source compatibility.
         /// </summary>
-        [MemberNotNull(nameof(array))]
         internal void ThrowNullRefIfNotInitialized()
         {
-            // Force NullReferenceException if array is null by touching its Length.
-            // This way of checking has a nice property of requiring very little code
-            // and not having any conditions/branches.
-            // In a faulting scenario we are relying on hardware to generate the fault.
-            // And in the non-faulting scenario (most common) the check is virtually free since
-            // if we are going to do anything with the array, we will need Length anyways
-            // so touching it, and potentially causing a cache miss, is not going to be an
-            // extra expense.
-            _ = this.array!.Length;
+            // default(ImmutableArray<T>) is now treated as empty - no throw.
+            _ = this.array; // touch field to suppress CA1822
         }
 
         /// <summary>
-        /// Throws an <see cref="InvalidOperationException"/> if the <see cref="array"/> field is null, i.e. the
-        /// <see cref="IsDefault"/> property returns true.  The
-        /// <see cref="InvalidOperationException"/> message specifies that the operation cannot be performed
-        /// on a default instance of <see cref="ImmutableArray{T}"/>.
-        ///
-        /// This is intended for explicitly implemented interface method and property implementations.
+        /// No longer throws. Retained for source compatibility.
         /// </summary>
-        [MemberNotNull(nameof(array))]
         private void ThrowInvalidOperationIfNotInitialized()
         {
-            if (this.array == null)
-            {
-                throw new InvalidOperationException(SR.InvalidOperationOnDefaultArray);
-            }
+            // default(ImmutableArray<T>) is now treated as empty - no throw.
+            _ = this.array; // touch field to suppress CA1822
         }
     }
 }

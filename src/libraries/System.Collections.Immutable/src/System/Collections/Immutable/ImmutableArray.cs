@@ -256,7 +256,7 @@ namespace System.Collections.Immutable
             }
 
             var array = new T[length];
-            Array.Copy(items.array!, start, array, 0, length);
+            Array.Copy(items.OrEmpty, start, array, 0, length);
             return new ImmutableArray<T>(array);
         }
 
@@ -468,7 +468,7 @@ namespace System.Collections.Immutable
         /// </exception>
         public static int BinarySearch<T>(this ImmutableArray<T> array, T value)
         {
-            return Array.BinarySearch<T>(array.array!, value);
+            return Array.BinarySearch<T>(array.OrEmpty, value);
         }
 
         /// <summary>
@@ -498,7 +498,7 @@ namespace System.Collections.Immutable
         /// </exception>
         public static int BinarySearch<T>(this ImmutableArray<T> array, T value, IComparer<T>? comparer)
         {
-            return Array.BinarySearch<T>(array.array!, value, comparer);
+            return Array.BinarySearch<T>(array.OrEmpty, value, comparer);
         }
 
         /// <summary>
@@ -532,7 +532,7 @@ namespace System.Collections.Immutable
         /// </exception>
         public static int BinarySearch<T>(this ImmutableArray<T> array, int index, int length, T value)
         {
-            return Array.BinarySearch<T>(array.array!, index, length, value);
+            return Array.BinarySearch<T>(array.OrEmpty, index, length, value);
         }
 
         /// <summary>
@@ -572,7 +572,7 @@ namespace System.Collections.Immutable
         /// </exception>
         public static int BinarySearch<T>(this ImmutableArray<T> array, int index, int length, T value, IComparer<T>? comparer)
         {
-            return Array.BinarySearch<T>(array.array!, index, length, value, comparer);
+            return Array.BinarySearch<T>(array.OrEmpty, index, length, value, comparer);
         }
     }
 }
