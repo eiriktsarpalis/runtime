@@ -335,6 +335,51 @@ namespace System.Text.Json.SourceGeneration.UnitTests
                 """, nameof(UnsafeAccessors_GenericTypeInitOnlyProperties));
         }
 
+#if NET
+        [Fact]
+        public void DirectPocoAnnotation()
+        {
+            // Exercises [JsonSerializable] applied directly to a POCO: the source
+            // generator should emit both a synthesized assembly-default JsonSerializerContext
+            // covering the type graph and an IJsonSerializable<T> implementation on
+            // the partial POCO that delegates to that assembly-default context.
+            VerifyAgainstBaseline("""
+                using System.Text.Json.Serialization;
+                namespace TestApp
+                {
+                    [JsonSerializable]
+                    public partial class Person
+                    {
+                        public string Name { get; set; }
+                        public int Age { get; set; }
+                    }
+                }
+                """, nameof(DirectPocoAnnotation), languageVersion: Microsoft.CodeAnalysis.CSharp.LanguageVersion.CSharp11);
+        }
+
+        [Fact]
+        public void ContextWithIJsonSerializable()
+        {
+            // Same shape as SimplePoco but compiled at C# 11+, so IJsonSerializable<T>
+            // implementations should be emitted on the JsonSerializerContext
+            // (one per [JsonSerializable(typeof(...))] entry) in a separate
+            // MyContext.IJsonSerializable.g.cs file.
+            VerifyAgainstBaseline("""
+                using System.Text.Json.Serialization;
+                namespace TestApp
+                {
+                    [JsonSerializable(typeof(Person))]
+                    internal partial class MyContext : JsonSerializerContext { }
+                    public class Person
+                    {
+                        public string Name { get; set; }
+                        public int Age { get; set; }
+                    }
+                }
+                """, nameof(ContextWithIJsonSerializable), languageVersion: Microsoft.CodeAnalysis.CSharp.LanguageVersion.CSharp11);
+        }
+#endif
+
         #region Baseline comparison infrastructure
 
         private static readonly string s_baselinesRelativePath = IO.Path.Combine(
@@ -353,9 +398,12 @@ namespace System.Text.Json.SourceGeneration.UnitTests
         /// generated file matches the corresponding baseline in
         /// <c>Baselines/{testId}/{tfm}/{hintName}.cs.txt</c>.
         /// </summary>
-        private void VerifyAgainstBaseline(string source, string testId, bool disableDiagnosticValidation = false)
+        private void VerifyAgainstBaseline(string source, string testId, bool disableDiagnosticValidation = false, Microsoft.CodeAnalysis.CSharp.LanguageVersion? languageVersion = null)
         {
-            Compilation compilation = CompilationHelper.CreateCompilation(source);
+            Microsoft.CodeAnalysis.CSharp.CSharpParseOptions? parseOptions = languageVersion is null
+                ? null
+                : CompilationHelper.CreateParseOptions(languageVersion);
+            Compilation compilation = CompilationHelper.CreateCompilation(source, parseOptions: parseOptions);
             JsonSourceGeneratorResult result = CompilationHelper.RunJsonSourceGenerator(compilation, disableDiagnosticValidation: disableDiagnosticValidation, logger: logger);
 
             var inputPaths = new HashSet<string>(compilation.SyntaxTrees.Select(t => t.FilePath));

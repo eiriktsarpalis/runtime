@@ -106,7 +106,25 @@ namespace System.Text.Json.SourceGeneration
 
                 if (!_knownSymbols.JsonSerializerContextType.IsAssignableFrom(contextTypeSymbol))
                 {
-                    ReportDiagnostic(DiagnosticDescriptors.JsonSerializableAttributeOnNonContextType, _contextClassLocation, contextTypeSymbol.ToDisplayString());
+                    // Only emit the diagnostic if the type has one-arg [JsonSerializable(typeof(T))] attributes.
+                    // Types with only parameterless [JsonSerializable] are handled by the POCO pipeline.
+                    bool hasOneArgForm = false;
+                    foreach (AttributeData attr in contextTypeSymbol.GetAttributes())
+                    {
+                        if (SymbolEqualityComparer.Default.Equals(attr.AttributeClass, _knownSymbols.JsonSerializableAttributeType)
+                            && attr.ConstructorArguments.Length == 1)
+                        {
+                            hasOneArgForm = true;
+                            break;
+                        }
+                    }
+
+                    if (hasOneArgForm)
+                    {
+                        ReportDiagnostic(DiagnosticDescriptors.JsonSerializableAttributeOnNonContextType, _contextClassLocation, contextTypeSymbol.ToDisplayString());
+                    }
+
+                    _contextClassLocation = null;
                     return null;
                 }
 
@@ -175,6 +193,7 @@ namespace System.Text.Json.SourceGeneration
                     Namespace = contextTypeSymbol.ContainingNamespace is { IsGlobalNamespace: false } ns ? ns.ToDisplayString() : null,
                     ContextClassDeclarations = classDeclarationList.ToImmutableEquatableArray(),
                     GeneratedOptionsSpec = options,
+                    IsIJsonSerializableAvailable = _knownSymbols.IJsonSerializableType is not null && langVersion is not null && (int)langVersion.Value >= 1100,
                 };
 
                 // Clear the caches of generated metadata between the processing of context classes.
@@ -523,6 +542,12 @@ namespace System.Text.Json.SourceGeneration
 
             private TypeToGenerate? ParseJsonSerializableAttribute(AttributeData attributeData)
             {
+                // Parameterless [JsonSerializable] — handled by the POCO pipeline, not the context pipeline.
+                if (attributeData.ConstructorArguments.Length == 0)
+                {
+                    return null;
+                }
+
                 Debug.Assert(attributeData.ConstructorArguments.Length == 1);
                 var typeSymbol = (ITypeSymbol?)attributeData.ConstructorArguments[0].Value;
                 if (typeSymbol is null)
@@ -2220,6 +2245,223 @@ namespace System.Text.Json.SourceGeneration
                 }
 
                 return display.Substring(whereIndex + 1);
+            }
+
+            /// <summary>
+            /// Parses POCO types annotated with parameterless <c>[JsonSerializable]</c> and creates
+            /// an assembly-default context generation spec that can be used to emit the synthetic
+            /// <c>AssemblyDefaultJsonSerializerContext</c> and per-POCO <c>IJsonSerializable&lt;T&gt;</c> implementations.
+            /// </summary>
+            public AssemblyDefaultContextGenerationSpec? ParseAssemblyDefaultContextSpec(
+                ImmutableArray<(INamedTypeSymbol Type, TypeDeclarationSyntax Declaration, SemanticModel Model)> pocoTypes,
+                CancellationToken cancellationToken)
+            {
+                if (!_compilationContainsCoreJsonTypes || pocoTypes.IsEmpty || _knownSymbols.IJsonSerializableType is null)
+                {
+                    return null;
+                }
+
+                // Ensure context-scoped metadata caches are empty.
+                Debug.Assert(_typesToGenerate.Count == 0);
+                Debug.Assert(_generatedTypes.Count == 0);
+
+                const string assemblyDefaultContextName = "AssemblyDefaultJsonSerializerContext";
+                const string assemblyDefaultContextNamespace = "System.Text.Json.Serialization";
+                const string assemblyDefaultContextFullyQualified = "global::" + assemblyDefaultContextNamespace + "." + assemblyDefaultContextName;
+
+                // Use the first POCO type's location for any diagnostics.
+                _contextClassLocation = pocoTypes[0].Type.GetLocation() ?? pocoTypes[0].Declaration.GetLocation();
+
+                // Static abstract interface members require C# 11 or later.
+                // Use numeric value (1100) because CSharp11 enum member may not exist in older Roslyn versions.
+                const LanguageVersion MinimumPocoLanguageVersion = (LanguageVersion)1100;
+                LanguageVersion? langVersion = _knownSymbols.Compilation.GetLanguageVersion();
+                if (langVersion is null || (int)langVersion.Value < (int)MinimumPocoLanguageVersion)
+                {
+                    _contextClassLocation = null;
+                    return null;
+                }
+
+                var pocoSpecs = new List<PocoSerializableSpec>();
+                var typeInfoPropertyNames = new Dictionary<string, List<int>>();
+
+                // Sort by fully qualified name for deterministic disambiguation and hint name ordering.
+                var sortedPocoTypes = new List<(INamedTypeSymbol Type, TypeDeclarationSyntax Declaration, SemanticModel Model)>(pocoTypes.Length);
+                foreach (var item in pocoTypes)
+                {
+                    sortedPocoTypes.Add(item);
+                }
+
+                sortedPocoTypes.Sort((a, b) => string.Compare(
+                    a.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                    b.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                    StringComparison.Ordinal));
+
+                foreach (var (pocoType, declaration, model) in sortedPocoTypes)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    // Check that the type is partial (including all containing types).
+                    bool allPartial = true;
+                    for (TypeDeclarationSyntax? currentType = declaration; currentType != null; currentType = currentType.Parent as TypeDeclarationSyntax)
+                    {
+                        bool hasPartial = false;
+                        foreach (SyntaxToken modifier in currentType.Modifiers)
+                        {
+                            if (modifier.IsKind(SyntaxKind.PartialKeyword))
+                            {
+                                hasPartial = true;
+                                break;
+                            }
+                        }
+
+                        if (!hasPartial)
+                        {
+                            allPartial = false;
+                            break;
+                        }
+                    }
+
+                    if (!allPartial)
+                    {
+                        ReportDiagnostic(DiagnosticDescriptors.ContextClassesMustBePartial, pocoType.GetLocation(), pocoType.Name);
+                        continue;
+                    }
+
+                    // Skip open generic types — IJsonSerializable<T> cannot be implemented for open generics.
+                    if (pocoType.IsGenericType)
+                    {
+                        continue;
+                    }
+
+                    // Determine the TypeInfoPropertyName using the standard algorithm.
+                    string typeInfoPropertyName = GetTypeInfoPropertyName(pocoType);
+
+                    // NOTE: Do not enqueue into _typesToGenerate here. Disambiguation below may
+                    // rename TypeInfoPropertyName; enqueue happens after disambiguation to keep
+                    // the queue and pocoSpecs names in sync.
+
+                    // Build the partial type declarations for the POCO.
+                    List<string>? typeDeclarations = null;
+                    for (TypeDeclarationSyntax? currentType = declaration; currentType != null; currentType = currentType.Parent as TypeDeclarationSyntax)
+                    {
+                        var sb = new StringBuilder();
+                        foreach (SyntaxToken modifier in currentType.Modifiers)
+                        {
+                            sb.Append(modifier.Text);
+                            sb.Append(' ');
+                        }
+
+                        sb.Append(currentType.GetTypeKindKeyword());
+                        sb.Append(' ');
+
+                        INamedTypeSymbol? typeSymbol = model.GetDeclaredSymbol(currentType, cancellationToken);
+                        if (typeSymbol != null)
+                        {
+                            sb.Append(typeSymbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat));
+                        }
+
+                        (typeDeclarations ??= new()).Add(sb.ToString());
+                    }
+
+                    int index = pocoSpecs.Count;
+                    pocoSpecs.Add(new PocoSerializableSpec
+                    {
+                        TypeRef = new TypeRef(pocoType),
+                        TypeInfoPropertyName = typeInfoPropertyName,
+                        Namespace = pocoType.ContainingNamespace is { IsGlobalNamespace: false } ns ? ns.ToDisplayString() : null,
+                        TypeDeclarations = (typeDeclarations ?? new List<string>()).ToImmutableEquatableArray(),
+                    });
+
+                    // Track property name usage for disambiguation.
+                    if (!typeInfoPropertyNames.TryGetValue(typeInfoPropertyName, out List<int>? indices))
+                    {
+                        indices = new List<int>();
+                        typeInfoPropertyNames[typeInfoPropertyName] = indices;
+                    }
+
+                    indices.Add(index);
+                }
+
+                // Disambiguate colliding TypeInfoPropertyName values by appending a numeric suffix.
+                foreach (KeyValuePair<string, List<int>> kvp in typeInfoPropertyNames)
+                {
+                    List<int> indices = kvp.Value;
+                    if (indices.Count <= 1)
+                    {
+                        continue;
+                    }
+
+                    for (int i = 0; i < indices.Count; i++)
+                    {
+                        PocoSerializableSpec original = pocoSpecs[indices[i]];
+                        pocoSpecs[indices[i]] = original with
+                        {
+                            TypeInfoPropertyName = original.TypeInfoPropertyName + (i + 1).ToString(),
+                        };
+                    }
+                }
+
+                if (pocoSpecs.Count == 0)
+                {
+                    _contextClassLocation = null;
+                    return null;
+                }
+
+                // Enqueue all POCO types into _typesToGenerate with their (possibly disambiguated) names.
+                for (int i = 0; i < pocoSpecs.Count; i++)
+                {
+                    PocoSerializableSpec spec = pocoSpecs[i];
+                    INamedTypeSymbol pocoType = pocoTypes[i].Type;
+                    _typesToGenerate.Enqueue(new TypeToGenerate
+                    {
+                        Type = _knownSymbols.Compilation.EraseCompileTimeMetadata(pocoType),
+                        Mode = null,
+                        TypeInfoPropertyName = spec.TypeInfoPropertyName,
+                        Location = pocoType.GetLocation(),
+                        AttributeLocation = null,
+                    });
+                }
+
+                // Walk the transitive type graph using the first POCO type for accessibility checks.
+                // The assembly-default context is internal, so it has the same accessibility scope.
+                INamedTypeSymbol accessibilityContext = pocoTypes[0].Type;
+                while (_typesToGenerate.Count > 0)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    TypeToGenerate typeToGenerate = _typesToGenerate.Dequeue();
+                    if (!_generatedTypes.ContainsKey(typeToGenerate.Type))
+                    {
+                        TypeGenerationSpec spec = ParseTypeGenerationSpec(typeToGenerate, accessibilityContext, options: null);
+                        _generatedTypes.Add(typeToGenerate.Type, spec);
+                    }
+                }
+
+                var assemblyDefaultContextTypeRef = new TypeRef(assemblyDefaultContextName, assemblyDefaultContextFullyQualified);
+
+                var contextSpec = new ContextGenerationSpec
+                {
+                    ContextType = assemblyDefaultContextTypeRef,
+                    GeneratedTypes = _generatedTypes.Values.OrderBy(t => t.TypeRef.FullyQualifiedName).ToImmutableEquatableArray(),
+                    Namespace = assemblyDefaultContextNamespace,
+                    ContextClassDeclarations = new[] { "internal sealed partial class " + assemblyDefaultContextName }.ToImmutableEquatableArray(),
+                    BaseTypeDeclaration = "global::System.Text.Json.Serialization.JsonSerializerContext",
+                    GeneratedOptionsSpec = null,
+                    IsIJsonSerializableAvailable = _knownSymbols.IJsonSerializableType is not null,
+                };
+
+                var result = new AssemblyDefaultContextGenerationSpec
+                {
+                    ContextSpec = contextSpec,
+                    PocoTypes = pocoSpecs.ToImmutableEquatableArray(),
+                };
+
+                // Clear caches.
+                _generatedTypes.Clear();
+                _typesToGenerate.Clear();
+                _contextClassLocation = null;
+
+                return result;
             }
 
             private readonly struct TypeToGenerate

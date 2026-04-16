@@ -70,6 +70,8 @@
     <Compile Include="Model\ClassType.cs" />
     <Compile Include="Model\CollectionType.cs" />
     <Compile Include="Model\ContextGenerationSpec.cs" />
+    <Compile Include="Model\PocoSerializableSpec.cs" />
+    <Compile Include="Model\AssemblyDefaultContextGenerationSpec.cs" />
     <Compile Include="Model\JsonPrimitiveTypeKind.cs" />
     <Compile Include="Model\ObjectConstructionStrategy.cs" />
     <Compile Include="Model\ParameterGenerationSpec.cs" />

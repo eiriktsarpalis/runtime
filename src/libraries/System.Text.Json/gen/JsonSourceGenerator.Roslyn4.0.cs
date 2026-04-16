@@ -88,6 +88,104 @@ namespace System.Text.Json.SourceGeneration
                 contextGenerationSpecs.Select(static (t, _) => t.Item2);
 
             context.RegisterSourceOutput(diagnostics, EmitDiagnostics);
+
+            // ── Branch 2: POCO [JsonSerializable] (parameterless) ──
+            // Collects types annotated with [JsonSerializable] (no Type argument) that are NOT
+            // JsonSerializerContext subclasses. These get an assembly-default context + IJsonSerializable<T> implementation.
+            IncrementalValuesProvider<(INamedTypeSymbol Type, TypeDeclarationSyntax Declaration, SemanticModel Model)?> pocoTargets = context.SyntaxProvider
+                .ForAttributeWithMetadataName(
+#if !ROSLYN4_4_OR_GREATER
+                    context,
+#endif
+                    Parser.JsonSerializableAttributeFullName,
+                    (node, _) => node is TypeDeclarationSyntax,
+                    (context, cancellationToken) =>
+                    {
+                        if (context.TargetNode is not TypeDeclarationSyntax typeDecl)
+                            return ((INamedTypeSymbol, TypeDeclarationSyntax, SemanticModel)?)null;
+
+                        INamedTypeSymbol? symbol = (INamedTypeSymbol?)context.SemanticModel.GetDeclaredSymbol(typeDecl, cancellationToken);
+                        if (symbol is null)
+                            return null;
+
+                        // Check for parameterless [JsonSerializable] attribute (POCO mode).
+                        // Use context.Attributes which is pre-filtered to matching attributes.
+                        bool hasParameterlessCtor = false;
+                        foreach (AttributeData attr in context.Attributes)
+                        {
+                            if (attr.ConstructorArguments.Length == 0)
+                            {
+                                hasParameterlessCtor = true;
+                                break;
+                            }
+                        }
+
+                        if (!hasParameterlessCtor)
+                            return null;
+
+                        return (symbol, typeDecl, context.SemanticModel);
+                    })
+                .Where(static t => t.HasValue);
+
+            // Collect all POCO types, combine with known symbols, and parse the assembly-default context spec.
+            // NOTE: The Collect() step aggregates non-equatable tuples (INamedTypeSymbol, SemanticModel),
+            // so the downstream Select always re-executes. This is acceptable for a prototype; a production
+            // version should project to an equatable intermediate model before Collect() to enable
+            // proper incremental caching (cf. RS1035/RS1041).
+            IncrementalValueProvider<(AssemblyDefaultContextGenerationSpec?, ImmutableArray<Diagnostic>)> assemblyDefaultContextSpec =
+                pocoTargets.Collect()
+                .Combine(knownTypeSymbols)
+                .Select(static (tuple, cancellationToken) =>
+                {
+                    var pocoItems = tuple.Left;
+                    if (pocoItems.IsEmpty)
+                    {
+                        return ((AssemblyDefaultContextGenerationSpec?)null, ImmutableArray<Diagnostic>.Empty);
+                    }
+
+                    // Build the array of non-null values.
+                    var builder = ImmutableArray.CreateBuilder<(INamedTypeSymbol Type, TypeDeclarationSyntax Declaration, SemanticModel Model)>(pocoItems.Length);
+                    foreach (var item in pocoItems)
+                    {
+                        if (item.HasValue)
+                        {
+                            builder.Add(item.Value);
+                        }
+                    }
+
+                    if (builder.Count == 0)
+                    {
+                        return ((AssemblyDefaultContextGenerationSpec?)null, ImmutableArray<Diagnostic>.Empty);
+                    }
+
+#pragma warning disable RS1035
+                    CultureInfo originalCulture = CultureInfo.CurrentCulture;
+                    CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+                    try
+                    {
+#pragma warning restore RS1035
+                        Parser parser = new(tuple.Right);
+                        AssemblyDefaultContextGenerationSpec? spec = parser.ParseAssemblyDefaultContextSpec(builder.ToImmutable(), cancellationToken);
+                        ImmutableArray<Diagnostic> diags = parser.Diagnostics.ToImmutableArray();
+                        return (spec, diags);
+#pragma warning disable RS1035
+                    }
+                    finally
+                    {
+                        CultureInfo.CurrentCulture = originalCulture;
+                    }
+#pragma warning restore RS1035
+                });
+
+            IncrementalValueProvider<AssemblyDefaultContextGenerationSpec?> assemblyDefaultContextModel =
+                assemblyDefaultContextSpec.Select(static (t, _) => t.Item1);
+
+            context.RegisterSourceOutput(assemblyDefaultContextModel, EmitAssemblyDefaultContextSource);
+
+            IncrementalValueProvider<ImmutableArray<Diagnostic>> assemblyDefaultDiagnostics =
+                assemblyDefaultContextSpec.Select(static (t, _) => t.Item2);
+
+            context.RegisterSourceOutput(assemblyDefaultDiagnostics, EmitDiagnosticsFromValue);
         }
 
         private void EmitSource(SourceProductionContext sourceProductionContext, ContextGenerationSpec? contextGenerationSpec)
@@ -123,6 +221,41 @@ namespace System.Text.Json.SourceGeneration
             {
                 context.ReportDiagnostic(diagnostic);
             }
+        }
+
+        private static void EmitDiagnosticsFromValue(SourceProductionContext context, ImmutableArray<Diagnostic> diagnostics)
+        {
+            foreach (Diagnostic diagnostic in diagnostics)
+            {
+                context.ReportDiagnostic(diagnostic);
+            }
+        }
+
+        private void EmitAssemblyDefaultContextSource(SourceProductionContext sourceProductionContext, AssemblyDefaultContextGenerationSpec? assemblyDefaultSpec)
+        {
+            if (assemblyDefaultSpec is null)
+            {
+                return;
+            }
+
+#pragma warning disable RS1035
+            CultureInfo originalCulture = CultureInfo.CurrentCulture;
+            CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+            try
+            {
+                Emitter emitter = new(sourceProductionContext);
+
+                // Emit the assembly-default context (standard context files).
+                emitter.Emit(assemblyDefaultSpec.ContextSpec);
+
+                // Emit per-POCO IJsonSerializable<T> implementations.
+                emitter.EmitPocoJsonSerializableImplementations(assemblyDefaultSpec);
+            }
+            finally
+            {
+                CultureInfo.CurrentCulture = originalCulture;
+            }
+#pragma warning restore RS1035
         }
 
         /// <summary>

@@ -36,5 +36,18 @@ namespace System.Text.Json.SourceGeneration
         public required ImmutableEquatableArray<string> ContextClassDeclarations { get; init; }
 
         public required SourceGenerationOptionsSpec? GeneratedOptionsSpec { get; init; }
+
+        /// <summary>
+        /// Base type declaration to emit on the primary context source file only.
+        /// Null for user-defined contexts (user code supplies the base class).
+        /// Set for the assembly-default POCO context, e.g., <c>global::System.Text.Json.Serialization.JsonSerializerContext</c>.
+        /// </summary>
+        public string? BaseTypeDeclaration { get; init; }
+
+        /// <summary>
+        /// Whether the <c>IJsonSerializable&lt;T&gt;</c> interface is available in the target framework.
+        /// When false, the emitter should not generate <c>IJsonSerializable&lt;T&gt;</c> implementations.
+        /// </summary>
+        public required bool IsIJsonSerializableAvailable { get; init; }
     }
 }

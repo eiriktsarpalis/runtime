@@ -404,6 +404,32 @@ namespace System.Text.Json
         [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCodeAttribute("JSON serialization and deserialization might require types that cannot be statically analyzed. Use the overload that takes a JsonTypeInfo or JsonSerializerContext, or make sure all of the required types are preserved.")]
         public static string Serialize<TValue>(TValue value, System.Text.Json.JsonSerializerOptions? options = null) { throw null; }
         public static string Serialize<TValue>(TValue value, System.Text.Json.Serialization.Metadata.JsonTypeInfo<TValue> jsonTypeInfo) { throw null; }
+#if NET
+        public static string Serialize<T>(T value) where T : System.Text.Json.Serialization.IJsonSerializable<T> { throw null; }
+        public static string Serialize<TContext, T>(T value) where TContext : System.Text.Json.Serialization.IJsonSerializable<T> { throw null; }
+        public static void Serialize<T>(System.IO.Stream utf8Json, T value) where T : System.Text.Json.Serialization.IJsonSerializable<T> { }
+        public static void Serialize<TContext, T>(System.IO.Stream utf8Json, T value) where TContext : System.Text.Json.Serialization.IJsonSerializable<T> { }
+        public static void Serialize<T>(System.Text.Json.Utf8JsonWriter writer, T value) where T : System.Text.Json.Serialization.IJsonSerializable<T> { }
+        public static void Serialize<TContext, T>(System.Text.Json.Utf8JsonWriter writer, T value) where TContext : System.Text.Json.Serialization.IJsonSerializable<T> { }
+        public static System.Threading.Tasks.Task SerializeAsync<T>(System.IO.Stream utf8Json, T value, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) where T : System.Text.Json.Serialization.IJsonSerializable<T> { throw null; }
+        public static System.Threading.Tasks.Task SerializeAsync<TContext, T>(System.IO.Stream utf8Json, T value, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) where TContext : System.Text.Json.Serialization.IJsonSerializable<T> { throw null; }
+        public static byte[] SerializeToUtf8Bytes<T>(T value) where T : System.Text.Json.Serialization.IJsonSerializable<T> { throw null; }
+        public static byte[] SerializeToUtf8Bytes<TContext, T>(T value) where TContext : System.Text.Json.Serialization.IJsonSerializable<T> { throw null; }
+        public static T? Deserialize<T>([System.Diagnostics.CodeAnalysis.StringSyntaxAttribute("Json")] string json) where T : System.Text.Json.Serialization.IJsonSerializable<T> { throw null; }
+        public static T? Deserialize<TContext, T>([System.Diagnostics.CodeAnalysis.StringSyntaxAttribute("Json")] string json) where TContext : System.Text.Json.Serialization.IJsonSerializable<T> { throw null; }
+        public static T? Deserialize<T>([System.Diagnostics.CodeAnalysis.StringSyntaxAttribute("Json")] System.ReadOnlySpan<char> json) where T : System.Text.Json.Serialization.IJsonSerializable<T> { throw null; }
+        public static T? Deserialize<TContext, T>([System.Diagnostics.CodeAnalysis.StringSyntaxAttribute("Json")] System.ReadOnlySpan<char> json) where TContext : System.Text.Json.Serialization.IJsonSerializable<T> { throw null; }
+        public static T? Deserialize<T>(System.ReadOnlySpan<byte> utf8Json) where T : System.Text.Json.Serialization.IJsonSerializable<T> { throw null; }
+        public static T? Deserialize<TContext, T>(System.ReadOnlySpan<byte> utf8Json) where TContext : System.Text.Json.Serialization.IJsonSerializable<T> { throw null; }
+        public static T? Deserialize<T>(System.IO.Stream utf8Json) where T : System.Text.Json.Serialization.IJsonSerializable<T> { throw null; }
+        public static T? Deserialize<TContext, T>(System.IO.Stream utf8Json) where TContext : System.Text.Json.Serialization.IJsonSerializable<T> { throw null; }
+        public static T? Deserialize<T>(ref System.Text.Json.Utf8JsonReader reader) where T : System.Text.Json.Serialization.IJsonSerializable<T> { throw null; }
+        public static T? Deserialize<TContext, T>(ref System.Text.Json.Utf8JsonReader reader) where TContext : System.Text.Json.Serialization.IJsonSerializable<T> { throw null; }
+        public static System.Threading.Tasks.ValueTask<T?> DeserializeAsync<T>(System.IO.Stream utf8Json, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) where T : System.Text.Json.Serialization.IJsonSerializable<T> { throw null; }
+        public static System.Threading.Tasks.ValueTask<T?> DeserializeAsync<TContext, T>(System.IO.Stream utf8Json, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) where TContext : System.Text.Json.Serialization.IJsonSerializable<T> { throw null; }
+        public static System.Collections.Generic.IAsyncEnumerable<T?> DeserializeAsyncEnumerable<T>(System.IO.Stream utf8Json, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) where T : System.Text.Json.Serialization.IJsonSerializable<T> { throw null; }
+        public static System.Collections.Generic.IAsyncEnumerable<T?> DeserializeAsyncEnumerable<TContext, T>(System.IO.Stream utf8Json, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) where TContext : System.Text.Json.Serialization.IJsonSerializable<T> { throw null; }
+#endif
     }
     public enum JsonSerializerDefaults
     {
@@ -1152,13 +1178,23 @@ namespace System.Text.Json.Serialization
     {
         public JsonRequiredAttribute() { }
     }
-    [System.AttributeUsageAttribute(System.AttributeTargets.Class, AllowMultiple=true)]
+    [System.AttributeUsageAttribute(System.AttributeTargets.Class | System.AttributeTargets.Struct, AllowMultiple=true)]
     public sealed partial class JsonSerializableAttribute : System.Text.Json.Serialization.JsonAttribute
     {
         public JsonSerializableAttribute(System.Type type) { }
         public System.Text.Json.Serialization.JsonSourceGenerationMode GenerationMode { get { throw null; } set { } }
         public string? TypeInfoPropertyName { get { throw null; } set { } }
     }
+#if NET
+    public sealed partial class JsonSerializableAttribute
+    {
+        public JsonSerializableAttribute() { }
+    }
+    public interface IJsonSerializable<T>
+    {
+        static abstract System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> GetTypeInfo();
+    }
+#endif
     public abstract partial class JsonSerializerContext : System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver
     {
         protected JsonSerializerContext(System.Text.Json.JsonSerializerOptions? options) { }
