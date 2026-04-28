@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections.Generic;
@@ -23,6 +23,8 @@ namespace System.Text.Json.SourceGeneration
         private sealed class Parser
         {
             private const string SystemTextJsonNamespace = "System.Text.Json";
+            private const string UnionMemberProviderName = "IUnionMembers";
+            private const string UnionFactoryMethodName = "Create";
 
             /// <summary>
             /// A <see cref="SymbolDisplayFormat"/> that renders fully qualified type names with
@@ -328,6 +330,7 @@ namespace System.Text.Json.SourceGeneration
             {
                 JsonSourceGenerationMode? generationMode = null;
                 List<TypeRef>? converters = null;
+                List<TypeRef>? Classifiers = null;
                 JsonSerializerDefaults? defaults = null;
                 bool? allowOutOfOrderMetadataProperties = null;
                 bool? allowTrailingCommas = null;
@@ -483,6 +486,20 @@ namespace System.Text.Json.SourceGeneration
                             allowDuplicateProperties = (bool)namedArg.Value.Value!;
                             break;
 
+                        case nameof(JsonSourceGenerationOptionsAttribute.Classifiers):
+                            Classifiers = new List<TypeRef>();
+                            foreach (TypedConstant element in namedArg.Value.Values)
+                            {
+                                var classifierType = (ITypeSymbol?)element.Value;
+                                TypeRef? typeRef = GetUnionClassifierTypeFromAttribute(contextType, classifierType, contextType, attributeData);
+                                if (typeRef != null)
+                                {
+                                    Classifiers.Add(typeRef);
+                                }
+                            }
+
+                            break;
+
                         default:
                             throw new InvalidOperationException();
                     }
@@ -496,6 +513,7 @@ namespace System.Text.Json.SourceGeneration
                     AllowTrailingCommas = allowTrailingCommas,
                     DefaultBufferSize = defaultBufferSize,
                     Converters = converters?.ToImmutableEquatableArray(),
+                    Classifiers = Classifiers?.ToImmutableEquatableArray(),
                     DefaultIgnoreCondition = defaultIgnoreCondition,
                     DictionaryKeyPolicy = dictionaryKeyPolicy,
                     RespectNullableAnnotations = respectNullableAnnotations,
@@ -588,6 +606,7 @@ namespace System.Text.Json.SourceGeneration
                 bool constructorIsInaccessible = false;
                 ParameterGenerationSpec[]? ctorParamSpecs = null;
                 List<PropertyInitializerGenerationSpec>? propertyInitializerSpecs = null;
+                ImmutableEquatableArray<UnionCaseSpec> unionCaseSpecs = ImmutableEquatableArray<UnionCaseSpec>.Empty;
                 CollectionType collectionType = CollectionType.NotApplicable;
                 string? immutableCollectionFactoryTypeFullName = null;
                 bool implementsIJsonOnSerialized = false;
@@ -706,6 +725,32 @@ namespace System.Text.Json.SourceGeneration
                     {
                         propertyInitializerSpecs = ParsePropertyInitializers(ctorParamSpecs, propertySpecs, constructorSetsRequiredMembers, ref constructionStrategy);
                     }
+
+                    if (IsUnionType(type) && type is INamedTypeSymbol namedUnionType)
+                    {
+                        List<(ITypeSymbol CaseType, bool IsNullable)> unionCaseTypes = GetUnionCaseTypes(namedUnionType);
+                        if (unionCaseTypes.Count > 0)
+                        {
+                            var resolvedUnionCaseSpecs = new List<UnionCaseSpec>(unionCaseTypes.Count);
+                            foreach ((ITypeSymbol caseType, bool acceptsNull) in unionCaseTypes)
+                            {
+                                if (!IsSymbolAccessibleWithin(caseType, within: contextType))
+                                {
+                                    classType = ClassType.UnsupportedType;
+                                    resolvedUnionCaseSpecs.Clear();
+                                    break;
+                                }
+
+                                resolvedUnionCaseSpecs.Add(new UnionCaseSpec
+                                {
+                                    CaseType = EnqueueType(caseType, typeToGenerate.Mode),
+                                    IsNullable = acceptsNull,
+                                });
+                            }
+
+                            unionCaseSpecs = resolvedUnionCaseSpecs.ToImmutableEquatableArray();
+                        }
+                    }
                 }
 
                 var typeRef = new TypeRef(type);
@@ -737,6 +782,7 @@ namespace System.Text.Json.SourceGeneration
                     PreferredPropertyObjectCreationHandling = preferredPropertyObjectCreationHandling,
                     PropertyGenSpecs = propertySpecs?.ToImmutableEquatableArray() ?? ImmutableEquatableArray<PropertyGenerationSpec>.Empty,
                     FastPathPropertyIndices = fastPathPropertyIndices?.ToImmutableEquatableArray(),
+                    UnionCaseSpecs = unionCaseSpecs,
                     PropertyInitializerSpecs = propertyInitializerSpecs?.ToImmutableEquatableArray() ?? ImmutableEquatableArray<PropertyInitializerGenerationSpec>.Empty,
                     CtorParamGenSpecs = ctorParamSpecs?.ToImmutableEquatableArray() ?? ImmutableEquatableArray<ParameterGenerationSpec>.Empty,
                     CollectionType = collectionType,
@@ -857,6 +903,346 @@ namespace System.Text.Json.SourceGeneration
                         isPolymorphic = true;
                     }
                 }
+
+                // InferDerivedTypes: when [JsonPolymorphic(InferDerivedTypes = true)] is present,
+                // discover derived types at compile time and enqueue them for metadata generation.
+                if (HasInferDerivedTypes(typeToGenerate.Type))
+                {
+                    EnqueueInferredDerivedTypes(typeToGenerate);
+                    isPolymorphic = true;
+                }
+
+                // Union types: when [Union] is present, enqueue all case types
+                // (constructor parameter types) for metadata generation.
+                if (IsUnionType(typeToGenerate.Type))
+                {
+                    EnqueueUnionCaseTypes(typeToGenerate);
+                }
+            }
+
+            /// <summary>
+            /// Checks whether the type has [JsonPolymorphic(InferDerivedTypes = true)].
+            /// </summary>
+            private bool HasInferDerivedTypes(ITypeSymbol type)
+            {
+                INamedTypeSymbol? jsonPolymorphicType = _knownSymbols.JsonPolymorphicAttributeType;
+                if (jsonPolymorphicType is null)
+                {
+                    return false;
+                }
+
+                foreach (AttributeData attr in type.GetAttributes())
+                {
+                    if (SymbolEqualityComparer.Default.Equals(attr.AttributeClass, jsonPolymorphicType))
+                    {
+                        foreach (KeyValuePair<string, TypedConstant> namedArg in attr.NamedArguments)
+                        {
+                            if (namedArg.Key == "InferDerivedTypes" && namedArg.Value.Value is true)
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                }
+
+                return false;
+            }
+
+            /// <summary>
+            /// Discovers derived types at compile time from [ClosedSubtype] attributes
+            /// or by scanning the compilation for direct subtypes.
+            /// </summary>
+            private void EnqueueInferredDerivedTypes(in TypeToGenerate typeToGenerate)
+            {
+                ITypeSymbol type = typeToGenerate.Type;
+                bool foundClosedSubtypes = false;
+
+                // Fast path: [ClosedSubtype(typeof(...))] attributes.
+                INamedTypeSymbol? closedSubtypeType = _knownSymbols.ClosedSubtypeAttributeType;
+                if (closedSubtypeType is not null)
+                {
+                    foreach (AttributeData attr in type.GetAttributes())
+                    {
+                        if (SymbolEqualityComparer.Default.Equals(attr.AttributeClass, closedSubtypeType)
+                            && attr.ConstructorArguments.Length > 0
+                            && attr.ConstructorArguments[0].Value is ITypeSymbol subtypeSymbol)
+                        {
+                            EnqueueType(subtypeSymbol, typeToGenerate.Mode);
+                            foundClosedSubtypes = true;
+                        }
+                    }
+                }
+
+                if (foundClosedSubtypes)
+                {
+                    return;
+                }
+
+                // Slow path: scan the compilation for direct subtypes.
+                ScanCompilationForDerivedTypes(type, typeToGenerate.Mode);
+            }
+
+            /// <summary>
+            /// Scans all types in the compilation for direct subtypes of the given base type.
+            /// This is the compile-time equivalent of Assembly.GetTypes() scanning.
+            /// </summary>
+            private void ScanCompilationForDerivedTypes(ITypeSymbol baseType, JsonSourceGenerationMode? mode)
+            {
+                foreach (IModuleSymbol module in _knownSymbols.Compilation.Assembly.Modules)
+                {
+                    ScanNamespaceForDerivedTypes(module.GlobalNamespace, baseType, mode);
+                }
+            }
+
+            private void ScanNamespaceForDerivedTypes(INamespaceSymbol ns, ITypeSymbol baseType, JsonSourceGenerationMode? mode)
+            {
+                foreach (INamedTypeSymbol type in ns.GetTypeMembers())
+                {
+                    if (type.BaseType is not null && SymbolEqualityComparer.Default.Equals(type.BaseType, baseType))
+                    {
+                        EnqueueType(type, mode);
+                    }
+                }
+
+                foreach (INamespaceSymbol childNs in ns.GetNamespaceMembers())
+                {
+                    ScanNamespaceForDerivedTypes(childNs, baseType, mode);
+                }
+            }
+
+            /// <summary>
+            /// Checks whether the type has [Union].
+            /// </summary>
+            private bool IsUnionType(ITypeSymbol type)
+            {
+                INamedTypeSymbol? unionAttrType = _knownSymbols.UnionAttributeType;
+                if (unionAttrType is null)
+                {
+                    return false;
+                }
+
+                bool hasUnionAttr = false;
+                foreach (AttributeData attr in type.GetAttributes())
+                {
+                    if (SymbolEqualityComparer.Default.Equals(attr.AttributeClass, unionAttrType))
+                    {
+                        hasUnionAttr = true;
+                        break;
+                    }
+                }
+
+                if (!hasUnionAttr)
+                {
+                    return false;
+                }
+
+                return true;
+            }
+
+            /// <summary>
+            /// Enqueues all case types from a compiler union's defining members
+            /// and emits diagnostics for ambiguous token-type categories.
+            /// </summary>
+            private void EnqueueUnionCaseTypes(in TypeToGenerate typeToGenerate)
+            {
+                if (typeToGenerate.Type is not INamedTypeSymbol namedType)
+                {
+                    return;
+                }
+
+                List<(ITypeSymbol CaseType, bool IsNullable)> caseTypes = GetUnionCaseTypes(namedType);
+                foreach ((ITypeSymbol caseType, _) in caseTypes)
+                {
+                    EnqueueType(caseType, typeToGenerate.Mode);
+                }
+
+                // Detect ambiguous case types (multiple types mapping to same JSON token category).
+                if (caseTypes.Count > 1)
+                {
+                    EmitUnionAmbiguityDiagnostics(namedType, caseTypes.Select(c => c.CaseType).ToList(), typeToGenerate.Location);
+                }
+            }
+
+            private static List<(ITypeSymbol CaseType, bool IsNullable)> GetUnionCaseTypes(INamedTypeSymbol namedType)
+            {
+                INamedTypeSymbol unionDefiningType = GetUnionDefiningType(namedType, out bool usesUnionMemberProvider);
+                IEnumerable<IMethodSymbol> creationMembers = usesUnionMemberProvider
+                    ? unionDefiningType.GetMembers(UnionFactoryMethodName).OfType<IMethodSymbol>()
+                    : namedType.InstanceConstructors;
+
+                var caseTypes = new List<ITypeSymbol>();
+                var acceptsNullByCase = new Dictionary<ITypeSymbol, bool>(SymbolEqualityComparer.Default);
+
+                foreach (IMethodSymbol member in creationMembers)
+                {
+                    if (member.Parameters.Length != 1 ||
+                        member.DeclaredAccessibility != Accessibility.Public ||
+                        member.Parameters[0].RefKind is RefKind.Ref or RefKind.Out)
+                    {
+                        continue;
+                    }
+
+                    if (usesUnionMemberProvider &&
+                        (!member.IsStatic || !SymbolEqualityComparer.Default.Equals(member.ReturnType, namedType)))
+                    {
+                        continue;
+                    }
+
+                    IParameterSymbol parameter = member.Parameters[0];
+                    bool acceptsNull = parameter.IsNullable();
+                    ITypeSymbol caseType = parameter.Type;
+
+                    // Unwrap Nullable<T>.
+                    if (caseType is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullableType)
+                    {
+                        caseType = nullableType.TypeArguments[0];
+                    }
+
+                    if (acceptsNullByCase.TryGetValue(caseType, out bool existing))
+                    {
+                        acceptsNullByCase[caseType] = existing || acceptsNull;
+                    }
+                    else
+                    {
+                        acceptsNullByCase[caseType] = acceptsNull;
+                        caseTypes.Add(caseType);
+                    }
+                }
+
+                List<ITypeSymbol> sorted = SortCaseTypesTopologically(caseTypes);
+                var result = new List<(ITypeSymbol, bool)>(sorted.Count);
+                foreach (ITypeSymbol caseType in sorted)
+                {
+                    result.Add((caseType, acceptsNullByCase[caseType]));
+                }
+                return result;
+            }
+
+            private static List<ITypeSymbol> SortCaseTypesTopologically(List<ITypeSymbol> caseTypes)
+            {
+                if (caseTypes.Count <= 1)
+                {
+                    return caseTypes;
+                }
+
+                var sortedCaseTypes = new List<ITypeSymbol>(caseTypes.Count);
+
+                foreach (ITypeSymbol caseType in caseTypes)
+                {
+                    INamedTypeSymbol[] hierarchy = caseType.GetSortedTypeHierarchy();
+                    int insertIndex = sortedCaseTypes.Count;
+
+                    for (int i = 0; i < sortedCaseTypes.Count; i++)
+                    {
+                        if (hierarchy.Contains(sortedCaseTypes[i], SymbolEqualityComparer.Default))
+                        {
+                            insertIndex = i;
+                            break;
+                        }
+                    }
+
+                    sortedCaseTypes.Insert(insertIndex, caseType);
+                }
+
+                return sortedCaseTypes;
+            }
+
+            private void EmitUnionAmbiguityDiagnostics(INamedTypeSymbol unionType, List<ITypeSymbol> caseTypes, Location? location)
+            {
+                var categoryToTypes = new Dictionary<string, List<string>>();
+
+                foreach (ITypeSymbol caseType in caseTypes)
+                {
+                    string category = GetJsonTokenCategory(caseType);
+                    if (!categoryToTypes.TryGetValue(category, out List<string>? typeNames))
+                    {
+                        typeNames = new List<string>();
+                        categoryToTypes[category] = typeNames;
+                    }
+
+                    typeNames.Add(caseType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat));
+                }
+
+                foreach (KeyValuePair<string, List<string>> kvp in categoryToTypes)
+                {
+                    if (kvp.Value.Count > 1)
+                    {
+                        ReportDiagnostic(
+                            DiagnosticDescriptors.UnionAmbiguousCaseTypes,
+                            location,
+                            unionType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
+                            kvp.Key,
+                            string.Join(", ", kvp.Value));
+                    }
+                }
+            }
+
+            // Coarse compile-time approximation of the runtime token-type classifier used
+            // only for the EmitUnionAmbiguityDiagnostics warning. The runtime classifier
+            // delegates to JsonConverter.GetSupportedJsonTokenTypes per case-type converter
+            // (so it sees user-defined custom converters, JsonNumberHandling.AllowReadingFromString,
+            // EnumConverter options, etc.). Roslyn cannot invoke those runtime virtuals, so this
+            // helper falls back to a hardcoded type-symbol allowlist; mismatches between this
+            // approximation and the runtime are tolerated because the runtime ambiguity check
+            // (BuildTokenTypeMap) is the final authority.
+            private static string GetJsonTokenCategory(ITypeSymbol type)
+            {
+                if (type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable)
+                {
+                    type = nullable.TypeArguments[0];
+                }
+
+                if (type.SpecialType is SpecialType.System_Boolean)
+                {
+                    return "Boolean";
+                }
+
+                if (type.SpecialType is SpecialType.System_Byte or SpecialType.System_SByte or
+                    SpecialType.System_Int16 or SpecialType.System_UInt16 or
+                    SpecialType.System_Int32 or SpecialType.System_UInt32 or
+                    SpecialType.System_Int64 or SpecialType.System_UInt64 or
+                    SpecialType.System_Single or SpecialType.System_Double or
+                    SpecialType.System_Decimal)
+                {
+                    return "Number";
+                }
+
+                if (type.SpecialType is SpecialType.System_String or SpecialType.System_Char or
+                    SpecialType.System_DateTime)
+                {
+                    return "String";
+                }
+
+                if (type.TypeKind is TypeKind.Enum)
+                {
+                    return "String";
+                }
+
+                if (type is IArrayTypeSymbol ||
+                    type.AllInterfaces.Any(i =>
+                        i.OriginalDefinition.SpecialType is SpecialType.System_Collections_Generic_IEnumerable_T))
+                {
+                    return "Array";
+                }
+
+                return "Object";
+            }
+
+            private static INamedTypeSymbol GetUnionDefiningType(INamedTypeSymbol unionType, out bool usesUnionMemberProvider)
+            {
+                foreach (INamedTypeSymbol nestedType in unionType.GetTypeMembers(UnionMemberProviderName))
+                {
+                    if (nestedType.TypeKind == TypeKind.Interface &&
+                        nestedType.DeclaredAccessibility == Accessibility.Public &&
+                        unionType.AllInterfaces.Any(i => SymbolEqualityComparer.Default.Equals(i, nestedType)))
+                    {
+                        usesUnionMemberProvider = true;
+                        return nestedType;
+                    }
+                }
+
+                usesUnionMemberProvider = false;
+                return unionType;
             }
 
             private bool TryResolveCollectionType(
@@ -1843,6 +2229,23 @@ namespace System.Text.Json.SourceGeneration
                 }
 
                 return new TypeRef(namedConverterType);
+            }
+
+            private TypeRef? GetUnionClassifierTypeFromAttribute(INamedTypeSymbol contextType, ITypeSymbol? classifierType, ISymbol declaringSymbol, AttributeData attributeData)
+            {
+                INamedTypeSymbol? namedClassifierType = classifierType as INamedTypeSymbol;
+
+                if (namedClassifierType is null ||
+                    namedClassifierType.IsAbstract ||
+                    !_knownSymbols.JsonTypeClassifierFactoryType.IsAssignableFrom(namedClassifierType) ||
+                    !namedClassifierType.Constructors.Any(c => c.Parameters.Length == 0 && IsSymbolAccessibleWithin(c, within: contextType)))
+                {
+                    // Reuse the converter-attribute diagnostic for this prototype; the conditions are analogous.
+                    ReportDiagnostic(DiagnosticDescriptors.JsonConverterAttributeInvalidType, attributeData.GetLocation(), classifierType?.ToDisplayString() ?? "null", declaringSymbol.ToDisplayString());
+                    return null;
+                }
+
+                return new TypeRef(namedClassifierType);
             }
 
             /// <summary>

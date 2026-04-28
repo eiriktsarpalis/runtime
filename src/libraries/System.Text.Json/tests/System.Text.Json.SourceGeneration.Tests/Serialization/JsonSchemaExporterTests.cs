@@ -130,6 +130,12 @@ namespace System.Text.Json.SourceGeneration.Tests
         [JsonSerializable(typeof(Hashtable))]
         [JsonSerializable(typeof(StructDictionary<string, int>))]
         [JsonSerializable(typeof(XElement))]
+#if NET11_0_OR_GREATER
+        [JsonSerializable(typeof(UnionOfDogOrCat))]
+        [JsonSerializable(typeof(PocoWithUnionProperty))]
+        [JsonSerializable(typeof(UnionDog))]
+        [JsonSerializable(typeof(UnionCat))]
+#endif
         public partial class TestTypesContext : JsonSerializerContext;
     }
 }

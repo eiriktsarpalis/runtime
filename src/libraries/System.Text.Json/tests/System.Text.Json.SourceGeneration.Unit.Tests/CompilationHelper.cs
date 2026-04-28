@@ -39,12 +39,14 @@ namespace System.Text.Json.SourceGeneration.UnitTests
 
         public static CSharpParseOptions CreateParseOptions(
             LanguageVersion? version = null,
-            DocumentationMode? documentationMode = null)
+            DocumentationMode? documentationMode = null,
+            IEnumerable<string>? preprocessorSymbols = null)
         {
             return new CSharpParseOptions(
                 kind: SourceCodeKind.Regular,
                 languageVersion: version ?? LanguageVersion.CSharp9, // C# 9 is the minimum supported lang version by the source generator.
-                documentationMode: documentationMode ?? DocumentationMode.Parse);
+                documentationMode: documentationMode ?? DocumentationMode.Parse,
+                preprocessorSymbols: preprocessorSymbols);
         }
 
 #if NET

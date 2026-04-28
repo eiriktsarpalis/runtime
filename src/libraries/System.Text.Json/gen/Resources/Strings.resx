@@ -207,4 +207,10 @@
   <data name="JsonIgnoreConditionAlwaysInvalidOnTypeFormat" xml:space="preserve">
     <value>The type '{0}' has been annotated with 'JsonIgnoreAttribute' using 'JsonIgnoreCondition.Always' which is not valid on type declarations. The attribute will be ignored.</value>
   </data>
+  <data name="UnionAmbiguousCaseTypesTitle" xml:space="preserve">
+    <value>Union type has ambiguous case types.</value>
+  </data>
+  <data name="UnionAmbiguousCaseTypesMessageFormat" xml:space="preserve">
+    <value>Union type '{0}' has multiple case types that serialize as the same JSON token type '{1}': {2}. The first-declared type will be used by default. Provide a custom classifier via [JsonUnion(TypeClassifier = typeof(...))] to disambiguate.</value>
+  </data>
 </root>

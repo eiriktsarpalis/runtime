@@ -224,6 +224,15 @@ namespace System.Text.Json.Serialization
         /// </summary>
         internal virtual JsonSchema? GetSchema(JsonNumberHandling numberHandling) => null;
 
+        /// <summary>
+        /// Gets the set of leading <see cref="JsonTokenType"/> values that this converter can read
+        /// for the given <paramref name="numberHandling"/>. Returning <see langword="null"/> means
+        /// the converter does not advertise its supported tokens; callers fall back to a default
+        /// based on <see cref="ConverterStrategy"/>. Used by union-type dispatch to build a
+        /// token→case map without re-walking type metadata. Mirrors <see cref="GetSchema"/>.
+        /// </summary>
+        internal virtual JsonTokenType[]? GetSupportedJsonTokenTypes(JsonNumberHandling numberHandling) => null;
+
         // Whether a type (ConverterStrategy.Object) is deserialized using a parameterized constructor.
         internal virtual bool ConstructorIsParameterized { get; }
 

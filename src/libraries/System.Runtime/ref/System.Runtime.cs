@@ -13650,6 +13650,17 @@ namespace System.Runtime.CompilerServices
     {
         public CallerMemberNameAttribute() { }
     }
+    [System.AttributeUsageAttribute(System.AttributeTargets.Class | System.AttributeTargets.Enum, AllowMultiple=false, Inherited=false)]
+    public sealed partial class ClosedAttribute : System.Attribute
+    {
+        public ClosedAttribute() { }
+    }
+    [System.AttributeUsageAttribute(System.AttributeTargets.Class, AllowMultiple=true, Inherited=false)]
+    public sealed partial class ClosedSubtypeAttribute : System.Attribute
+    {
+        public ClosedSubtypeAttribute(System.Type subtypeType) { }
+        public System.Type SubtypeType { get { throw null; } }
+    }
     [System.AttributeUsageAttribute(System.AttributeTargets.Class | System.AttributeTargets.Interface | System.AttributeTargets.Struct, Inherited=false)]
     public sealed partial class CollectionBuilderAttribute : System.Attribute
     {

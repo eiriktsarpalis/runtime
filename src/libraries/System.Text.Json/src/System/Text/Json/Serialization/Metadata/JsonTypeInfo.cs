@@ -348,6 +348,182 @@ namespace System.Text.Json.Serialization.Metadata
 
         private protected JsonPolymorphismOptions? _polymorphismOptions;
 
+        /// <summary>
+        /// Gets the list of union case type metadata for this type.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// This property is only meaningful when <see cref="Kind"/> is <see cref="JsonTypeInfoKind.Union"/>.
+        /// The list is mutable during configuration and frozen at finalization time.
+        /// </para>
+        /// <para>
+        /// For types discovered via convention (e.g., <see cref="JsonUnionAttribute"/>),
+        /// the list is automatically populated. For Level 3 contract customization,
+        /// users can populate this list manually.
+        /// </para>
+        /// </remarks>
+        public IList<JsonUnionCaseInfo>? UnionCases
+        {
+            get => _unionCases;
+            set
+            {
+                VerifyMutable();
+                if (value is null or UnionCaseList)
+                {
+                    _unionCases = value;
+                }
+                else
+                {
+                    // Wrap user-supplied lists in a UnionCaseList for freeze support.
+                    _unionCases = new UnionCaseList(this, value);
+                }
+            }
+        }
+
+        private IList<JsonUnionCaseInfo>? _unionCases;
+
+        private sealed class UnionCaseList : ConfigurationList<JsonUnionCaseInfo>
+        {
+            private readonly JsonTypeInfo _parent;
+
+            public UnionCaseList(JsonTypeInfo parent, IEnumerable<JsonUnionCaseInfo>? source = null) : base(source)
+            {
+                _parent = parent;
+            }
+
+            public override bool IsReadOnly => _parent.IsReadOnly;
+            protected override void OnCollectionModifying() => _parent.VerifyMutable();
+        }
+
+        /// <summary>
+        /// Gets or sets the delegate that classifies JSON payloads to determine the target type
+        /// during deserialization.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// This is the shared classification property for both polymorphic types and union types.
+        /// </para>
+        /// <para>
+        /// For <strong>polymorphic types</strong>: when set, bypasses the standard discriminator-based
+        /// type resolution (scanning for a <c>$type</c> property). When <see langword="null"/>
+        /// (default), the existing discriminator-based approach is used unchanged.
+        /// </para>
+        /// <para>
+        /// For <strong>union types</strong>: determines which case type matches the JSON payload.
+        /// Auto-configured with structural matching by default. When set by the user (Level 2
+        /// customization), replaces the default structural matching.
+        /// </para>
+        /// </remarks>
+        public JsonTypeClassifier? TypeClassifier
+        {
+            get => _typeClassifier;
+            set
+            {
+                VerifyMutable();
+                _typeClassifier = value;
+            }
+        }
+
+        private JsonTypeClassifier? _typeClassifier;
+
+        // Internal assignment that bypasses the IsReadOnly check. Used by the deferred
+        // union-classifier configuration step which runs from within Configure() (after the
+        // typeInfo has been made read-only). Callers must ensure they are running inside
+        // the configuration pipeline.
+        internal void SetTypeClassifierFromConfigure(JsonTypeClassifier? value) => _typeClassifier = value;
+
+        /// <summary>
+        /// Gets or sets the weakly-typed delegate that deconstructs a union instance into
+        /// its case type and case value.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The delegate combines object classification and value extraction in a single call,
+        /// returning a tuple of <c>(Type? CaseType, object? CaseValue)</c>.
+        /// The case type can be <see langword="null"/> when the case value is <see langword="null"/>.
+        /// </para>
+        /// <para>
+        /// Prefer setting the strongly-typed <see cref="JsonTypeInfo{T}.UnionDeconstructor"/>
+        /// on <see cref="JsonTypeInfo{T}"/> to avoid boxing when the union type is a value type.
+        /// </para>
+        /// </remarks>
+        public Func<object, (Type? CaseType, object? CaseValue)>? UnionDeconstructor
+        {
+            get => _unionDeconstructor;
+            set
+            {
+                VerifyMutable();
+                SetUnionDeconstructor(value);
+            }
+        }
+
+        private protected virtual void SetUnionDeconstructor(Delegate? deconstructor)
+        {
+            Debug.Assert(deconstructor is null or Func<object, (Type?, object?)>);
+            _unionDeconstructor = (Func<object, (Type?, object?)>?)deconstructor;
+        }
+
+        private protected Func<object, (Type?, object?)>? _unionDeconstructor;
+
+        /// <summary>
+        /// Gets or sets the weakly-typed delegate that constructs a union instance from
+        /// a case type and case value.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The delegate takes a <see cref="Type"/> parameter for case type disambiguation
+        /// (e.g., when overlapping case types exist like <c>Labrador : Dog</c>) and an
+        /// <c>object?</c> case value, returning the constructed union instance.
+        /// </para>
+        /// <para>
+        /// The delegate also encapsulates the union's null-handling policy. When the
+        /// converter encounters a JSON <see cref="JsonTokenType.Null"/> token, it bypasses
+        /// any configured <see cref="TypeClassifier"/> and invokes the delegate with a
+        /// <see langword="null"/> case value. Implementations should produce the canonical
+        /// null-holding union instance when at least one case is nullable, and otherwise
+        /// throw a <see cref="JsonException"/>. The case-type argument is unspecified on
+        /// the null path; per the union semantics all nullable cases collapse to the same
+        /// null instance, so its value is irrelevant.
+        /// </para>
+        /// <para>
+        /// Prefer setting the strongly-typed <see cref="JsonTypeInfo{T}.UnionConstructor"/>
+        /// on <see cref="JsonTypeInfo{T}"/> to avoid boxing when the union type is a value type.
+        /// </para>
+        /// </remarks>
+        public Func<Type, object?, object>? UnionConstructor
+        {
+            get => _unionConstructor;
+            set
+            {
+                VerifyMutable();
+                SetUnionConstructor(value);
+            }
+        }
+
+        private protected virtual void SetUnionConstructor(Delegate? constructor)
+        {
+            Debug.Assert(constructor is null or Func<Type, object?, object>);
+            _unionConstructor = (Func<Type, object?, object>?)constructor;
+        }
+
+        private protected Func<Type, object?, object>? _unionConstructor;
+
+        /// <summary>
+        /// Pre-built token→type map for default union deserialization (no custom classifier).
+        /// Maps each <see cref="JsonTokenType"/> to the first-declared case type that
+        /// serializes as that token kind. Populated at configuration time from <see cref="UnionCases"/>.
+        /// </summary>
+        internal Dictionary<JsonTokenType, Type>? UnionTokenTypeMap { get; set; }
+
+        // Deferred configuration step used by union types to invoke the user's
+        // JsonTypeClassifierFactory during JsonTypeInfo.Configure() rather than during
+        // construction. Running the factory at Configure() time means this typeInfo is
+        // already in the per-options cache and in the 'Configuring' state, so re-entrant
+        // GetTypeInfo calls from within the factory body return the partial typeInfo
+        // instead of recursing into a fresh construction (which would stack overflow).
+        internal Action<JsonTypeInfo, object?>? DeferredUnionConfigure { get; set; }
+        internal object? DeferredUnionConfigureState { get; set; }
+
         internal object? CreateObjectWithArgs { get; set; }
 
         // Add method delegate for non-generic Stack and Queue; and types that derive from them.
@@ -467,7 +643,7 @@ namespace System.Text.Json.Serialization.Metadata
         /// User-defined custom converters (specified either via <see cref="JsonConverterAttribute"/> or <see cref="JsonSerializerOptions.Converters"/>)
         /// are metadata-agnostic and thus always resolve to <see cref="JsonTypeInfoKind.None"/>.
         /// </remarks>
-        public JsonTypeInfoKind Kind { get; }
+        public JsonTypeInfoKind Kind { get; private set; }
 
         /// <summary>
         /// Dummy <see cref="JsonPropertyInfo"/> instance corresponding to the declaring type of this <see cref="JsonTypeInfo"/>.
@@ -751,6 +927,12 @@ namespace System.Text.Json.Serialization.Metadata
                 // This needs to be done before ConfigureProperties() is called
                 // JsonPropertyInfo.Configure() must have this value available in order to detect Polymoprhic + cyclic class case
                 PolymorphicTypeResolver = new PolymorphicTypeResolver(Options, PolymorphismOptions, Type, Converter.CanHaveMetadata);
+
+                // If the user set TypeClassifier via contract customization, propagate it to the resolver.
+                if (_typeClassifier is not null)
+                {
+                    PolymorphicTypeResolver.TypeClassifier = _typeClassifier;
+                }
             }
 
             if (Kind == JsonTypeInfoKind.Object)
@@ -777,6 +959,74 @@ namespace System.Text.Json.Serialization.Metadata
 
             DetermineIsCompatibleWithCurrentOptions();
             CanUseSerializeHandler = HasSerializeHandler && IsCompatibleWithCurrentOptions;
+
+            // Deferred union classifier factory invocation. Runs after the typeInfo is in
+            // the cache so re-entrant resolution via the factory body finds the partial
+            // typeInfo instead of stack-overflowing.
+            if (Kind is JsonTypeInfoKind.Union && DeferredUnionConfigure is { } deferred)
+            {
+                object? state = DeferredUnionConfigureState;
+                DeferredUnionConfigure = null;
+                DeferredUnionConfigureState = null;
+                deferred(this, state);
+            }
+
+            // Validate union token-type ambiguity after modifiers have had a chance
+            // to set a custom TypeClassifier. If no classifier is set and the token map
+            // has ambiguous categories, throw.
+            if (Kind is JsonTypeInfoKind.Union &&
+                _typeClassifier is null &&
+                UnionCases is { Count: > 1 })
+            {
+                ValidateUnionTokenTypeAmbiguity();
+            }
+        }
+
+        private void ValidateUnionTokenTypeAmbiguity()
+        {
+            var categoryToTypes = new Dictionary<string, List<string>>();
+
+            foreach (JsonUnionCaseInfo caseInfo in UnionCases!)
+            {
+                string categoryName = GetUnionTokenCategory(caseInfo.CaseType);
+
+                if (!categoryToTypes.TryGetValue(categoryName, out List<string>? names))
+                {
+                    names = new List<string>();
+                    categoryToTypes[categoryName] = names;
+                }
+
+                names.Add(caseInfo.CaseType.ToString());
+            }
+
+            foreach (KeyValuePair<string, List<string>> kvp in categoryToTypes)
+            {
+                if (kvp.Value.Count > 1)
+                {
+                    string typeNames = string.Join(", ", kvp.Value);
+                    throw new InvalidOperationException(
+                        $"Union type '{Type}' has ambiguous case types that serialize as the same JSON token type '{kvp.Key}': {typeNames}. " +
+                        "Provide a custom classifier via [JsonUnion(TypeClassifier = typeof(...))] or contract customization to disambiguate.");
+                }
+            }
+        }
+
+        private static string GetUnionTokenCategory(Type type)
+        {
+            Type underlying = Nullable.GetUnderlyingType(type) ?? type;
+
+            if (underlying == typeof(bool)) return "Boolean";
+            if (underlying.IsPrimitive && underlying != typeof(char)) return "Number";
+            if (underlying == typeof(decimal)) return "Number";
+            if (underlying == typeof(string) || underlying == typeof(char) ||
+                underlying == typeof(DateTime) || underlying == typeof(DateTimeOffset) ||
+                underlying == typeof(Guid) || underlying == typeof(TimeSpan) ||
+                underlying == typeof(Uri) || underlying == typeof(byte[]) ||
+                underlying.IsEnum) return "String";
+            if (underlying.IsArray || (underlying != typeof(string) &&
+                typeof(System.Collections.IEnumerable).IsAssignableFrom(underlying))) return "Array";
+
+            return "Object";
         }
 
         /// <summary>
@@ -1240,6 +1490,46 @@ namespace System.Text.Json.Serialization.Metadata
             {
                 options.DeclaringTypeInfo = this;
                 _polymorphismOptions = options;
+            }
+        }
+
+        [RequiresUnreferencedCode(JsonSerializer.SerializationUnreferencedCodeMessage)]
+        [RequiresDynamicCode(JsonSerializer.SerializationRequiresDynamicCodeMessage)]
+        internal void PopulateUnionMetadata()
+        {
+            Debug.Assert(!IsReadOnly);
+
+            Type type = Type;
+            bool isUnionType = false;
+
+#if NET11_0_OR_GREATER
+            if (type.GetCustomAttribute<UnionAttribute>() is not null)
+            {
+                isUnionType = true;
+                Converters.JsonUnionConverterFactory.ConfigureUnionDefaults(this);
+            }
+#endif
+            if (!isUnionType && type.GetCustomAttribute<JsonUnionAttribute>() is not null)
+            {
+                isUnionType = true;
+                Converters.JsonUnionConverterFactory.ConfigureConventionUnion(this);
+            }
+            else if (!isUnionType && (UnionCases is { Count: > 0 } ||
+                _typeClassifier is not null ||
+                _unionConstructor is not null ||
+                _unionDeconstructor is not null))
+            {
+                isUnionType = true;
+                if (_typeClassifier is null && UnionCases is { Count: > 0 })
+                {
+                    UnionTokenTypeMap = Converters.JsonUnionConverterFactory.BuildTokenTypeMap(UnionCases, Options);
+                }
+            }
+
+            if (isUnionType)
+            {
+                Kind = JsonTypeInfoKind.Union;
+                SourceGenDelayedPropertyInitializer = null;
             }
         }
 

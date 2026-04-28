@@ -1,8 +1,11 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization.Converters;
 
 namespace System.Text.Json.Serialization.Metadata
@@ -16,6 +19,7 @@ namespace System.Text.Json.Serialization.Metadata
         {
             var typeInfo = new JsonTypeInfo<T>(converter, options);
             typeInfo.PopulatePolymorphismMetadata();
+            PopulateUnionMetadataForSourceGen(typeInfo);
             typeInfo.MapInterfaceTypesToCallbacks();
 
             // Plug in any converter configuration -- should be run last.
@@ -57,6 +61,35 @@ namespace System.Text.Json.Serialization.Metadata
             typeInfo.SerializeHandler = objectInfo.SerializeHandler;
             typeInfo.NumberHandling = objectInfo.NumberHandling;
             typeInfo.PopulatePolymorphismMetadata();
+            PopulateUnionMetadataForSourceGen(typeInfo);
+            typeInfo.MapInterfaceTypesToCallbacks();
+
+            // Plug in any converter configuration -- should be run last.
+            converter.ConfigureJsonTypeInfo(typeInfo, options);
+            typeInfo.IsCustomized = false;
+            return typeInfo;
+        }
+
+        /// <summary>
+        /// Creates serialization metadata for a union.
+        /// </summary>
+        private static JsonTypeInfo<T> CreateCore<T>(JsonSerializerOptions options, JsonUnionInfoValues<T> unionInfo)
+        {
+            JsonConverter<T> converter = CreateUnionConverter<T>();
+            IList<JsonUnionCaseInfo> unionCases = unionInfo.UnionCases is { } configuredCases
+                ? new List<JsonUnionCaseInfo>(configuredCases)
+                : [];
+
+            var typeInfo = new JsonTypeInfo<T>(converter, options)
+            {
+                UnionCases = unionCases,
+                UnionConstructor = unionInfo.UnionConstructor,
+                UnionDeconstructor = unionInfo.UnionDeconstructor,
+                TypeClassifier = unionInfo.TypeClassifier,
+            };
+
+            typeInfo.PopulatePolymorphismMetadata();
+            PopulateUnionMetadataForSourceGen(typeInfo);
             typeInfo.MapInterfaceTypesToCallbacks();
 
             // Plug in any converter configuration -- should be run last.
@@ -92,6 +125,7 @@ namespace System.Text.Json.Serialization.Metadata
             typeInfo.AddMethodDelegate = addFunc;
             typeInfo.SetCreateObjectIfCompatible(collectionInfo.ObjectCreator);
             typeInfo.PopulatePolymorphismMetadata();
+            PopulateUnionMetadataForSourceGen(typeInfo);
             typeInfo.MapInterfaceTypesToCallbacks();
 
             // Plug in any converter configuration -- should be run last.
@@ -102,6 +136,15 @@ namespace System.Text.Json.Serialization.Metadata
 
         private static JsonConverter<T> GetConverter<T>(JsonObjectInfoValues<T> objectInfo)
         {
+            if (typeof(T).GetCustomAttribute<JsonUnionAttribute>() is not null
+#if NET11_0_OR_GREATER
+                || typeof(T).GetCustomAttribute<UnionAttribute>() is not null
+#endif
+                )
+            {
+                return CreateUnionConverter<T>();
+            }
+
 #pragma warning disable CS8714 // Nullability of type argument 'T' doesn't match 'notnull' constraint.
             JsonConverter<T> converter = objectInfo.ObjectWithParameterizedConstructorCreator != null
                 ? new LargeObjectWithParameterizedConstructorConverter<T>()
@@ -112,6 +155,16 @@ namespace System.Text.Json.Serialization.Metadata
                 ? new JsonMetadataServicesConverter<T>(converter)
                 : converter;
         }
+
+        [UnconditionalSuppressMessage("ReflectionAnalysis", "IL2026", Justification = "Source-generated union metadata initializes only over types rooted by the generated context.")]
+        [UnconditionalSuppressMessage("AotAnalysis", "IL3050", Justification = "Source-generated union metadata avoids additional runtime code generation requirements.")]
+        private static void PopulateUnionMetadataForSourceGen(JsonTypeInfo typeInfo)
+            => typeInfo.PopulateUnionMetadata();
+
+        [UnconditionalSuppressMessage("ReflectionAnalysis", "IL2026", Justification = "Source-generated union converters are only created for types rooted by the generated context.")]
+        [UnconditionalSuppressMessage("AotAnalysis", "IL3050", Justification = "Source-generated union converters avoid additional runtime code generation requirements.")]
+        private static JsonConverter<T> CreateUnionConverter<T>()
+            => new JsonUnionConverter<T>();
 
         private static void PopulateParameterInfoValues(JsonTypeInfo typeInfo, Func<JsonParameterInfoValues[]?>? paramFactory)
         {

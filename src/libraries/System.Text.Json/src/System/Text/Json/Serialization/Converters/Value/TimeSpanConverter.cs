@@ -100,5 +100,7 @@ namespace System.Text.Json.Serialization.Converters
             Comment = "Represents a System.TimeSpan value.",
             Pattern = @"^-?(\d+\.)?\d{2}:\d{2}:\d{2}(\.\d{1,7})?$"
         };
+
+        internal override JsonTokenType[] GetSupportedJsonTokenTypes(JsonNumberHandling _) => UnionTokenSets.String;
     }
 }

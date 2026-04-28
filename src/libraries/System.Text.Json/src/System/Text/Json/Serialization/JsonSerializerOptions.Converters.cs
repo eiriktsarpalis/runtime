@@ -23,6 +23,43 @@ namespace System.Text.Json
         public IList<JsonConverter> Converters => _converters ??= new(this);
 
         /// <summary>
+        /// Gets the list of custom union classifier factories.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Each <see cref="JsonTypeClassifierFactory"/> in the list is consulted (in declaration order) when
+        /// configuring a union type for which no per-type classifier was set via
+        /// <see cref="JsonUnionAttribute.TypeClassifier"/>. The first factory whose
+        /// <see cref="JsonTypeClassifierFactory.CanClassify(Type)"/> returns <see langword="true"/>
+        /// is used; otherwise the default token-type matching applies.
+        /// </para>
+        /// <para>
+        /// The list does not influence polymorphic type resolution; polymorphic types continue to opt in
+        /// via <see cref="JsonPolymorphicAttribute.TypeClassifier"/>.
+        /// </para>
+        /// <para>
+        /// Once serialization or deserialization occurs, the list cannot be modified.
+        /// </para>
+        /// </remarks>
+        public IList<JsonTypeClassifierFactory> Classifiers => _classifiers ??= new(this);
+
+        internal JsonTypeClassifierFactory? GetUnionClassifierFactoryFromList(Type declaringType)
+        {
+            if (_classifiers is { } list)
+            {
+                foreach (JsonTypeClassifierFactory item in list)
+                {
+                    if (item.CanClassify(declaringType))
+                    {
+                        return item;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
         /// Returns the converter for the specified type.
         /// </summary>
         /// <param name="typeToConvert">The type to return a converter for.</param>

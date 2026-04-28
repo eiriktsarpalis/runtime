@@ -697,6 +697,58 @@ namespace System.Text.Json.SourceGeneration.UnitTests
             CompilationHelper.AssertEqualDiagnosticMessages(expectedDiagnostics, result.Diagnostics);
         }
 
+        [Fact]
+        public void AmbiguousCompilerUnion_CompilesWithWarning()
+        {
+            // Use the lowered shape so this diagnostic runs across the Roslyn-versioned test matrix.
+            string source = """
+                using System;
+                using System.Runtime.CompilerServices;
+                using System.Text.Json.Serialization;
+                #if !NET
+                namespace System.Runtime.CompilerServices
+                {
+                    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]
+                    public sealed class UnionAttribute : Attribute { }
+                    public interface IUnion { object Value { get; } }
+                }
+                #endif
+
+                namespace TestApp
+                {
+                    [JsonSerializable(typeof(IntOrLongUnion))]
+                    internal partial class MyContext : JsonSerializerContext { }
+
+                    [Union]
+                    public readonly struct IntOrLongUnion : IUnion
+                    {
+                        public IntOrLongUnion(int value) => Value = value;
+                        public IntOrLongUnion(long value) => Value = value;
+                        public object Value { get; }
+                    }
+                }
+                """;
+
+            CSharpParseOptions parseOptions = CompilationHelper.CreateParseOptions(
+                preprocessorSymbols: GetPreprocessorSymbols());
+            Compilation compilation = CompilationHelper.CreateCompilation(source, parseOptions: parseOptions);
+            JsonSourceGeneratorResult result = CompilationHelper.RunJsonSourceGenerator(
+                compilation,
+                disableDiagnosticValidation: true);
+
+            Location unionLocation = compilation.GetSymbolsWithName("IntOrLongUnion").First().Locations[0];
+
+            var expectedDiagnostics = new DiagnosticData[]
+            {
+                new(DiagnosticSeverity.Warning, unionLocation, "Union type 'IntOrLongUnion' has multiple case types that serialize as the same JSON token type 'Number': int, long. The first-declared type will be used by default. Provide a custom classifier via [JsonUnion(TypeClassifier = typeof(...))] to disambiguate."),
+            };
+
+            CompilationHelper.AssertEqualDiagnosticMessages(expectedDiagnostics, result.Diagnostics);
+        }
+
+        private static string[] GetPreprocessorSymbols()
+            => System.Array.Empty<string>();
+
 #if NET
         [Fact]
         public void CollectionWithRefStructElement_CompilesWithWarning()

@@ -69,6 +69,11 @@ namespace System.Text.Json.SourceGeneration
         /// </summary>
         public required ImmutableEquatableArray<int>? FastPathPropertyIndices { get; init; }
 
+        /// <summary>
+        /// List of case specs for compiler union metadata generation.
+        /// </summary>
+        public required ImmutableEquatableArray<UnionCaseSpec> UnionCaseSpecs { get; init; }
+
         public required ImmutableEquatableArray<ParameterGenerationSpec> CtorParamGenSpecs { get; init; }
 
         public required ImmutableEquatableArray<PropertyInitializerGenerationSpec> PropertyInitializerSpecs { get; init; }
@@ -112,6 +117,11 @@ namespace System.Text.Json.SourceGeneration
 
         public bool IsFastPathSupported()
         {
+            if (UnionCaseSpecs.Count > 0)
+            {
+                return false;
+            }
+
             if (IsPolymorphic)
             {
                 return false;

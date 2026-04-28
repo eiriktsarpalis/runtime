@@ -23,6 +23,10 @@ namespace System.Text.Json.Serialization.Metadata
         /// <summary>
         /// Type is serialized as a dictionary with key/value pair entries.
         /// </summary>
-        Dictionary = 3
+        Dictionary = 3,
+        /// <summary>
+        /// Type is serialized as a union with a closed set of case types.
+        /// </summary>
+        Union = 4
     }
 }

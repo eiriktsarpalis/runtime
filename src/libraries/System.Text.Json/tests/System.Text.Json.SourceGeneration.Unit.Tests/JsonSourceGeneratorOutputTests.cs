@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Tests;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
 using SourceGenerators.Tests;
 using Xunit;
@@ -89,6 +90,100 @@ namespace System.Text.Json.SourceGeneration.UnitTests
                     public enum Color { Red, Green, Blue }
                 }
                 """, nameof(EnumType));
+        }
+
+        [Fact]
+        public void CompilerUnion()
+        {
+            // Use the lowered shape of `union Pet(Cat, Dog)` so this baseline runs
+            // across the Roslyn-versioned test matrix.
+            VerifyAgainstBaseline("""
+                using System;
+                using System.Runtime.CompilerServices;
+                using System.Text.Json.Serialization;
+                #if !NET
+                namespace System.Runtime.CompilerServices
+                {
+                    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]
+                    public sealed class UnionAttribute : Attribute { }
+                    public interface IUnion { object Value { get; } }
+                }
+                #endif
+                namespace TestApp
+                {
+                    [JsonSerializable(typeof(Pet))]
+                    internal partial class MyContext : JsonSerializerContext { }
+
+                    public class Dog
+                    {
+                        public string? Name { get; set; }
+                        public string? Breed { get; set; }
+                    }
+
+                    public class Cat
+                    {
+                        public string? Name { get; set; }
+                        public int Lives { get; set; }
+                    }
+
+                    [Union]
+                    public readonly struct Pet : IUnion
+                    {
+                        public Pet(Cat value) => Value = value;
+                        public Pet(Dog value) => Value = value;
+                        public object Value { get; }
+                    }
+                }
+                """,
+                nameof(CompilerUnion),
+                disableDiagnosticValidation: true,
+                parseOptions: CompilationHelper.CreateParseOptions(
+                    preprocessorSymbols: GetPreprocessorSymbols()));
+        }
+
+        [Fact]
+        public void CompilerUnionDerivedOrdering()
+        {
+            VerifyAgainstBaseline("""
+                using System;
+                using System.Runtime.CompilerServices;
+                using System.Text.Json.Serialization;
+                #if !NET
+                namespace System.Runtime.CompilerServices
+                {
+                    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]
+                    public sealed class UnionAttribute : Attribute { }
+                    public interface IUnion { object Value { get; } }
+                }
+                #endif
+                namespace TestApp
+                {
+                    [JsonSerializable(typeof(Pet))]
+                    internal partial class MyContext : JsonSerializerContext { }
+
+                    public class Dog
+                    {
+                        public string? Name { get; set; }
+                    }
+
+                    public class Lab : Dog
+                    {
+                        public bool IsGuide { get; set; }
+                    }
+
+                    [Union]
+                    public readonly struct Pet : IUnion
+                    {
+                        public Pet(Dog value) => Value = value;
+                        public Pet(Lab value) => Value = value;
+                        public object Value { get; }
+                    }
+                }
+                """,
+                nameof(CompilerUnionDerivedOrdering),
+                disableDiagnosticValidation: true,
+                parseOptions: CompilationHelper.CreateParseOptions(
+                    preprocessorSymbols: GetPreprocessorSymbols()));
         }
 
         [Fact]
@@ -353,9 +448,9 @@ namespace System.Text.Json.SourceGeneration.UnitTests
         /// generated file matches the corresponding baseline in
         /// <c>Baselines/{testId}/{tfm}/{hintName}.cs.txt</c>.
         /// </summary>
-        private void VerifyAgainstBaseline(string source, string testId, bool disableDiagnosticValidation = false)
+        private void VerifyAgainstBaseline(string source, string testId, bool disableDiagnosticValidation = false, CSharpParseOptions? parseOptions = null)
         {
-            Compilation compilation = CompilationHelper.CreateCompilation(source);
+            Compilation compilation = CompilationHelper.CreateCompilation(source, parseOptions: parseOptions);
             JsonSourceGeneratorResult result = CompilationHelper.RunJsonSourceGenerator(compilation, disableDiagnosticValidation: disableDiagnosticValidation, logger: logger);
 
             var inputPaths = new HashSet<string>(compilation.SyntaxTrees.Select(t => t.FilePath));
@@ -444,6 +539,9 @@ namespace System.Text.Json.SourceGeneration.UnitTests
         /// </summary>
         private static string ToBaselineFileName(string generatedFilePath)
             => IO.Path.GetFileName(generatedFilePath) + ".txt";
+
+        private static string[] GetPreprocessorSymbols()
+            => System.Array.Empty<string>();
 
         #endregion
     }

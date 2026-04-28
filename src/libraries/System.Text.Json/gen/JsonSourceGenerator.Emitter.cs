@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections.Generic;
@@ -77,6 +77,8 @@ namespace System.Text.Json.SourceGeneration
             private const string JsonPropertyInfoValuesTypeRef = "global::System.Text.Json.Serialization.Metadata.JsonPropertyInfoValues";
             private const string JsonTypeInfoTypeRef = "global::System.Text.Json.Serialization.Metadata.JsonTypeInfo";
             private const string JsonTypeInfoResolverTypeRef = "global::System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver";
+            private const string JsonUnionCaseInfoTypeRef = "global::System.Text.Json.Serialization.Metadata.JsonUnionCaseInfo";
+            private const string JsonUnionInfoValuesTypeRef = "global::System.Text.Json.Serialization.Metadata.JsonUnionInfoValues";
             private const string ReferenceHandlerTypeRef = "global::System.Text.Json.Serialization.ReferenceHandler";
             private const string EmptyTypeArray = "global::System.Array.Empty<global::System.Type>()";
 
@@ -224,7 +226,9 @@ namespace System.Text.Json.SourceGeneration
                         return GenerateForCollection(contextSpec, typeGenerationSpec);
 
                     case ClassType.Object:
-                        return GenerateForObject(contextSpec, typeGenerationSpec);
+                        return typeGenerationSpec.UnionCaseSpecs.Count > 0
+                            ? GenerateForUnion(contextSpec, typeGenerationSpec)
+                            : GenerateForObject(contextSpec, typeGenerationSpec);
 
                     case ClassType.UnsupportedType:
                         return GenerateForUnsupportedType(contextSpec, typeGenerationSpec);
@@ -607,6 +611,72 @@ namespace System.Text.Json.SourceGeneration
 
                 // Generate constructor accessor for inaccessible [JsonConstructor] constructors.
                 GenerateConstructorAccessor(writer, typeMetadata);
+
+                writer.Indentation--;
+                writer.WriteLine('}');
+
+                return CompleteSourceFileAndReturnText(writer);
+            }
+
+            private static SourceText GenerateForUnion(ContextGenerationSpec contextSpec, TypeGenerationSpec typeMetadata)
+            {
+                SourceWriter writer = CreateSourceWriterWithContextHeader(contextSpec);
+
+                GenerateTypeInfoFactoryHeader(writer, typeMetadata);
+
+                const string UnionInfoVarName = "unionInfo";
+                string genericArg = typeMetadata.TypeRef.FullyQualifiedName;
+                ImmutableEquatableArray<UnionCaseSpec> unionCases = typeMetadata.UnionCaseSpecs;
+                UnionCaseSpec? nullCase = unionCases.FirstOrDefault(c => c.IsNullable);
+
+                string unionCasesExpr = unionCases.Count == 0
+                    ? "null"
+                    : $$"""new {{JsonUnionCaseInfoTypeRef}}[] { {{string.Join(", ", unionCases.Select(c => $"new {JsonUnionCaseInfoTypeRef}(typeof({c.CaseType.FullyQualifiedName})) {{ IsNullable = {(c.IsNullable ? "true" : "false")} }}"))}} }""";
+
+                string unionDeconstructorNullArm = nullCase is null
+                    ? "                            null => (null, null),"
+                    : $"                            null => (typeof({nullCase.CaseType.FullyQualifiedName}), null),";
+                string unionDeconstructorCases = string.Join("\n", unionCases.Select((c, i) =>
+                    $"                            {c.CaseType.FullyQualifiedName} caseValue{i} => (typeof({c.CaseType.FullyQualifiedName}), caseValue{i}),"));
+                string unionDeconstructor = unionCases.Count == 0
+                    ? "null"
+                    : $$"""
+                        static ({{genericArg}} value) => value switch
+                        {
+                        {{unionDeconstructorCases}}
+                        {{unionDeconstructorNullArm}}
+                        }
+                        """;
+
+                string unionConstructorCases = string.Join("\n", unionCases.Select((c, i) =>
+                    $"                            {c.CaseType.FullyQualifiedName} caseValue{i} => new {genericArg}(caseValue{i}),"));
+                string unionConstructorNullArm = nullCase is null
+                    ? string.Empty
+                    : $"\n                            null => new {genericArg}(({nullCase.CaseType.FullyQualifiedName}?)null),";
+                string unionConstructor = unionCases.Count == 0
+                    ? "null"
+                    : $$"""
+                        static ({{TypeTypeRef}} _, object? value) => value switch
+                        {
+                        {{unionConstructorCases}}{{unionConstructorNullArm}}
+                            _ => throw new {{JsonExceptionTypeRef}}(),
+                        }
+                        """;
+
+                writer.WriteLine($$"""
+                    var {{UnionInfoVarName}} = new {{JsonUnionInfoValuesTypeRef}}<{{genericArg}}>
+                    {
+                        UnionCases = {{unionCasesExpr}},
+                        UnionConstructor = {{unionConstructor}},
+                        UnionDeconstructor = {{unionDeconstructor}},
+                        TypeClassifier = null,
+                    };
+
+                    {{JsonTypeInfoLocalVariableName}} = {{JsonMetadataServicesTypeRef}}.CreateUnionInfo<{{genericArg}}>({{OptionsLocalVariableName}}, {{UnionInfoVarName}});
+                    {{JsonTypeInfoLocalVariableName}}.{{NumberHandlingPropName}} = {{FormatNumberHandling(typeMetadata.NumberHandling)}};
+                    """);
+
+                GenerateTypeInfoFactoryFooter(writer);
 
                 writer.Indentation--;
                 writer.WriteLine('}');
@@ -1810,6 +1880,21 @@ namespace System.Text.Json.SourceGeneration
                     foreach (TypeRef converter in converters)
                     {
                         writer.WriteLine($"new {converter.FullyQualifiedName}(),");
+                    }
+
+                    writer.Indentation--;
+                    writer.WriteLine("},");
+                }
+
+                if (optionsSpec.Classifiers is { Count: > 0 } Classifiers)
+                {
+                    writer.WriteLine("Classifiers =");
+                    writer.WriteLine('{');
+                    writer.Indentation++;
+
+                    foreach (TypeRef classifier in Classifiers)
+                    {
+                        writer.WriteLine($"new {classifier.FullyQualifiedName}(),");
                     }
 
                     writer.Indentation--;

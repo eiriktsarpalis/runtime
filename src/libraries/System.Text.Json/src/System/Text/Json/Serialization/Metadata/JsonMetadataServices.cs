@@ -63,6 +63,28 @@ namespace System.Text.Json.Serialization.Metadata
         }
 
         /// <summary>
+        /// Creates metadata for a union type.
+        /// </summary>
+        /// <param name="options">The <see cref="JsonSerializerOptions"/> to initialize the metadata with.</param>
+        /// <param name="unionInfo">Provides serialization metadata about a union type and its cases.</param>
+        /// <typeparam name="T">The type of the union.</typeparam>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="options"/> or <paramref name="unionInfo"/> is null.</exception>
+        /// <returns>A <see cref="JsonTypeInfo{T}"/> instance representing the union type.</returns>
+        /// <remarks>This API is for use by the output of the System.Text.Json source generator and should not be called directly.</remarks>
+        public static JsonTypeInfo<T> CreateUnionInfo<T>(JsonSerializerOptions options, JsonUnionInfoValues<T> unionInfo) where T : notnull
+        {
+            ArgumentNullException.ThrowIfNull(options);
+            ArgumentNullException.ThrowIfNull(unionInfo);
+
+            if (unionInfo.UnionCases is not { Count: > 0 })
+            {
+                throw new ArgumentException(nameof(unionInfo.UnionCases));
+            }
+
+            return CreateCore(options, unionInfo);
+        }
+
+        /// <summary>
         /// Creates metadata for a primitive or a type with a custom converter.
         /// </summary>
         /// <typeparam name="T">The generic type definition.</typeparam>

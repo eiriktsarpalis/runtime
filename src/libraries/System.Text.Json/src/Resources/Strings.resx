@@ -851,4 +851,7 @@
   <data name="PipeReaderCanceled" xml:space="preserve">
     <value>PipeReader.ReadAsync was canceled.</value>
   </data>
+  <data name="PolymorphicTypeClassifierReturnedNull" xml:space="preserve">
+    <value>The custom type classifier returned null, indicating it was unable to determine the target type for the JSON payload. Ensure the classifier handles all expected JSON shapes.</value>
+  </data>
 </root>

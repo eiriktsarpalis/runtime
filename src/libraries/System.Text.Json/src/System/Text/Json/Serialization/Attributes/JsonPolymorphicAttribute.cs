@@ -1,5 +1,7 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
+
+using System.Diagnostics.CodeAnalysis;
 
 namespace System.Text.Json.Serialization
 {
@@ -26,5 +28,51 @@ namespace System.Text.Json.Serialization
         /// Otherwise, it will fail the deserialization.
         /// </summary>
         public bool IgnoreUnrecognizedTypeDiscriminators { get; set; }
+
+        /// <summary>
+        /// When set to <see langword="true"/>, instructs the serializer to automatically discover
+        /// derived types and register them with type discriminators derived from the type name.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// When enabled, derived types are discovered using compiler-emitted
+        /// ClosedSubtypeAttribute attributes if present (fast path),
+        /// or via assembly scanning for direct subtypes of the base type (slow path).
+        /// </para>
+        /// <para>
+        /// Explicit <see cref="JsonDerivedTypeAttribute"/> annotations always take precedence over auto-inferred entries.
+        /// </para>
+        /// </remarks>
+        public bool InferDerivedTypes { get; set; }
+
+        /// <summary>
+        /// Gets or sets the naming policy used to transform inferred type discriminator names
+        /// when <see cref="InferDerivedTypes"/> is <see langword="true"/>.
+        /// </summary>
+        /// <remarks>
+        /// When <see cref="JsonKnownNamingPolicy.Unspecified"/>, the type name is used as-is.
+        /// This property is only meaningful when <see cref="InferDerivedTypes"/> is <see langword="true"/>.
+        /// </remarks>
+        public JsonKnownNamingPolicy TypeDiscriminatorNamingPolicy { get; set; }
+
+        /// <summary>
+        /// Gets or sets the type of a <see cref="JsonTypeClassifierFactory"/> implementation
+        /// used to classify JSON payloads during deserialization instead of relying on
+        /// the standard type discriminator property.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// When set, the classifier is invoked before any discriminator-based resolution.
+        /// The classifier receives a <see cref="Utf8JsonReader"/> positioned at the start of
+        /// the JSON value and returns the resolved <see cref="Type"/>, or <see langword="null"/>
+        /// to fall back to standard discriminator handling.
+        /// </para>
+        /// <para>
+        /// The specified type must derive from <see cref="JsonTypeClassifierFactory"/>
+        /// and have a public parameterless constructor.
+        /// </para>
+        /// </remarks>
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)]
+        public Type? TypeClassifier { get; set; }
     }
 }

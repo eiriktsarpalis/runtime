@@ -152,6 +152,16 @@
         <target state="translated">Nie wygenerowano metadanych serializacji dla typu.</target>
         <note />
       </trans-unit>
+      <trans-unit id="UnionAmbiguousCaseTypesMessageFormat">
+        <source>Union type '{0}' has multiple case types that serialize as the same JSON token type '{1}': {2}. The first-declared type will be used by default. Provide a custom classifier via [JsonUnion(TypeClassifier = typeof(...))] to disambiguate.</source>
+        <target state="new">Union type '{0}' has multiple case types that serialize as the same JSON token type '{1}': {2}. The first-declared type will be used by default. Provide a custom classifier via [JsonUnion(TypeClassifier = typeof(...))] to disambiguate.</target>
+        <note />
+      </trans-unit>
+      <trans-unit id="UnionAmbiguousCaseTypesTitle">
+        <source>Union type has ambiguous case types.</source>
+        <target state="new">Union type has ambiguous case types.</target>
+        <note />
+      </trans-unit>
     </body>
   </file>
 </xliff>

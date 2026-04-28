@@ -64,5 +64,25 @@ namespace System.Text.Json.Serialization.Converters
 
             return new JsonSchema { Type = schemaType, Pattern = pattern };
         }
+
+        private protected static JsonTokenType[] GetSupportedJsonTokenTypesForNumericType(JsonNumberHandling numberHandling) =>
+            (numberHandling & JsonNumberHandling.AllowReadingFromString) != 0
+                ? UnionTokenSets.NumberOrString
+                : UnionTokenSets.Number;
+    }
+
+    /// <summary>
+    /// Cached <see cref="JsonTokenType"/> arrays returned by <see cref="JsonConverter.GetSupportedJsonTokenTypes"/>
+    /// overrides. The arrays are immutable in practice; callers must not mutate them.
+    /// </summary>
+    internal static class UnionTokenSets
+    {
+        public static readonly JsonTokenType[] Number = [JsonTokenType.Number];
+        public static readonly JsonTokenType[] NumberOrString = [JsonTokenType.Number, JsonTokenType.String];
+        public static readonly JsonTokenType[] String = [JsonTokenType.String];
+        public static readonly JsonTokenType[] StringOrNumber = [JsonTokenType.String, JsonTokenType.Number];
+        public static readonly JsonTokenType[] Boolean = [JsonTokenType.True, JsonTokenType.False];
+        public static readonly JsonTokenType[] StartObject = [JsonTokenType.StartObject];
+        public static readonly JsonTokenType[] StartArray = [JsonTokenType.StartArray];
     }
 }

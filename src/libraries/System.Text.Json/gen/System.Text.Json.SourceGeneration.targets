@@ -77,5 +77,6 @@
     <Compile Include="Model\PropertyInitializerGenerationSpec.cs" />
     <Compile Include="Model\SourceGenerationOptionsSpec.cs" />
     <Compile Include="Model\TypeGenerationSpec.cs" />
+    <Compile Include="Model\UnionCaseSpec.cs" />
   </ItemGroup>
 </Project>

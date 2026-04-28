@@ -39,5 +39,7 @@ namespace System.Text.Json.Serialization.Converters
         }
 
         internal override JsonSchema? GetSchema(JsonNumberHandling _) => new() { Type = JsonSchemaType.Boolean };
+
+        internal override JsonTokenType[] GetSupportedJsonTokenTypes(JsonNumberHandling _) => UnionTokenSets.Boolean;
     }
 }

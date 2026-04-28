@@ -540,9 +540,7 @@ namespace System.Text.Json
             if (string.IsNullOrEmpty(message))
             {
                 // Use a default message.
-                Type propertyType = state.Current.JsonPropertyInfo?.PropertyType ??
-                    state.Current.CtorArgumentState?.JsonParameterInfo?.ParameterType ??
-                    state.Current.JsonTypeInfo.Type;
+                Type propertyType = state.Current.JsonPropertyInfo?.PropertyType ?? state.Current.JsonTypeInfo.Type;
                 message = SR.Format(SR.DeserializeUnableToConvertValue, propertyType);
                 ex.AppendPathInformation = true;
             }
@@ -977,6 +975,14 @@ namespace System.Text.Json
         public static void ThrowInvalidOperationException_PolymorphicTypeConfigurationDoesNotSpecifyDerivedTypes(Type baseType)
         {
             throw new InvalidOperationException(SR.Format(SR.Polymorphism_ConfigurationDoesNotSpecifyDerivedTypes, baseType));
+        }
+
+        [DoesNotReturn]
+        public static void ThrowJsonException_UnionDoesNotAcceptNull(Type unionType)
+        {
+            ThrowJsonException(
+                $"JSON value 'null' cannot be deserialized as union type '{unionType}' because no case declares IsNullable = true. " +
+                "Declare a constructor parameter as nullable to opt into null support.");
         }
 
         [DoesNotReturn]

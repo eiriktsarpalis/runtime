@@ -104,5 +104,8 @@ namespace System.Text.Json.Serialization.Converters
                 _elementConverter.WriteNumberWithCustomHandling(writer, value.Value, handling);
             }
         }
+
+        internal override JsonTokenType[]? GetSupportedJsonTokenTypes(JsonNumberHandling numberHandling) =>
+            _elementConverter.GetSupportedJsonTokenTypes(numberHandling);
     }
 }

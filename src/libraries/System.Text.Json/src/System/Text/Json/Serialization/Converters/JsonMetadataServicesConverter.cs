@@ -70,5 +70,8 @@ namespace System.Text.Json.Serialization.Converters
 
         internal override JsonSchema? GetSchema(JsonNumberHandling numberHandling)
             => Converter.GetSchema(numberHandling);
+
+        internal override JsonTokenType[]? GetSupportedJsonTokenTypes(JsonNumberHandling numberHandling)
+            => Converter.GetSupportedJsonTokenTypes(numberHandling);
     }
 }

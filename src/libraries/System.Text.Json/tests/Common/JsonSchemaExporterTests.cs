@@ -215,6 +215,70 @@ namespace System.Text.Json.Schema.Tests
             Assert.Same(JsonSchemaExporterOptions.Default, JsonSchemaExporterOptions.Default);
         }
 
+#if NET11_0_OR_GREATER
+        [Fact]
+        public void UnionSchema_IsClassifierInvariant_TopLevel()
+        {
+            // Baseline: attribute-based classifier wired in via [JsonUnion(TypeClassifier = ...)].
+            JsonSerializerOptions baselineOptions = Serializer.DefaultOptions;
+            JsonNode baselineSchema = baselineOptions.GetJsonSchemaAsNode(typeof(UnionOfDogOrCat));
+
+            // Alternate: programmatically install a *different* classifier that always returns UnionDog.
+            JsonSerializerOptions dogOnlyOptions = new(Serializer.DefaultOptions)
+            {
+                TypeInfoResolver = Serializer.DefaultOptions.TypeInfoResolver!.WithAddedModifier(typeInfo =>
+                {
+                    if (typeInfo.Type == typeof(UnionOfDogOrCat))
+                    {
+                        typeInfo.TypeClassifier = static (ref Utf8JsonReader reader) => typeof(UnionDog);
+                    }
+                })
+            };
+            JsonNode dogOnlySchema = dogOnlyOptions.GetJsonSchemaAsNode(typeof(UnionOfDogOrCat));
+
+            // Alternate: classifier that unconditionally returns null (total classification failure).
+            JsonSerializerOptions nullClassifierOptions = new(Serializer.DefaultOptions)
+            {
+                TypeInfoResolver = Serializer.DefaultOptions.TypeInfoResolver!.WithAddedModifier(typeInfo =>
+                {
+                    if (typeInfo.Type == typeof(UnionOfDogOrCat))
+                    {
+                        typeInfo.TypeClassifier = static (ref Utf8JsonReader reader) => null;
+                    }
+                })
+            };
+            JsonNode nullClassifierSchema = nullClassifierOptions.GetJsonSchemaAsNode(typeof(UnionOfDogOrCat));
+
+            // Schema is derived purely from UnionCases metadata; classifier choice is immaterial.
+            Assert.True(JsonNode.DeepEquals(baselineSchema, dogOnlySchema));
+            Assert.True(JsonNode.DeepEquals(baselineSchema, nullClassifierSchema));
+            Assert.NotNull(baselineSchema["anyOf"]);
+        }
+
+        [Fact]
+        public void UnionSchema_IsClassifierInvariant_Nested()
+        {
+            // Same invariant must hold when the union is embedded as a property of another type.
+            JsonSerializerOptions baselineOptions = Serializer.DefaultOptions;
+            JsonNode baselineSchema = baselineOptions.GetJsonSchemaAsNode(typeof(PocoWithUnionProperty));
+
+            JsonSerializerOptions alternateOptions = new(Serializer.DefaultOptions)
+            {
+                TypeInfoResolver = Serializer.DefaultOptions.TypeInfoResolver!.WithAddedModifier(typeInfo =>
+                {
+                    if (typeInfo.Type == typeof(UnionOfDogOrCat))
+                    {
+                        typeInfo.TypeClassifier = static (ref Utf8JsonReader reader) => typeof(UnionCat);
+                    }
+                })
+            };
+            JsonNode alternateSchema = alternateOptions.GetJsonSchemaAsNode(typeof(PocoWithUnionProperty));
+
+            Assert.True(JsonNode.DeepEquals(baselineSchema, alternateSchema));
+            Assert.NotNull(baselineSchema["properties"]!["Pet"]!["anyOf"]);
+        }
+#endif
+
 #if !BUILDING_SOURCE_GENERATOR_TESTS
         [Fact]
         public void LegacySchemaExporter_CanAccessReflectedMembers()

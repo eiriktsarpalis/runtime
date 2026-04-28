@@ -52,5 +52,7 @@ namespace System.Text.Json.Serialization.Converters
 
         internal override JsonSchema? GetSchema(JsonNumberHandling _) =>
             new() { Type = JsonSchemaType.String, Format = "uri" };
+
+        internal override JsonTokenType[] GetSupportedJsonTokenTypes(JsonNumberHandling _) => UnionTokenSets.String;
     }
 }
