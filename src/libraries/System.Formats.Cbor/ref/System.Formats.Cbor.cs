@@ -25,11 +25,14 @@ namespace System.Formats.Cbor
     }
     public partial class CborReader
     {
+        [System.ComponentModel.EditorBrowsableAttribute(System.ComponentModel.EditorBrowsableState.Never)]
         public CborReader(System.ReadOnlyMemory<byte> data, System.Formats.Cbor.CborConformanceMode conformanceMode = System.Formats.Cbor.CborConformanceMode.Strict, bool allowMultipleRootLevelValues = false) { }
+        public CborReader(System.ReadOnlyMemory<byte> data, System.Formats.Cbor.CborReaderOptions options) { }
         public bool AllowMultipleRootLevelValues { get { throw null; } }
         public int BytesRemaining { get { throw null; } }
         public System.Formats.Cbor.CborConformanceMode ConformanceMode { get { throw null; } }
         public int CurrentDepth { get { throw null; } }
+        public int MaxDepth { get { throw null; } }
         public System.Formats.Cbor.CborReaderState PeekState() { throw null; }
         [System.CLSCompliantAttribute(false)]
         public System.Formats.Cbor.CborTag PeekTag() { throw null; }
@@ -70,6 +73,13 @@ namespace System.Formats.Cbor
         public void SkipValue(bool disableConformanceModeChecks = false) { }
         public bool TryReadByteString(System.Span<byte> destination, out int bytesWritten) { throw null; }
         public bool TryReadTextString(System.Span<char> destination, out int charsWritten) { throw null; }
+    }
+    public partial struct CborReaderOptions
+    {
+        private int _dummyPrimitive;
+        public bool AllowMultipleRootLevelValues { readonly get { throw null; } set { } }
+        public System.Formats.Cbor.CborConformanceMode ConformanceMode { readonly get { throw null; } set { } }
+        public int MaxDepth { readonly get { throw null; } set { } }
     }
     public enum CborReaderState
     {
@@ -126,13 +136,16 @@ namespace System.Formats.Cbor
     {
         [System.ComponentModel.EditorBrowsableAttribute(System.ComponentModel.EditorBrowsableState.Never)]
         public CborWriter(System.Formats.Cbor.CborConformanceMode conformanceMode, bool convertIndefiniteLengthEncodings, bool allowMultipleRootLevelValues) { }
+        [System.ComponentModel.EditorBrowsableAttribute(System.ComponentModel.EditorBrowsableState.Never)]
         public CborWriter(System.Formats.Cbor.CborConformanceMode conformanceMode = System.Formats.Cbor.CborConformanceMode.Strict, bool convertIndefiniteLengthEncodings = false, bool allowMultipleRootLevelValues = false, int initialCapacity = -1) { }
+        public CborWriter(System.Formats.Cbor.CborWriterOptions options) { }
         public bool AllowMultipleRootLevelValues { get { throw null; } }
         public int BytesWritten { get { throw null; } }
         public System.Formats.Cbor.CborConformanceMode ConformanceMode { get { throw null; } }
         public bool ConvertIndefiniteLengthEncodings { get { throw null; } }
         public int CurrentDepth { get { throw null; } }
         public bool IsWriteCompleted { get { throw null; } }
+        public int MaxDepth { get { throw null; } }
         public byte[] Encode() { throw null; }
         public int Encode(System.Span<byte> destination) { throw null; }
         public void Reset() { }
@@ -170,5 +183,14 @@ namespace System.Formats.Cbor
         public void WriteUInt64(ulong value) { }
         public void WriteUnixTimeSeconds(double seconds) { }
         public void WriteUnixTimeSeconds(long seconds) { }
+    }
+    public partial struct CborWriterOptions
+    {
+        private int _dummyPrimitive;
+        public bool AllowMultipleRootLevelValues { readonly get { throw null; } set { } }
+        public System.Formats.Cbor.CborConformanceMode ConformanceMode { readonly get { throw null; } set { } }
+        public bool ConvertIndefiniteLengthEncodings { readonly get { throw null; } set { } }
+        public int InitialCapacity { readonly get { throw null; } set { } }
+        public int MaxDepth { readonly get { throw null; } set { } }
     }
 }

@@ -219,6 +219,9 @@
   <data name="Cbor_Reader_InvalidDecimalEncoding" xml:space="preserve">
     <value>Not a valid tagged decimal encoding.</value>
   </data>
+  <data name="Cbor_Reader_MaxDepthExceeded" xml:space="preserve">
+    <value>The maximum CBOR document depth ({0}) has been exceeded.</value>
+  </data>
   <data name="Cbor_Writer_PayloadIsNotValidCbor" xml:space="preserve">
     <value>Not a valid CBOR value encoding.</value>
   </data>
@@ -242,6 +245,9 @@
   </data>
   <data name="Cbor_Writer_DecimalOverflow" xml:space="preserve">
     <value>Value was either too large or too small for a Decimal.</value>
+  </data>
+  <data name="Cbor_Writer_MaxDepthExceeded" xml:space="preserve">
+    <value>The maximum CBOR document depth ({0}) has been exceeded.</value>
   </data>
   <data name="CborContentException_DefaultMessage" xml:space="preserve">
     <value>The CBOR encoding is invalid.</value>

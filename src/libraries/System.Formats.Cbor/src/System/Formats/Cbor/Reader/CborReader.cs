@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 
 namespace System.Formats.Cbor
@@ -9,6 +10,8 @@ namespace System.Formats.Cbor
     /// <summary>A stateful, forward-only reader for Concise Binary Object Representation (CBOR) encoded data.</summary>
     public partial class CborReader
     {
+        internal const int DefaultMaxDepth = 1000;
+
         private ReadOnlyMemory<byte> _data;
         private int _offset;
 
@@ -39,6 +42,10 @@ namespace System.Formats.Cbor
         /// <value><see langword="true" /> if this reader allows multiple root-level CBOR data items; <see langword="false" /> otherwise.</value>
         public bool AllowMultipleRootLevelValues { get; }
 
+        /// <summary>Gets the maximum CBOR document depth permitted by this reader.</summary>
+        /// <value>The maximum permitted nesting depth of a CBOR document. Defaults to 1000.</value>
+        public int MaxDepth { get; }
+
         /// <summary>Gets the reader's current level of nestedness in the CBOR document.</summary>
         /// <value>A number that represents the current level of nestedness in the CBOR document.</value>
         public int CurrentDepth => _nestedDataItems is null ? 0 : _nestedDataItems.Count;
@@ -53,6 +60,7 @@ namespace System.Formats.Cbor
         /// Defaults to <see cref="CborConformanceMode.Strict" /> conformance mode.</param>
         /// <param name="allowMultipleRootLevelValues"><see langword="true" /> to indicate that multiple root-level values are supported by the reader; otherwise, <see langword="false" />.</param>
         /// <exception cref="ArgumentOutOfRangeException"><paramref name="conformanceMode" /> is not defined.</exception>
+        [EditorBrowsable(EditorBrowsableState.Never)]
         public CborReader(ReadOnlyMemory<byte> data, CborConformanceMode conformanceMode = CborConformanceMode.Strict, bool allowMultipleRootLevelValues = false)
         {
             CborConformanceModeHelpers.Validate(conformanceMode);
@@ -60,7 +68,23 @@ namespace System.Formats.Cbor
             _data = data;
             ConformanceMode = conformanceMode;
             AllowMultipleRootLevelValues = allowMultipleRootLevelValues;
+            MaxDepth = DefaultMaxDepth;
             _definiteLength = allowMultipleRootLevelValues ? null : 1;
+        }
+
+        /// <summary>Initializes a <see cref="CborReader" /> instance over the specified <paramref name="data"/> using the given <paramref name="options"/>.</summary>
+        /// <param name="data">The CBOR-encoded data to read.</param>
+        /// <param name="options">The options used to configure the reader.</param>
+        /// <exception cref="ArgumentOutOfRangeException"><see cref="CborReaderOptions.ConformanceMode"/> is not a defined <see cref="CborConformanceMode"/>.</exception>
+        public CborReader(ReadOnlyMemory<byte> data, CborReaderOptions options)
+        {
+            CborConformanceModeHelpers.Validate(options.ConformanceMode);
+
+            _data = data;
+            ConformanceMode = options.ConformanceMode;
+            AllowMultipleRootLevelValues = options.AllowMultipleRootLevelValues;
+            MaxDepth = options.MaxDepth == 0 ? DefaultMaxDepth : options.MaxDepth;
+            _definiteLength = options.AllowMultipleRootLevelValues ? null : 1;
         }
 
         /// <summary>Reads the next CBOR data item, returning a <see cref="ReadOnlyMemory{T}" /> view of the encoded value. For indefinite length encodings this includes the break byte.</summary>
@@ -174,6 +198,11 @@ namespace System.Formats.Cbor
         private void PushDataItem(CborMajorType majorType, int? definiteLength)
         {
             _nestedDataItems ??= new Stack<StackFrame>();
+
+            if (_nestedDataItems.Count >= MaxDepth)
+            {
+                throw new InvalidOperationException(SR.Format(SR.Cbor_Reader_MaxDepthExceeded, MaxDepth));
+            }
 
             var frame = new StackFrame(
                 type: _currentMajorType,

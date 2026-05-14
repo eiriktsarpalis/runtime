@@ -13,6 +13,7 @@ namespace System.Formats.Cbor
     public partial class CborWriter
     {
         private const int DefaultCapacitySentinel = -1;
+        internal const int DefaultMaxDepth = 1000;
         private static readonly ArrayPool<byte> s_bufferPool = ArrayPool<byte>.Create();
 
         private byte[] _buffer;
@@ -43,6 +44,10 @@ namespace System.Formats.Cbor
         /// <summary>Gets a value that indicates whether this writer allows multiple root-level CBOR data items.</summary>
         /// <value><see langword="true" /> if the writer allows multiple root-level CBOR data items; otherwise, <see langword="false" />.</value>
         public bool AllowMultipleRootLevelValues { get; }
+
+        /// <summary>Gets the maximum CBOR document depth permitted by this writer.</summary>
+        /// <value>The maximum permitted nesting depth of a CBOR document. Defaults to 1000.</value>
+        public int MaxDepth { get; }
 
         /// <summary>Gets the writer's current level of nestedness in the CBOR document.</summary>
         /// <value>A number that represents the current level of nestedness in the CBOR document.</value>
@@ -79,6 +84,7 @@ namespace System.Formats.Cbor
         /// <para>-or-</para>
         /// <para><paramref name="initialCapacity"/> is not zero, positive, or the default value indicator -1.</para>
         /// </exception>
+        [EditorBrowsable(EditorBrowsableState.Never)]
         public CborWriter(
             CborConformanceMode conformanceMode = CborConformanceMode.Strict,
             bool convertIndefiniteLengthEncodings = false,
@@ -90,6 +96,7 @@ namespace System.Formats.Cbor
             ConformanceMode = conformanceMode;
             ConvertIndefiniteLengthEncodings = convertIndefiniteLengthEncodings;
             AllowMultipleRootLevelValues = allowMultipleRootLevelValues;
+            MaxDepth = DefaultMaxDepth;
             _definiteLength = allowMultipleRootLevelValues ? null : (int?)1;
 
             _buffer = initialCapacity switch
@@ -98,6 +105,25 @@ namespace System.Formats.Cbor
                 < -1 => throw new ArgumentOutOfRangeException(nameof(initialCapacity)),
                 _ => new byte[initialCapacity],
             };
+        }
+
+        /// <summary>Initializes a new instance of <see cref="CborWriter" /> class using the specified <paramref name="options"/>.</summary>
+        /// <param name="options">The options used to configure the writer.</param>
+        /// <exception cref="ArgumentOutOfRangeException"><see cref="CborWriterOptions.ConformanceMode"/> is not a defined <see cref="CborConformanceMode"/>.</exception>
+        public CborWriter(CborWriterOptions options)
+        {
+            CborConformanceModeHelpers.Validate(options.ConformanceMode);
+
+            ConformanceMode = options.ConformanceMode;
+            ConvertIndefiniteLengthEncodings = options.ConvertIndefiniteLengthEncodings;
+            AllowMultipleRootLevelValues = options.AllowMultipleRootLevelValues;
+            MaxDepth = options.MaxDepth == 0 ? DefaultMaxDepth : options.MaxDepth;
+            _definiteLength = options.AllowMultipleRootLevelValues ? null : (int?)1;
+
+            int initialCapacity = options.InitialCapacity;
+            _buffer = initialCapacity == 0
+                ? Array.Empty<byte>()
+                : new byte[initialCapacity];
         }
 
         /// <summary>Resets the writer to have no data, without releasing resources.</summary>
@@ -255,6 +281,11 @@ namespace System.Formats.Cbor
         private void PushDataItem(CborMajorType newMajorType, int? definiteLength)
         {
             _nestedDataItems ??= new Stack<StackFrame>();
+
+            if (_nestedDataItems.Count >= MaxDepth)
+            {
+                throw new InvalidOperationException(SR.Format(SR.Cbor_Writer_MaxDepthExceeded, MaxDepth));
+            }
 
             var frame = new StackFrame(
                 type: _currentMajorType,
