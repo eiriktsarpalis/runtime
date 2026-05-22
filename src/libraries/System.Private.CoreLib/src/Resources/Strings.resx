@@ -4486,4 +4486,19 @@
   <data name="Arg_HexBinaryStylesNotSupported" xml:space="preserve">
     <value>The number styles AllowHexSpecifier and AllowBinarySpecifier are not supported on the decimal type.</value>
   </data>
+  <data name="Arg_NotAUnionType" xml:space="preserve">
+    <value>The type '{0}' is not a union type. A union type must declare a public instance 'object Value' property and at least one public single-parameter creation member.</value>
+  </data>
+  <data name="Arg_UnionAccessorTypeMismatch" xml:space="preserve">
+    <value>The supplied UnionInfo describes type '{0}', which does not match the accessor's type parameter '{1}'.</value>
+  </data>
+  <data name="Arg_UnionUnsupportedCreationMember" xml:space="preserve">
+    <value>Union creation members must be a ConstructorInfo or a MethodInfo. Found: '{0}'.</value>
+  </data>
+  <data name="InvalidOperation_UnionDoesNotAcceptNull" xml:space="preserve">
+    <value>The union type '{0}' does not declare any case that admits null.</value>
+  </data>
+  <data name="InvalidOperation_UnionRuntimeTypeNotMatchedToCase" xml:space="preserve">
+    <value>The runtime type '{1}' is not assignable to any declared case of union type '{0}'.</value>
+  </data>
 </root>

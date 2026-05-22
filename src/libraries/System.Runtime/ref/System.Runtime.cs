@@ -12921,6 +12921,45 @@ namespace System.Reflection
         NotNull = 1,
         Nullable = 2,
     }
+    public sealed partial class UnionAccessors<TUnion>
+    {
+        internal UnionAccessors() { }
+        public System.Func<System.Type?, object?, TUnion> Constructor { get { throw null; } }
+        public System.Func<TUnion, (System.Type? CaseType, object? Value)> Deconstructor { get { throw null; } }
+        public System.Reflection.UnionInfo Info { get { throw null; } }
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCodeAttribute("UnionAccessors{TUnion}.Create may emit code to invoke union creation members.")]
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCodeAttribute("UnionAccessors{TUnion}.Create reflects over the union type's case constructors and TryGetValue overloads.")]
+        public static System.Reflection.UnionAccessors<TUnion> Create(System.Reflection.UnionInfo info) { throw null; }
+        public System.Reflection.UnionCaseInfo? ResolveCase(System.Type runtimeType) { throw null; }
+    }
+    public sealed partial class UnionCaseInfo
+    {
+        internal UnionCaseInfo() { }
+        public bool AdmitsNull { get { throw null; } }
+        public System.Type CaseType { get { throw null; } }
+        public System.Reflection.MemberInfo CreationMember { get { throw null; } }
+        public System.Reflection.UnionInfo DeclaringUnion { get { throw null; } }
+        public System.Reflection.MethodInfo? TryGetValueMethod { get { throw null; } }
+    }
+    public sealed partial class UnionInfo
+    {
+        internal UnionInfo() { }
+        public System.Collections.Generic.IReadOnlyList<System.Reflection.UnionCaseInfo> Cases { get { throw null; } }
+        public bool HasUnionAttribute { get { throw null; } }
+        public System.Type Type { get { throw null; } }
+        public System.Type UnionDefiningType { get { throw null; } }
+        public System.Reflection.PropertyInfo ValueProperty { get { throw null; } }
+    }
+    public sealed partial class UnionInfoContext
+    {
+        public UnionInfoContext() { }
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCodeAttribute("Union discovery reflects over the type's public constructors, methods, properties and nested types.")]
+        public System.Reflection.UnionInfo Create([System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembersAttribute(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.Interfaces | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicConstructors | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicNestedTypes | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties)] System.Type type) { throw null; }
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCodeAttribute("Union discovery reflects over the type's public constructors, methods, properties and nested types.")]
+        public static bool IsUnion([System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembersAttribute(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.Interfaces | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicConstructors | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicNestedTypes | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties)] System.Type type) { throw null; }
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCodeAttribute("Union discovery reflects over the type's public constructors, methods, properties and nested types.")]
+        public bool TryCreate([System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembersAttribute(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.Interfaces | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicConstructors | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicNestedTypes | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties)] System.Type type, [System.Diagnostics.CodeAnalysis.NotNullWhenAttribute(true)] out System.Reflection.UnionInfo? unionInfo) { throw null; }
+    }
     [System.AttributeUsageAttribute(System.AttributeTargets.Assembly, AllowMultiple=false, Inherited=false)]
     public sealed partial class ObfuscateAssemblyAttribute : System.Attribute
     {

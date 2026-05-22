@@ -766,6 +766,10 @@
     <Compile Include="$(MSBuildThisFileDirectory)System\Reflection\ModuleResolveEventHandler.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)System\Reflection\NullabilityInfo.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)System\Reflection\NullabilityInfoContext.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)System\Reflection\UnionAccessors.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)System\Reflection\UnionCaseInfo.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)System\Reflection\UnionInfo.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)System\Reflection\UnionInfoContext.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)System\Reflection\ObfuscateAssemblyAttribute.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)System\Reflection\ObfuscationAttribute.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)System\Reflection\ParameterAttributes.cs" />

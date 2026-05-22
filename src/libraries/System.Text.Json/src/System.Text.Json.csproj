@@ -404,6 +404,15 @@ The System.Text.Json library is built-in as part of the shared framework in .NET
     <Compile Include="$(CoreLibSharedDir)System\Diagnostics\CodeAnalysis\FeatureSwitchDefinitionAttribute.cs" />
   </ItemGroup>
 
+  <!-- Polyfills for System.Reflection union types (System.Reflection.UnionInfo and friends are
+       added in .NET 11; provide them as internal types for older targets). -->
+  <ItemGroup Condition="'$(TargetFrameworkIdentifier)' != '.NETCoreApp' or $([MSBuild]::VersionLessThan('$(TargetFrameworkVersion)', '11.0'))">
+    <Compile Include="$(CoreLibSharedDir)System\Reflection\UnionInfo.cs" Link="System\Reflection\UnionInfo.cs" />
+    <Compile Include="$(CoreLibSharedDir)System\Reflection\UnionCaseInfo.cs" Link="System\Reflection\UnionCaseInfo.cs" />
+    <Compile Include="$(CoreLibSharedDir)System\Reflection\UnionInfoContext.cs" Link="System\Reflection\UnionInfoContext.cs" />
+    <Compile Include="$(CoreLibSharedDir)System\Reflection\UnionAccessors.cs" Link="System\Reflection\UnionAccessors.cs" />
+  </ItemGroup>
+
   <ItemGroup Condition="'$(TargetFrameworkIdentifier)' == '.NETCoreApp'">
     <Compile Include="System.Text.Json.Typeforwards.netcoreapp.cs" />
     <Compile Include="System\Text\Json\Reader\JsonReaderHelper.net8.cs" />

@@ -158,6 +158,7 @@
     <Compile Include="System\RankExceptionTests.cs" />
     <Compile Include="System\Reflection\NullabilityInfoContextTests.cs" />
     <Compile Include="System\Reflection\RuntimeTypeMemberCacheTests.cs" />
+    <Compile Include="System\Reflection\UnionInfoContextTests.cs" />
     <Compile Include="System\SByteTests.cs" />
     <Compile Include="System\SingleTests.cs" />
     <Compile Include="System\StackOverflowExceptionTests.cs" />
