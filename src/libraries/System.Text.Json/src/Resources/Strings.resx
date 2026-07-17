@@ -908,4 +908,16 @@
   <data name="UnionTypeClassifierReturnedNull" xml:space="preserve">
     <value>The custom type classifier for union type '{0}' returned null for JSON token type '{1}'.</value>
   </data>
+  <data name="UnionTypeStructuralClassifierAmbiguousCases" xml:space="preserve">
+    <value>The JsonUnionTypeStructuralClassifier cannot classify union type '{0}' because the case types '{1}' and '{2}' can both deserialize JSON values of type '{3}'. At most one case per non-object JSON value type is supported.</value>
+  </data>
+  <data name="UnionTypeStructuralClassifierIndistinguishableObjectCases" xml:space="preserve">
+    <value>The JsonUnionTypeStructuralClassifier cannot classify union type '{0}' because the case types '{1}' and '{2}' serialize as JSON objects with the same set of property names and cannot be distinguished.</value>
+  </data>
+  <data name="UnionTypeStructuralClassifierOnlyForUnions" xml:space="preserve">
+    <value>The JsonUnionTypeStructuralClassifier only supports union types. The type '{0}' is being configured as a polymorphic type or another non-union classification.</value>
+  </data>
+  <data name="UnionTypeStructuralClassifierUnsupportedCase" xml:space="preserve">
+    <value>The JsonUnionTypeStructuralClassifier cannot classify union type '{0}' because the case type '{1}' does not expose a supported JSON value type or object property shape without recursive inspection.</value>
+  </data>
 </root>

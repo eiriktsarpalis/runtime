@@ -1159,7 +1159,8 @@ namespace System.Text.Json.SourceGeneration
                 // types (constructor parameter types) for metadata generation.
                 if (isUnionType)
                 {
-                    EnqueueUnionCaseTypes(typeToGenerate, hasUnionTypeClassifierSpecified, ref experimentalIds);
+                    bool hasGlobalTypeClassifiers = options?.TypeClassifiers is { Count: > 0 };
+                    EnqueueUnionCaseTypes(typeToGenerate, hasUnionTypeClassifierSpecified || hasGlobalTypeClassifiers, ref experimentalIds);
                 }
             }
 
