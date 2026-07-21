@@ -7,6 +7,8 @@ namespace System.Formats.Cbor
 {
     public partial class CborReader
     {
+        private const int IncompleteValueDepth = -1;
+
         /// <summary>Reads the contents of the next value, discarding the result and advancing the reader.</summary>
         /// <param name="disableConformanceModeChecks"><see langword="true" /> to disable conformance mode validation for the skipped values, equivalent to using <see cref="CborConformanceMode.Lax" />; otherwise, <see langword="false" />.</param>
         /// <exception cref="InvalidOperationException">The reader is not at the start of new value.</exception>
@@ -18,6 +20,26 @@ namespace System.Formats.Cbor
         public void SkipValue(bool disableConformanceModeChecks = false)
         {
             SkipToAncestor(0, disableConformanceModeChecks);
+        }
+
+        /// <summary>Attempts to read the contents of the next value, discarding the result and advancing the reader.</summary>
+        /// <param name="disableConformanceModeChecks"><see langword="true" /> to disable conformance mode validation for the skipped values, equivalent to using <see cref="CborConformanceMode.Lax" />; otherwise, <see langword="false" />.</param>
+        /// <returns><see langword="true" /> if the complete value was available and skipped; <see langword="false" /> if more data is required.</returns>
+        /// <exception cref="InvalidOperationException">The reader is not at the start of a new value.</exception>
+        /// <exception cref="CborContentException"><para>The next value has an invalid CBOR encoding.</para>
+        /// <para>-or-</para>
+        /// <para>There was an unexpected end of CBOR encoding data in the final block.</para>
+        /// <para>-or-</para>
+        /// <para>The next value uses a CBOR encoding that is not valid under the current conformance mode.</para></exception>
+        public bool TrySkipValue(bool disableConformanceModeChecks = false)
+        {
+            if (_isFinalBlock)
+            {
+                SkipToAncestor(0, disableConformanceModeChecks);
+                return true;
+            }
+
+            return TrySkipToAncestor(0, disableConformanceModeChecks);
         }
 
         /// <summary>Reads the remaining contents of the current value context, discarding results and advancing the reader to the next value in the parent context.</summary>
@@ -40,6 +62,16 @@ namespace System.Formats.Cbor
 
         private void SkipToAncestor(int depth, bool disableConformanceModeChecks)
         {
+            if (!_isFinalBlock)
+            {
+                if (!TrySkipToAncestor(depth, disableConformanceModeChecks))
+                {
+                    throw new CborContentException(SR.Cbor_Reader_InvalidCbor_UnexpectedEndOfBuffer);
+                }
+
+                return;
+            }
+
             Debug.Assert(0 <= depth && depth <= CurrentDepth);
             Checkpoint checkpoint = CreateCheckpoint();
             _isConformanceModeCheckEnabled = !disableConformanceModeChecks;
@@ -50,6 +82,38 @@ namespace System.Formats.Cbor
                 {
                     SkipNextNode(ref depth);
                 } while (depth > 0);
+            }
+            catch
+            {
+                RestoreCheckpoint(in checkpoint);
+                throw;
+            }
+            finally
+            {
+                _isConformanceModeCheckEnabled = true;
+            }
+        }
+
+        private bool TrySkipToAncestor(int depth, bool disableConformanceModeChecks)
+        {
+            Debug.Assert(0 <= depth && depth <= CurrentDepth);
+            Checkpoint checkpoint = CreateCheckpoint();
+            _isConformanceModeCheckEnabled = !disableConformanceModeChecks;
+
+            try
+            {
+                do
+                {
+                    SkipNextNode(ref depth);
+
+                    if (depth == IncompleteValueDepth)
+                    {
+                        RestoreCheckpoint(in checkpoint);
+                        return false;
+                    }
+                } while (depth > 0);
+
+                return true;
             }
             catch
             {
@@ -74,6 +138,10 @@ namespace System.Formats.Cbor
 
             switch (state)
             {
+                case CborReaderState.NeedsMoreData:
+                    depth = IncompleteValueDepth;
+                    break;
+
                 case CborReaderState.UnsignedInteger:
                     ReadUInt64();
                     break;

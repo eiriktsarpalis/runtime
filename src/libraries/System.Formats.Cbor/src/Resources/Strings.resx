@@ -201,6 +201,9 @@
   <data name="Cbor_Reader_Skip_InvalidState" xml:space="preserve">
     <value>Reader state '{0}' is not at the start of a data item.</value>
   </data>
+  <data name="Cbor_Reader_SlideDataAfterFinalBlock" xml:space="preserve">
+    <value>Cannot slide CBOR reader data after the final block has been supplied. Call Reset to read a new payload.</value>
+  </data>
   <data name="Cbor_Reader_InvalidCbor_InvalidUtf8StringEncoding" xml:space="preserve">
     <value>CBOR text string payload is not valid a UTF-8 encoding.</value>
   </data>

@@ -73,6 +73,78 @@ namespace System.Formats.Cbor.Tests
             Assert.Equal(encoding.Length, reader.BytesRemaining);
         }
 
+        [Fact]
+        public static void TrySkipValue_NonFinalBlock_IncompleteValue_ShouldReturnFalseAndRestoreState()
+        {
+            var options = new CborReaderOptions { ConformanceMode = CborConformanceMode.Lax };
+            var reader = new CborReader("82c18201".HexToByteArray(), options, isFinalBlock: false);
+
+            Assert.Equal(2, reader.ReadStartArray());
+            Assert.False(reader.TrySkipValue());
+            Assert.Equal(1, reader.CurrentDepth);
+            Assert.Equal(3, reader.BytesRemaining);
+            Assert.Equal(CborReaderState.Tag, reader.PeekState());
+
+            reader.SlideData("c182010203".HexToByteArray(), isFinalBlock: true);
+            Assert.True(reader.TrySkipValue());
+            Assert.Equal(3, reader.ReadInt32());
+            Assert.Equal(CborReaderState.EndArray, reader.PeekState());
+            reader.ReadEndArray();
+            Assert.Equal(CborReaderState.Finished, reader.PeekState());
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public static void TrySkipValue_NonFinalBlock_CompleteValue_ShouldReturnTrue(bool disableConformanceModeChecks)
+        {
+            var options = new CborReaderOptions { ConformanceMode = CborConformanceMode.Lax };
+            var reader = new CborReader("820102".HexToByteArray(), options, isFinalBlock: false);
+
+            Assert.True(reader.TrySkipValue(disableConformanceModeChecks));
+            Assert.Equal(0, reader.BytesRemaining);
+            Assert.Equal(CborReaderState.Finished, reader.PeekState());
+        }
+
+        [Fact]
+        public static void TrySkipValue_FinalBlock_IncompleteValue_ShouldThrowCborContentException()
+        {
+            var options = new CborReaderOptions { ConformanceMode = CborConformanceMode.Lax };
+            var reader = new CborReader("8201".HexToByteArray(), options, isFinalBlock: true);
+
+            Assert.Throws<CborContentException>(() => reader.TrySkipValue());
+            Assert.Equal(2, reader.BytesRemaining);
+        }
+
+        [Fact]
+        public static void TrySkipValue_NonFinalBlock_MalformedValue_ShouldThrowCborContentException()
+        {
+            var options = new CborReaderOptions { ConformanceMode = CborConformanceMode.Lax };
+            var reader = new CborReader("ff".HexToByteArray(), options, isFinalBlock: false);
+
+            Assert.Throws<CborContentException>(() => reader.TrySkipValue());
+            Assert.Equal(1, reader.BytesRemaining);
+        }
+
+        [Theory]
+        [InlineData(CborConformanceMode.Strict)]
+        [InlineData(CborConformanceMode.Canonical)]
+        [InlineData(CborConformanceMode.Ctap2Canonical)]
+        public static void SkipToParent_NonFinalBlock_ShouldRestoreMapConformanceState(CborConformanceMode mode)
+        {
+            var options = new CborReaderOptions { ConformanceMode = mode };
+            var reader = new CborReader("a20100".HexToByteArray(), options, isFinalBlock: false);
+
+            Assert.Equal(2, reader.ReadStartMap());
+            Assert.Throws<CborContentException>(() => reader.SkipToParent());
+            Assert.Equal(1, reader.CurrentDepth);
+            Assert.Equal(2, reader.BytesRemaining);
+
+            reader.SlideData("01000200".HexToByteArray(), isFinalBlock: true);
+            reader.SkipToParent();
+            Assert.Equal(CborReaderState.Finished, reader.PeekState());
+        }
+
         [Theory]
         [InlineData("61ff")]
         [InlineData("62f090")]

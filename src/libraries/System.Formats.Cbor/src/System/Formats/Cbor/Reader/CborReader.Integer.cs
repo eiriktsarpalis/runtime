@@ -153,6 +153,22 @@ namespace System.Formats.Cbor
             return (int)length;
         }
 
+        private int DecodeCollectionLength(CborInitialByte header, ReadOnlySpan<byte> data, out int bytesRead)
+        {
+            if (_isFinalBlock)
+            {
+                return DecodeDefiniteLength(header, data, out bytesRead);
+            }
+
+            ulong length = DecodeUnsignedInteger(header, data, out bytesRead);
+            if (length > int.MaxValue)
+            {
+                throw new CborContentException(SR.Cbor_Reader_DefiniteLengthExceedsBufferSize);
+            }
+
+            return (int)length;
+        }
+
         // Unsigned integer decoding https://tools.ietf.org/html/rfc7049#section-2.1
         private ulong DecodeUnsignedInteger(CborInitialByte header, ReadOnlySpan<byte> data, out int bytesRead)
         {

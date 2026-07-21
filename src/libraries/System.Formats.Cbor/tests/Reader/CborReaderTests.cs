@@ -654,6 +654,143 @@ namespace System.Formats.Cbor.Tests
             Assert.Equal(expectedResult, reader.PeekState());
         }
 
+        [Theory]
+        [InlineData(CborConformanceMode.Lax)]
+        [InlineData(CborConformanceMode.Strict)]
+        [InlineData(CborConformanceMode.Canonical)]
+        [InlineData(CborConformanceMode.Ctap2Canonical)]
+        public static void Constructor_NonFinalBlock_ShouldNeedMoreData(CborConformanceMode conformanceMode)
+        {
+            var options = new CborReaderOptions { ConformanceMode = conformanceMode };
+            var reader = new CborReader(ReadOnlyMemory<byte>.Empty, options, isFinalBlock: false);
+
+            Assert.Equal(CborReaderState.NeedsMoreData, reader.PeekState());
+        }
+
+        [Theory]
+        [InlineData("", CborReaderState.NeedsMoreData)]
+        [InlineData("1a", CborReaderState.NeedsMoreData)]
+        [InlineData("1a010203", CborReaderState.NeedsMoreData)]
+        [InlineData("1a01020304", CborReaderState.UnsignedInteger)]
+        [InlineData("64", CborReaderState.NeedsMoreData)]
+        [InlineData("64616263", CborReaderState.NeedsMoreData)]
+        [InlineData("6461626364", CborReaderState.TextString)]
+        [InlineData("fa3f8000", CborReaderState.NeedsMoreData)]
+        [InlineData("fa3f800000", CborReaderState.SinglePrecisionFloat)]
+        [InlineData("9a000000", CborReaderState.NeedsMoreData)]
+        [InlineData("9a00000001", CborReaderState.StartArray)]
+        [InlineData("b801", CborReaderState.StartMap)]
+        [InlineData("da00000001", CborReaderState.Tag)]
+        [InlineData("f820", CborReaderState.SimpleValue)]
+        public static void Peek_NonFinalBlock_ShouldRequireCompleteToken(string hexEncoding, CborReaderState expectedState)
+        {
+            var options = new CborReaderOptions { ConformanceMode = CborConformanceMode.Lax };
+            var reader = new CborReader(hexEncoding.HexToByteArray(), options, isFinalBlock: false);
+
+            Assert.Equal(expectedState, reader.PeekState());
+        }
+
+        [Fact]
+        public static void Peek_FinalBlock_IncompleteString_ShouldPreserveExistingBehavior()
+        {
+            var reader = new CborReader("64".HexToByteArray());
+
+            Assert.Equal(CborReaderState.TextString, reader.PeekState());
+            Assert.Throws<CborContentException>(() => reader.ReadTextString());
+        }
+
+        [Fact]
+        public static void Read_NonFinalBlock_IncompleteToken_ShouldThrowCborContentException()
+        {
+            var options = new CborReaderOptions { ConformanceMode = CborConformanceMode.Lax };
+            var reader = new CborReader("1a0102".HexToByteArray(), options, isFinalBlock: false);
+
+            Assert.Equal(CborReaderState.NeedsMoreData, reader.PeekState());
+            Assert.Throws<CborContentException>(() => reader.ReadInt32());
+        }
+
+        [Fact]
+        public static void SlideData_NestedDocument_ShouldPreserveReaderState()
+        {
+            var options = new CborReaderOptions { ConformanceMode = CborConformanceMode.Lax };
+            var reader = new CborReader("82a161".HexToByteArray(), options, isFinalBlock: false);
+
+            Assert.Equal(2, reader.ReadStartArray());
+            Assert.Equal(1, reader.ReadStartMap());
+            Assert.Equal(CborReaderState.NeedsMoreData, reader.PeekState());
+            Assert.Equal(1, reader.BytesRemaining);
+
+            reader.SlideData("61611a0102".HexToByteArray(), isFinalBlock: false);
+            Assert.Equal("a", reader.ReadTextString());
+            Assert.Equal(CborReaderState.NeedsMoreData, reader.PeekState());
+            Assert.Equal(3, reader.BytesRemaining);
+
+            reader.SlideData("1a010203048201".HexToByteArray(), isFinalBlock: false);
+            Assert.Equal(0x01020304, reader.ReadInt32());
+            Assert.Equal(CborReaderState.EndMap, reader.PeekState());
+            reader.ReadEndMap();
+            Assert.Equal(2, reader.ReadStartArray());
+            Assert.Equal(1, reader.ReadInt32());
+            Assert.Equal(CborReaderState.NeedsMoreData, reader.PeekState());
+
+            reader.SlideData("02".HexToByteArray(), isFinalBlock: true);
+            Assert.Equal(2, reader.ReadInt32());
+            Assert.Equal(CborReaderState.EndArray, reader.PeekState());
+            reader.ReadEndArray();
+            Assert.Equal(CborReaderState.EndArray, reader.PeekState());
+            reader.ReadEndArray();
+            Assert.Equal(CborReaderState.Finished, reader.PeekState());
+        }
+
+        [Fact]
+        public static void SlideData_AfterFinalBlock_ShouldThrowInvalidOperationException()
+        {
+            var options = new CborReaderOptions { ConformanceMode = CborConformanceMode.Lax };
+            var reader = new CborReader(ReadOnlyMemory<byte>.Empty, options, isFinalBlock: false);
+
+            reader.SlideData(ReadOnlyMemory<byte>.Empty, isFinalBlock: true);
+
+            Assert.Throws<InvalidOperationException>(() => reader.SlideData(ReadOnlyMemory<byte>.Empty, isFinalBlock: true));
+        }
+
+        [Theory]
+        [InlineData(CborConformanceMode.Lax)]
+        [InlineData(CborConformanceMode.Strict)]
+        [InlineData(CborConformanceMode.Canonical)]
+        [InlineData(CborConformanceMode.Ctap2Canonical)]
+        public static void Reset_NonFinalBlock_ShouldStartNewIncrementalPayload(CborConformanceMode conformanceMode)
+        {
+            var options = new CborReaderOptions { ConformanceMode = conformanceMode };
+            var reader = new CborReader("01".HexToByteArray(), options);
+
+            Assert.Equal(1, reader.ReadInt32());
+            Assert.Equal(CborReaderState.Finished, reader.PeekState());
+
+            reader.Reset(ReadOnlyMemory<byte>.Empty, isFinalBlock: false);
+            Assert.Equal(CborReaderState.NeedsMoreData, reader.PeekState());
+
+            reader.SlideData("02".HexToByteArray(), isFinalBlock: true);
+            Assert.Equal(2, reader.ReadInt32());
+            Assert.Equal(CborReaderState.Finished, reader.PeekState());
+        }
+
+        [Fact]
+        public static void MultipleRootValues_NonFinalBlock_EndOfBuffer_ShouldNeedMoreData()
+        {
+            var options = new CborReaderOptions
+            {
+                AllowMultipleRootLevelValues = true,
+                ConformanceMode = CborConformanceMode.Lax,
+            };
+            var reader = new CborReader("01".HexToByteArray(), options, isFinalBlock: false);
+
+            Assert.Equal(1, reader.ReadInt32());
+            Assert.Equal(CborReaderState.NeedsMoreData, reader.PeekState());
+
+            reader.SlideData(ReadOnlyMemory<byte>.Empty, isFinalBlock: true);
+            Assert.Equal(CborReaderState.Finished, reader.PeekState());
+        }
+
         [Fact]
         public static void Read_EmptyBuffer_ShouldThrowCborContentException()
         {

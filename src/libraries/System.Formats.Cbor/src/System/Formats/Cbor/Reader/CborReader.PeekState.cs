@@ -42,6 +42,11 @@ namespace System.Formats.Cbor
 
             if (_offset == _data.Length)
             {
+                if (!_isFinalBlock)
+                {
+                    return CborReaderState.NeedsMoreData;
+                }
+
                 // is at the end of the read buffer
                 if (_currentMajorType is null && _definiteLength is null)
                 {
@@ -57,6 +62,11 @@ namespace System.Formats.Cbor
 
             // peek the next initial byte
             var initialByte = new CborInitialByte(_data.Span[_offset]);
+
+            if (!_isFinalBlock && !IsNextDataItemFullyBuffered(initialByte))
+            {
+                return CborReaderState.NeedsMoreData;
+            }
 
             if (initialByte.InitialByte == CborInitialByte.IndefiniteLengthBreakByte)
             {
@@ -151,6 +161,39 @@ namespace System.Formats.Cbor
                         return CborReaderState.SimpleValue;
                 }
             }
+        }
+
+        private bool IsNextDataItemFullyBuffered(CborInitialByte initialByte)
+        {
+            ReadOnlySpan<byte> buffer = GetRemainingBytes();
+            int additionalDataLength = initialByte.AdditionalInfo switch
+            {
+                CborAdditionalInfo.Additional8BitData => sizeof(byte),
+                CborAdditionalInfo.Additional16BitData => sizeof(ushort),
+                CborAdditionalInfo.Additional32BitData => sizeof(uint),
+                CborAdditionalInfo.Additional64BitData => sizeof(ulong),
+                _ => 0,
+            };
+
+            if (buffer.Length < 1 + additionalDataLength)
+            {
+                return false;
+            }
+
+            if (initialByte.MajorType is CborMajorType.ByteString or CborMajorType.TextString &&
+                initialByte.AdditionalInfo <= CborAdditionalInfo.Additional64BitData)
+            {
+                ulong length = DecodeUnsignedInteger(initialByte, buffer, out int bytesRead);
+
+                if (length > int.MaxValue)
+                {
+                    throw new CborContentException(SR.Cbor_Reader_DefiniteLengthExceedsBufferSize);
+                }
+
+                return length <= (ulong)(buffer.Length - bytesRead);
+            }
+
+            return true;
         }
     }
 }

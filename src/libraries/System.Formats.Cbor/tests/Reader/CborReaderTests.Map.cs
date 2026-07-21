@@ -244,6 +244,200 @@ namespace System.Formats.Cbor.Tests
         }
 
         [Theory]
+        [InlineData(CborConformanceMode.Lax, "a20200", "0100", 2, 1)]
+        [InlineData(CborConformanceMode.Strict, "a20200", "0100", 2, 1)]
+        [InlineData(CborConformanceMode.Canonical, "a20100", "0200", 1, 2)]
+        [InlineData(CborConformanceMode.Ctap2Canonical, "a20100", "0200", 1, 2)]
+        public static void ReadMap_IncrementalPrimitiveKeys_ShouldPreserveConformanceState(
+            CborConformanceMode mode,
+            string firstBlock,
+            string finalBlock,
+            int firstKey,
+            int secondKey)
+        {
+            var options = new CborReaderOptions { ConformanceMode = mode };
+            var reader = new CborReader(firstBlock.HexToByteArray(), options, isFinalBlock: false);
+
+            Assert.Equal(2, reader.ReadStartMap());
+            Assert.Equal(firstKey, reader.ReadInt32());
+            Assert.Equal(0, reader.ReadInt32());
+            Assert.Equal(CborReaderState.NeedsMoreData, reader.PeekState());
+
+            reader.SlideData(finalBlock.HexToByteArray(), isFinalBlock: true);
+            Assert.Equal(secondKey, reader.ReadInt32());
+            Assert.Equal(0, reader.ReadInt32());
+            reader.ReadEndMap();
+            Assert.Equal(CborReaderState.Finished, reader.PeekState());
+        }
+
+        [Theory]
+        [InlineData(CborConformanceMode.Canonical, "a26000", "18ff00", false)]
+        [InlineData(CborConformanceMode.Canonical, "a218ff00", "6000", true)]
+        [InlineData(CborConformanceMode.Ctap2Canonical, "a218ff00", "6000", false)]
+        [InlineData(CborConformanceMode.Ctap2Canonical, "a26000", "18ff00", true)]
+        public static void ReadMap_IncrementalKeys_ShouldApplyModeSpecificSortOrder(
+            CborConformanceMode mode,
+            string firstBlock,
+            string finalBlock,
+            bool shouldThrow)
+        {
+            var options = new CborReaderOptions { ConformanceMode = mode };
+            var reader = new CborReader(firstBlock.HexToByteArray(), options, isFinalBlock: false);
+
+            Assert.Equal(2, reader.ReadStartMap());
+            reader.SkipValue();
+            Assert.Equal(0, reader.ReadInt32());
+
+            reader.SlideData(finalBlock.HexToByteArray(), isFinalBlock: true);
+
+            if (shouldThrow)
+            {
+                Assert.Throws<CborContentException>(() => reader.SkipValue());
+            }
+            else
+            {
+                reader.SkipValue();
+                Assert.Equal(0, reader.ReadInt32());
+                reader.ReadEndMap();
+                Assert.Equal(CborReaderState.Finished, reader.PeekState());
+            }
+        }
+
+        [Theory]
+        [InlineData(CborConformanceMode.Strict)]
+        [InlineData(CborConformanceMode.Canonical)]
+        [InlineData(CborConformanceMode.Ctap2Canonical)]
+        public static void ReadMap_IncrementalDuplicatePrimitiveKey_ShouldThrowCborContentException(CborConformanceMode mode)
+        {
+            var options = new CborReaderOptions { ConformanceMode = mode };
+            var reader = new CborReader("a20100".HexToByteArray(), options, isFinalBlock: false);
+
+            Assert.Equal(2, reader.ReadStartMap());
+            Assert.Equal(1, reader.ReadInt32());
+            Assert.Equal(0, reader.ReadInt32());
+
+            reader.SlideData("0100".HexToByteArray(), isFinalBlock: true);
+            Assert.Throws<CborContentException>(() => reader.ReadInt32());
+            Assert.Equal(2, reader.BytesRemaining);
+        }
+
+        [Theory]
+        [InlineData(CborConformanceMode.Strict)]
+        [InlineData(CborConformanceMode.Canonical)]
+        [InlineData(CborConformanceMode.Ctap2Canonical)]
+        public static void ReadMap_IncrementalCompoundKeysSpanningBlocks_ShouldSucceed(CborConformanceMode mode)
+        {
+            var options = new CborReaderOptions { ConformanceMode = mode };
+            var reader = new CborReader("a28201020082".HexToByteArray(), options, isFinalBlock: false);
+
+            Assert.Equal(2, reader.ReadStartMap());
+            Assert.Equal(2, reader.ReadStartArray());
+            Assert.Equal(1, reader.ReadInt32());
+            Assert.Equal(2, reader.ReadInt32());
+            reader.ReadEndArray();
+            Assert.Equal(0, reader.ReadInt32());
+            Assert.Equal(2, reader.ReadStartArray());
+            Assert.Equal(CborReaderState.NeedsMoreData, reader.PeekState());
+
+            reader.SlideData("01".HexToByteArray(), isFinalBlock: false);
+            Assert.Equal(1, reader.ReadInt32());
+            Assert.Equal(CborReaderState.NeedsMoreData, reader.PeekState());
+
+            reader.SlideData("0300".HexToByteArray(), isFinalBlock: true);
+            Assert.Equal(3, reader.ReadInt32());
+            reader.ReadEndArray();
+            Assert.Equal(0, reader.ReadInt32());
+            reader.ReadEndMap();
+            Assert.Equal(CborReaderState.Finished, reader.PeekState());
+        }
+
+        [Theory]
+        [InlineData(CborConformanceMode.Strict)]
+        [InlineData(CborConformanceMode.Canonical)]
+        [InlineData(CborConformanceMode.Ctap2Canonical)]
+        public static void ReadMap_IncrementalDuplicateCompoundKeySpanningBlocks_ShouldThrowCborContentException(CborConformanceMode mode)
+        {
+            var options = new CborReaderOptions { ConformanceMode = mode };
+            var reader = new CborReader("a2820102008201".HexToByteArray(), options, isFinalBlock: false);
+
+            Assert.Equal(2, reader.ReadStartMap());
+            Assert.Equal(2, reader.ReadStartArray());
+            Assert.Equal(1, reader.ReadInt32());
+            Assert.Equal(2, reader.ReadInt32());
+            reader.ReadEndArray();
+            Assert.Equal(0, reader.ReadInt32());
+            Assert.Equal(2, reader.ReadStartArray());
+            Assert.Equal(1, reader.ReadInt32());
+
+            reader.SlideData("0200".HexToByteArray(), isFinalBlock: true);
+            Assert.Equal(2, reader.ReadInt32());
+            Assert.Throws<CborContentException>(() => reader.ReadEndArray());
+        }
+
+        [Fact]
+        public static void ReadMap_IncrementalStrictMode_ShouldRetainAllKeys()
+        {
+            var options = new CborReaderOptions { ConformanceMode = CborConformanceMode.Strict };
+            var reader = new CborReader("a30100".HexToByteArray(), options, isFinalBlock: false);
+
+            Assert.Equal(3, reader.ReadStartMap());
+            Assert.Equal(1, reader.ReadInt32());
+            Assert.Equal(0, reader.ReadInt32());
+
+            reader.SlideData("0200".HexToByteArray(), isFinalBlock: false);
+            Assert.Equal(2, reader.ReadInt32());
+            Assert.Equal(0, reader.ReadInt32());
+
+            reader.SlideData("0100".HexToByteArray(), isFinalBlock: true);
+            Assert.Throws<CborContentException>(() => reader.ReadInt32());
+            Assert.Equal(2, reader.BytesRemaining);
+        }
+
+        [Theory]
+        [InlineData(CborConformanceMode.Strict)]
+        [InlineData(CborConformanceMode.Canonical)]
+        [InlineData(CborConformanceMode.Ctap2Canonical)]
+        public static void ReadMap_IncrementalNestedMapKeySpanningBlocks_ShouldSucceed(CborConformanceMode mode)
+        {
+            var options = new CborReaderOptions { ConformanceMode = mode };
+            var reader = new CborReader("a1a101".HexToByteArray(), options, isFinalBlock: false);
+
+            Assert.Equal(1, reader.ReadStartMap());
+            Assert.Equal(1, reader.ReadStartMap());
+            Assert.Equal(1, reader.ReadInt32());
+            Assert.Equal(CborReaderState.NeedsMoreData, reader.PeekState());
+
+            reader.SlideData("0200".HexToByteArray(), isFinalBlock: true);
+            Assert.Equal(2, reader.ReadInt32());
+            reader.ReadEndMap();
+            Assert.Equal(0, reader.ReadInt32());
+            reader.ReadEndMap();
+            Assert.Equal(CborReaderState.Finished, reader.PeekState());
+        }
+
+        [Theory]
+        [InlineData(CborConformanceMode.Strict)]
+        [InlineData(CborConformanceMode.Canonical)]
+        [InlineData(CborConformanceMode.Ctap2Canonical)]
+        public static void ReadMap_StartedAfterFinalBlock_ShouldUseFinalBlockConformanceState(CborConformanceMode mode)
+        {
+            var options = new CborReaderOptions { ConformanceMode = mode };
+            var reader = new CborReader("a1".HexToByteArray(), options, isFinalBlock: false);
+
+            Assert.Equal(1, reader.ReadStartMap());
+            Assert.Equal(CborReaderState.NeedsMoreData, reader.PeekState());
+
+            reader.SlideData("a1010200".HexToByteArray(), isFinalBlock: true);
+            Assert.Equal(1, reader.ReadStartMap());
+            Assert.Equal(1, reader.ReadInt32());
+            Assert.Equal(2, reader.ReadInt32());
+            reader.ReadEndMap();
+            Assert.Equal(0, reader.ReadInt32());
+            reader.ReadEndMap();
+            Assert.Equal(CborReaderState.Finished, reader.PeekState());
+        }
+
+        [Theory]
         [InlineData("a0", 0)]
         [InlineData("a10102", 1)]
         [InlineData("a3010203040506", 3)]

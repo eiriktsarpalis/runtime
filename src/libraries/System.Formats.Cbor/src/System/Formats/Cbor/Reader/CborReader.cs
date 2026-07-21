@@ -13,6 +13,7 @@ namespace System.Formats.Cbor
 
         private ReadOnlyMemory<byte> _data;
         private int _offset;
+        private bool _isFinalBlock;
 
         private Stack<StackFrame>? _nestedDataItems;
         private CborMajorType? _currentMajorType; // major type of the currently written data item. Null iff at the root context
@@ -24,7 +25,7 @@ namespace System.Formats.Cbor
         // Map-specific book-keeping
         private int? _currentKeyOffset; // offset for the current key encoding
         private (int Offset, int Length)? _previousKeyEncodingRange; // previous key encoding range
-        private HashSet<(int Offset, int Length)>? _keyEncodingRanges; // all key encoding ranges up to encoding equality
+        private object? _keyEncodingState; // buffer ranges for contiguous input, owned encodings for incremental input
 
         // flag used to temporarily disable conformance mode checks,
         // e.g. during a skip operation over nonconforming encodings.
@@ -56,7 +57,15 @@ namespace System.Formats.Cbor
         /// <summary>Initializes a <see cref="CborReader" /> instance over the specified <paramref name="data" /> with the given options.</summary>
         /// <param name="data">The CBOR-encoded data to read.</param>
         /// <param name="options">The options that control reading behavior.</param>
-        public CborReader(ReadOnlyMemory<byte> data, CborReaderOptions? options)
+        public CborReader(ReadOnlyMemory<byte> data, CborReaderOptions? options) : this(data, options, isFinalBlock: true)
+        {
+        }
+
+        /// <summary>Initializes a <see cref="CborReader" /> instance over the specified <paramref name="data" /> with the given options.</summary>
+        /// <param name="data">The CBOR-encoded data to read.</param>
+        /// <param name="options">The options that control reading behavior.</param>
+        /// <param name="isFinalBlock"><see langword="true" /> to indicate that <paramref name="data" /> contains the final block of CBOR-encoded data; otherwise, <see langword="false" />.</param>
+        public CborReader(ReadOnlyMemory<byte> data, CborReaderOptions? options, bool isFinalBlock)
         {
             CborConformanceMode conformanceMode = CborConformanceMode.Strict;
             bool allowMultipleRootLevelValues = false;
@@ -72,6 +81,7 @@ namespace System.Formats.Cbor
             }
 
             _data = data;
+            _isFinalBlock = isFinalBlock;
             ConformanceMode = conformanceMode;
             AllowMultipleRootLevelValues = allowMultipleRootLevelValues;
             MaxDepth = maxDepth < 0 ? DefaultMaxDepth : maxDepth;
@@ -89,6 +99,7 @@ namespace System.Formats.Cbor
             CborConformanceModeHelpers.Validate(conformanceMode);
 
             _data = data;
+            _isFinalBlock = true;
             ConformanceMode = conformanceMode;
             AllowMultipleRootLevelValues = allowMultipleRootLevelValues;
             MaxDepth = DefaultMaxDepth;
@@ -118,12 +129,21 @@ namespace System.Formats.Cbor
         /// <see cref="ConformanceMode"/> and <see cref="AllowMultipleRootLevelValues"/> are unchanged.
         /// </summary>
         /// <param name="data">The CBOR-encoded data to read.</param>
-        public void Reset(ReadOnlyMemory<byte> data)
+        public void Reset(ReadOnlyMemory<byte> data) => Reset(data, isFinalBlock: true);
+
+        /// <summary>
+        /// Resets the <see cref="CborReader"/> instance over the specified <paramref name="data"/> with unchanged configuration.
+        /// <see cref="ConformanceMode"/> and <see cref="AllowMultipleRootLevelValues"/> are unchanged.
+        /// </summary>
+        /// <param name="data">The CBOR-encoded data to read.</param>
+        /// <param name="isFinalBlock"><see langword="true" /> to indicate that <paramref name="data" /> contains the final block of CBOR-encoded data; otherwise, <see langword="false" />.</param>
+        public void Reset(ReadOnlyMemory<byte> data, bool isFinalBlock)
         {
             // ConformanceMode and AllowMultipleRootLevelValues are set in ctor, they remain unchanged.
 
             _data = data;
             _offset = 0;
+            _isFinalBlock = isFinalBlock;
 
             _nestedDataItems?.Clear();
             _currentMajorType = default;
@@ -133,12 +153,41 @@ namespace System.Formats.Cbor
             _isTagContext = default;
             _currentKeyOffset = default;
             _previousKeyEncodingRange = default;
-            _keyEncodingRanges?.Clear();
+
+            if (_keyEncodingState is HashSet<(int Offset, int Length)> keyEncodingRanges)
+            {
+                keyEncodingRanges.Clear();
+            }
+            else
+            {
+                _keyEncodingState = null;
+            }
+
             _isConformanceModeCheckEnabled = true;
             _cachedState = CborReaderState.Undefined;
 
             // We don't need to clear the reusable instances in _pooledKeyEncodingRangeAllocations
             // or _indefiniteLengthStringRangeAllocation.
+        }
+
+        /// <summary>Replaces the unread CBOR-encoded data while preserving the reader's current state.</summary>
+        /// <param name="data">The CBOR-encoded data to read. It must begin with the unread bytes from the previous buffer.</param>
+        /// <param name="isFinalBlock"><see langword="true" /> to indicate that <paramref name="data" /> contains the final block of CBOR-encoded data; otherwise, <see langword="false" />.</param>
+        /// <exception cref="InvalidOperationException">The previous block was marked as the final block.</exception>
+        /// <remarks>The caller is responsible for preserving all unread bytes, in order, at the beginning of <paramref name="data" />. This condition is not validated.</remarks>
+        public void SlideData(ReadOnlyMemory<byte> data, bool isFinalBlock)
+        {
+            if (_isFinalBlock)
+            {
+                throw new InvalidOperationException(SR.Cbor_Reader_SlideDataAfterFinalBlock);
+            }
+
+            CaptureMapKeyEncodings();
+
+            _data = data;
+            _offset = 0;
+            _isFinalBlock = isFinalBlock;
+            _cachedState = CborReaderState.Undefined;
         }
 
         private CborInitialByte PeekInitialByte()
@@ -224,7 +273,7 @@ namespace System.Formats.Cbor
                 itemsRead: _itemsRead,
                 currentKeyOffset: _currentKeyOffset,
                 previousKeyEncodingRange: _previousKeyEncodingRange,
-                keyEncodingRanges: _keyEncodingRanges
+                keyEncodingState: _keyEncodingState
             );
 
             _nestedDataItems.Push(frame);
@@ -236,7 +285,11 @@ namespace System.Formats.Cbor
             _isTagContext = false;
             _currentKeyOffset = null;
             _previousKeyEncodingRange = null;
-            _keyEncodingRanges = null;
+            _keyEncodingState = majorType == CborMajorType.Map &&
+                !_isFinalBlock &&
+                CborConformanceModeHelpers.RequiresUniqueKeys(ConformanceMode)
+                    ? new MapKeyEncodingState(_offset)
+                    : null;
         }
 
         private void PopDataItem(CborMajorType expectedType)
@@ -265,7 +318,7 @@ namespace System.Formats.Cbor
 
             if (_currentMajorType == CborMajorType.Map)
             {
-                ReturnKeyEncodingRangeAllocation(_keyEncodingRanges);
+                ReturnKeyEncodingRangeAllocation(_keyEncodingState as HashSet<(int Offset, int Length)>);
             }
 
             StackFrame frame = _nestedDataItems.Pop();
@@ -337,7 +390,7 @@ namespace System.Formats.Cbor
                 int itemsRead,
                 int? currentKeyOffset,
                 (int Offset, int Length)? previousKeyEncodingRange,
-                HashSet<(int Offset, int Length)>? keyEncodingRanges)
+                object? keyEncodingState)
             {
                 MajorType = type;
                 FrameOffset = frameOffset;
@@ -346,7 +399,7 @@ namespace System.Formats.Cbor
 
                 CurrentKeyOffset = currentKeyOffset;
                 PreviousKeyEncodingRange = previousKeyEncodingRange;
-                KeyEncodingRanges = keyEncodingRanges;
+                KeyEncodingState = keyEncodingState;
             }
 
             public CborMajorType? MajorType { get; }
@@ -356,7 +409,7 @@ namespace System.Formats.Cbor
 
             public int? CurrentKeyOffset { get; }
             public (int Offset, int Length)? PreviousKeyEncodingRange { get; }
-            public HashSet<(int Offset, int Length)>? KeyEncodingRanges { get; }
+            public object? KeyEncodingState { get; }
         }
 
         private void RestoreStackFrame(in StackFrame frame)
@@ -367,7 +420,7 @@ namespace System.Formats.Cbor
             _itemsRead = frame.ItemsRead;
             _currentKeyOffset = frame.CurrentKeyOffset;
             _previousKeyEncodingRange = frame.PreviousKeyEncodingRange;
-            _keyEncodingRanges = frame.KeyEncodingRanges;
+            _keyEncodingState = frame.KeyEncodingState;
             // Popping items from the stack can change the reader state
             // without necessarily needing to advance the buffer
             // (e.g. we're at the end of a definite-length collection).
@@ -385,25 +438,31 @@ namespace System.Formats.Cbor
                 int offset,
                 int frameOffset,
                 int itemsRead,
+                bool isTagContext,
                 int? currentKeyOffset,
-                (int Offset, int Length)? previousKeyEncodingRange)
+                (int Offset, int Length)? previousKeyEncodingRange,
+                MapKeyEncodingCheckpoint? mapKeyEncodingCheckpoint)
 
             {
                 Depth = depth;
                 Offset = offset;
                 FrameOffset = frameOffset;
                 ItemsRead = itemsRead;
+                IsTagContext = isTagContext;
                 CurrentKeyOffset = currentKeyOffset;
                 PreviousKeyEncodingRange = previousKeyEncodingRange;
+                MapKeyEncodingCheckpoint = mapKeyEncodingCheckpoint;
             }
 
             public int Depth { get; }
             public int Offset { get; }
             public int FrameOffset { get; }
             public int ItemsRead { get; }
+            public bool IsTagContext { get; }
 
             public int? CurrentKeyOffset { get; }
             public (int Offset, int Length)? PreviousKeyEncodingRange { get; }
+            public MapKeyEncodingCheckpoint? MapKeyEncodingCheckpoint { get; }
         }
 
         private Checkpoint CreateCheckpoint()
@@ -413,8 +472,10 @@ namespace System.Formats.Cbor
                 offset: _offset,
                 frameOffset: _frameOffset,
                 itemsRead: _itemsRead,
+                isTagContext: _isTagContext,
                 currentKeyOffset: _currentKeyOffset,
-                previousKeyEncodingRange: _previousKeyEncodingRange);
+                previousKeyEncodingRange: _previousKeyEncodingRange,
+                mapKeyEncodingCheckpoint: _keyEncodingState is MapKeyEncodingState state ? new MapKeyEncodingCheckpoint(state) : null);
         }
 
         private void RestoreCheckpoint(in Checkpoint checkpoint)
@@ -434,7 +495,7 @@ namespace System.Formats.Cbor
                 for (int i = 0; i < restoreHeight - 1; i++)
                 {
                     frame = _nestedDataItems.Pop();
-                    ReturnKeyEncodingRangeAllocation(frame.KeyEncodingRanges);
+                    ReturnKeyEncodingRangeAllocation(frame.KeyEncodingState as HashSet<(int Offset, int Length)>);
                 }
 
                 frame = _nestedDataItems.Pop();
@@ -447,16 +508,19 @@ namespace System.Formats.Cbor
 
             // Remove any key encodings added after the current checkpoint.
             // This is only needed when rolling back key reads in the Strict conformance mode.
-            if (_keyEncodingRanges != null && _itemsRead > checkpoint.ItemsRead)
+            if (_keyEncodingState is HashSet<(int Offset, int Length)> keyEncodingRanges &&
+                _itemsRead > checkpoint.ItemsRead)
             {
                 int checkpointOffset = checkpoint.Offset;
-                _keyEncodingRanges.RemoveWhere(key => key.Offset >= checkpointOffset);
+                keyEncodingRanges.RemoveWhere(key => key.Offset >= checkpointOffset);
             }
 
             _offset = checkpoint.Offset;
             _itemsRead = checkpoint.ItemsRead;
+            _isTagContext = checkpoint.IsTagContext;
             _previousKeyEncodingRange = checkpoint.PreviousKeyEncodingRange;
             _currentKeyOffset = checkpoint.CurrentKeyOffset;
+            RestoreMapKeyEncodingCheckpoint(checkpoint.MapKeyEncodingCheckpoint);
             _cachedState = CborReaderState.Undefined;
 
             Debug.Assert(CurrentDepth == checkpoint.Depth);

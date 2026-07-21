@@ -72,5 +72,8 @@ namespace System.Formats.Cbor
         /// the reader will report this value even if the buffer contains trailing bytes.</para>
         /// </summary>
         Finished,
+
+        /// <summary>Indicates that more data is required to determine or read the next CBOR data item.</summary>
+        NeedsMoreData,
     }
 }
