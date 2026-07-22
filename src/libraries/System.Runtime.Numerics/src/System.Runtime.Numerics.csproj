@@ -11,6 +11,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="$(CommonPath)System\Numerics\BigNumber.cs" />
+    <Compile Include="$(CommonPath)System\Numerics\BigNumber.BigArithmetic.cs" />
+    <Compile Include="$(CommonPath)System\Numerics\BigNumber.Conversions.cs" />
+    <Compile Include="$(CommonPath)System\Numerics\BigNumber.Equality.cs" />
+    <Compile Include="$(CommonPath)System\Numerics\BigNumber.Formatting.cs" />
+    <Compile Include="$(CommonPath)System\Numerics\BigNumber.Parsing.cs" />
     <Compile Include="System\ThrowHelper.cs" />
     <Compile Include="System\Numerics\BigIntegerCalculator.AddSub.cs" />
     <Compile Include="System\Numerics\BigIntegerCalculator.Bitwise.cs" />

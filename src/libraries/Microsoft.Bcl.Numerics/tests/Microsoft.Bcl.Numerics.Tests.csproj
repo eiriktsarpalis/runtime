@@ -5,6 +5,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="$(CommonTestPath)System\Numerics\BigNumberTests.cs" Link="BigNumberTests.cs" />
     <Compile Include="MathF.cs" />
   </ItemGroup>
 
