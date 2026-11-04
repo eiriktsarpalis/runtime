@@ -189,6 +189,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)System\Buffers\Utilities.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)System\ByReference.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)System\Byte.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)System\ByteArrayOrdinalComparer.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)System\CannotUnloadAppDomainException.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)System\Char.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)System\CharEnumerator.cs" />

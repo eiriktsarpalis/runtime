@@ -241,6 +241,7 @@ namespace System.Text.Json
 #endif
         }
 
+#if !(NET12_0 || NET12_0_OR_GREATER)
         /// <summary>Compares byte arrays using ordinal equality.</summary>
         internal sealed class ByteArrayOrdinalComparer :
 #if NET
@@ -272,6 +273,7 @@ namespace System.Text.Json
             private static int ComputeHashCode(ReadOnlySpan<byte> value) =>
                 Marvin.ComputeHash32(value, Marvin.DefaultSeed);
         }
+#endif
 
         /// <summary>
         /// Emulates Dictionary(IEnumerable{KeyValuePair}) on netstandard.

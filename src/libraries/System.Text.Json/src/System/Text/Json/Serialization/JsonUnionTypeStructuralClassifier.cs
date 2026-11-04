@@ -10,6 +10,12 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json.Serialization.Metadata;
 
+#if NET12_0 || NET12_0_OR_GREATER
+using ByteArrayComparer = System.ByteArrayOrdinalComparer;
+#else
+using ByteArrayComparer = System.Text.Json.JsonHelpers.ByteArrayOrdinalComparer;
+#endif
+
 namespace System.Text.Json.Serialization
 {
     /// <summary>
@@ -122,7 +128,7 @@ namespace System.Text.Json.Serialization
             ValidatePocoObjectCases(unionType, pocoObjectCaseList);
 
             PocoObjectCase[] pocoObjectCases = [..pocoObjectCaseList];
-            Dictionary<byte[], List<PocoPropertyClassifierInfo>> pocoPropertyIndex = new(JsonHelpers.ByteArrayOrdinalComparer.Instance);
+            Dictionary<byte[], List<PocoPropertyClassifierInfo>> pocoPropertyIndex = new(ByteArrayComparer.Instance);
             Dictionary<string, List<PocoPropertyClassifierInfo>>? caseInsensitivePocoPropertyIndex = null;
 
             // Keep the ordinal and case-insensitive indexes separate so exact matches can be

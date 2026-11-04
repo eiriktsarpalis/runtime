@@ -94,6 +94,7 @@
     <Compile Include="System\BooleanTests.cs" />
     <Compile Include="System\BufferTests.cs" />
     <Compile Include="System\BooleanTests.GenericMath.cs" />
+    <Compile Include="System\ByteArrayOrdinalComparerTests.cs" />
     <Compile Include="System\ByteTests.cs" />
     <Compile Include="System\CharTests.cs" />
     <Compile Include="System\CLSCompliantAttributeTests.cs" />

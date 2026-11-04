@@ -1080,6 +1080,16 @@ namespace System
         public static bool TryParsePartial(System.ReadOnlySpan<byte> utf8Text, System.Globalization.NumberStyles style, System.IFormatProvider? provider, out byte result, out int bytesConsumed) { throw null; }
         public static bool TryParsePartial(System.ReadOnlySpan<char> s, System.Globalization.NumberStyles style, System.IFormatProvider? provider, out byte result, out int charsConsumed) { throw null; }
     }
+    public sealed partial class ByteArrayOrdinalComparer : System.Collections.Generic.IAlternateEqualityComparer<System.ReadOnlySpan<byte>, byte[]>, System.Collections.Generic.IEqualityComparer<byte[]>
+    {
+        internal ByteArrayOrdinalComparer() { }
+        public static System.ByteArrayOrdinalComparer Instance { get { throw null; } }
+        public bool Equals(byte[]? x, byte[]? y) { throw null; }
+        public int GetHashCode(byte[] obj) { throw null; }
+        byte[] System.Collections.Generic.IAlternateEqualityComparer<System.ReadOnlySpan<byte>, byte[]>.Create(System.ReadOnlySpan<byte> alternate) { throw null; }
+        bool System.Collections.Generic.IAlternateEqualityComparer<System.ReadOnlySpan<byte>, byte[]>.Equals(System.ReadOnlySpan<byte> alternate, byte[] other) { throw null; }
+        int System.Collections.Generic.IAlternateEqualityComparer<System.ReadOnlySpan<byte>, byte[]>.GetHashCode(System.ReadOnlySpan<byte> alternate) { throw null; }
+    }
     public partial class CannotUnloadAppDomainException : System.SystemException
     {
         public CannotUnloadAppDomainException() { }
